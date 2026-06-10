@@ -1,0 +1,147 @@
+{
+  "gold_rate": 548.2,
+  "gold_rate_date": "2026-06-10",
+  "cash_emoji": "<:money:1513958512085041192>",
+  "gold_emoji": "<:gold:1513960325207298138>",
+  "users": {
+    "576432479200870430": {
+      "cash": 526.8,
+      "gold": 1.0,
+      "deposit": 43.34561284420396,
+      "deposit_updated_at": "2026-06-10T23:51:46+05:00",
+      "last_work_at": "2026-06-10T23:14:52+05:00",
+      "treasure_maps": 0,
+      "owned_roles": [
+        "trader",
+        "moonshiner"
+      ],
+      "dealer_wagon": 100.0,
+      "collection_showcase": [],
+      "moonshine": {
+        "upgrade_level": 1,
+        "has_condenser": false,
+        "has_distiller": false,
+        "skill": false,
+        "ingredients": {},
+        "batch": {
+          "type": "mash",
+          "recipe_key": "weak_1",
+          "name": "Слабый самогон",
+          "stars": 1,
+          "payout": 82.5,
+          "started_at": "2026-06-10T23:15:21+05:00",
+          "ready_at": "2026-06-10T23:45:21+05:00",
+          "duration_seconds": 1800
+        },
+        "bottles": 0
+      }
+    },
+    "710125939337723916": {
+      "cash": 305.0,
+      "gold": 0.0,
+      "deposit": 0.0,
+      "deposit_updated_at": "2026-06-10T21:26:41+05:00",
+      "last_work_at": "2026-06-10T16:16:24+05:00",
+      "treasure_maps": 0,
+      "owned_roles": [],
+      "dealer_wagon": 0.0,
+      "collection_showcase": [],
+      "moonshine": {
+        "upgrade_level": 1,
+        "has_condenser": false,
+        "has_distiller": false,
+        "skill": false,
+        "bottles": 0,
+        "ingredients": {},
+        "batch": null
+      }
+    },
+    "589808942952087553": {
+      "cash": 246.0,
+      "gold": 0.0,
+      "deposit": 0.0,
+      "deposit_updated_at": "2026-06-10T23:14:27+05:00",
+      "last_work_at": "2026-06-10T23:14:27+05:00",
+      "treasure_maps": 0,
+      "owned_roles": [],
+      "dealer_wagon": 0.0,
+      "collection_showcase": [],
+      "moonshine": {
+        "upgrade_level": 1,
+        "has_condenser": false,
+        "has_distiller": false,
+        "skill": false,
+        "bottles": 0,
+        "ingredients": {},
+        "batch": null
+      }
+    },
+    "118410136980160516": {
+      "cash": 285.0,
+      "gold": 0.0,
+      "deposit": 0.0,
+      "deposit_updated_at": "2026-06-10T21:14:04+05:00",
+      "last_work_at": "2026-06-10T21:13:25+05:00",
+      "treasure_maps": 0,
+      "owned_roles": [],
+      "dealer_wagon": 0.0,
+      "collection_showcase": [],
+      "moonshine": {
+        "upgrade_level": 1,
+        "has_condenser": false,
+        "has_distiller": false,
+        "skill": false,
+        "bottles": 0,
+        "ingredients": {},
+        "batch": null
+      }
+    },
+    "1196422220222836749": {
+      "cash": 0.0,
+      "gold": 0.0,
+      "deposit": 0.0,
+      "deposit_updated_at": "2026-06-10T00:36:16+05:00",
+      "last_work_at": null,
+      "treasure_maps": 2,
+      "owned_roles": [],
+      "dealer_wagon": 0.0,
+      "collection_showcase": []
+    },
+    "749617119091752970": {
+      "cash": 0.0,
+      "gold": 0.0,
+      "deposit": 0.0,
+      "treasure_maps": 2,
+      "owned_roles": [],
+      "dealer_wagon": 0.0,
+      "collection_showcase": [],
+      "deposit_updated_at": "2026-06-10T16:40:20+05:00",
+      "last_work_at": null
+    }
+  },
+  "map_emoji": "<:map:1513973947975073862>",
+  "investment_emoji": "<:invest:1514028324354134197>",
+  "treasure_channel_id": 1513973397367820369,
+  "last_treasure_map_drop_date": null,
+  "role_icons": {
+    "1514005559190356189": "<:hunter:1513992564682784788>",
+    "1514000596024430652": "<:dealer:1513993188094775346>",
+    "1514005536608096509": "<:moonshiner:1513992724376846509>",
+    "1514005658758938744": "<:naturalist:1513992627295359086>",
+    "1514005691033980948": "<:collector:1513992804672602356>"
+  },
+  "role_discounts": {},
+  "moonshine_star_emojis": {
+    "1": "<:1stars:1514234004407324822>",
+    "2": "<:2stars:1514233883259047966>",
+    "3": "<:3stars:1514233946555023510>"
+  },
+  "moonshine_special_emoji": "<:3goldenstars:1514234166311518230>",
+  "moonshine_button_emojis": {
+    "mash": "🥃",
+    "special": "<:3goldenstars:1514234166311518230>",
+    "upgrades": "⚙️",
+    "delivery": "<:wheel:1514246612568903881>"
+  },
+  "stats_emoji": "<:person:1514312204688818259>"
+}
