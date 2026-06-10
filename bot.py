@@ -1,14 +1,28 @@
 import asyncio
 import json
 import math
+from flask import Flask
+from threading import Thread
 import os
 import random
 from datetime import date, datetime, time, timedelta, timezone
+
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+Thread(target=run_web).start()
 
 CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
