@@ -19,6 +19,7 @@ START_GOLD_RATE = 543.45
 MIN_GOLD_RATE = 50.0
 DEPOSIT_DAILY_RATE = 0.03
 WORK_COOLDOWN_SECONDS = 60 * 60
+DEALER_COOLDOWN_SECONDS = 60 * 60
 DEFAULT_CASH_EMOJI = "$"
 DEFAULT_GOLD_EMOJI = "🟡"
 DEFAULT_MAP_EMOJI = "🗺️"
@@ -42,6 +43,7 @@ DEALER_ROLE_KEY = "trader"
 MOONSHINER_ROLE_KEY = "moonshiner"
 MOONSHINE_CONDENSER_PRICE = 825.0
 MOONSHINE_DISTILLER_PRICE = 875.0
+MOONSHINE_BATCH_COST = 50.0
 DEFAULT_MOONSHINE_STAR_EMOJIS = {
     "1": "⭐",
     "2": "⭐⭐",
@@ -56,6 +58,7 @@ DEFAULT_MOONSHINE_BUTTON_EMOJIS = {
 }
 CARD_RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"]
 CARD_SUITS = ["♠", "♥", "♦", "♣"]
+BOT_EMBED_COLOR = discord.Color.gold()
 POKER_HAND_NAMES = {
     8: "Стрит-флеш",
     7: "Каре",
@@ -743,6 +746,7 @@ def start_moonshine_batch(moonshine, recipe, batch_type):
         "recipe_key": recipe["key"],
         "name": get_moonshine_recipe_name(recipe),
         "stars": recipe["stars"],
+        "cost": MOONSHINE_BATCH_COST,
         "payout": float(recipe["payout"]),
         "started_at": started_at.isoformat(timespec="seconds"),
         "ready_at": ready_at.isoformat(timespec="seconds"),
@@ -893,6 +897,7 @@ def get_account(user_id):
             "treasure_maps": 0,
             "owned_roles": [],
             "dealer_wagon": 0.0,
+            "last_dealer_at": None,
             "moonshine": default_moonshine_data(),
             "collection_showcase": [],
             "deposit_updated_at": now_local().isoformat(timespec="seconds"),
@@ -906,6 +911,7 @@ def get_account(user_id):
     account.setdefault("treasure_maps", 0)
     account.setdefault("owned_roles", [])
     account.setdefault("dealer_wagon", 0.0)
+    account.setdefault("last_dealer_at", None)
     account["moonshine"] = normalize_moonshine_data(account.get("moonshine"))
     account.setdefault("collection_showcase", [])
     try:
@@ -955,6 +961,15 @@ def get_work_cooldown(account):
 
     seconds_passed = (now_local() - parse_local_datetime(last_work_at)).total_seconds()
     return max(0, WORK_COOLDOWN_SECONDS - seconds_passed)
+
+
+def get_dealer_cooldown(account):
+    last_dealer_at = account.get("last_dealer_at")
+    if not last_dealer_at:
+        return 0
+
+    seconds_passed = (now_local() - parse_local_datetime(last_dealer_at)).total_seconds()
+    return max(0, DEALER_COOLDOWN_SECONDS - seconds_passed)
 
 
 def set_non_negative(account, key, value):
@@ -1119,13 +1134,13 @@ def get_role_command_hint(role_key):
     if role_key == DEALER_ROLE_KEY:
         return (
             "\n\nКоманды торговца:\n"
-            "`/dealer` — заполнить повозку на 10–35%.\n"
+            "`/dealer` — заполнить повозку на 10–35% раз в час.\n"
             "`/dealer-delivery` — доставить полную повозку и получить 500–625 долларов."
         )
     if role_key == MOONSHINER_ROLE_KEY:
         return (
             "\n\nКоманды самогонщика:\n"
-            "`/moonshine` — открыть меню предприятия, выбрать бражку, "
+            "`/moonshine` — открыть меню предприятия, выбрать бражку за 50 долларов, "
             "добавить особые ингредиенты, купить улучшения и отвезти повозку."
         )
     return ""
@@ -1162,8 +1177,12 @@ def grant_treasure_maps_to_all(amount, guild=None):
 
 def build_treasure_drop_embed(granted_count, amount):
     embed = discord.Embed(
-        title=f"{get_map_emoji()} Карта сокровищ",
-        description="**всем игрокам выдана карта сокровищ!**",
+        title="Посылка на почте",
+        description=(
+            'Вам на почту пришёл документ с подписью **"от старого приятеля"**. '
+            "Открывая конверт, вы находите в нём карту сокровищ!\n\n"
+            "Используйте `/excavation`, чтобы отправиться на раскопки."
+        ),
         color=discord.Color.gold(),
     )
     embed.add_field(
@@ -1201,6 +1220,98 @@ def get_moonshine_image_file():
     if not os.path.exists(MOONSHINE_IMAGE_FILE):
         return None
     return discord.File(MOONSHINE_IMAGE_FILE, filename=MOONSHINE_IMAGE_ATTACHMENT_NAME)
+
+
+def build_bot_embed(title, description, color=BOT_EMBED_COLOR):
+    return discord.Embed(
+        title=title,
+        description=description,
+        color=color,
+    )
+
+
+async def send_embed_response(
+    interaction,
+    title,
+    description,
+    *,
+    ephemeral=False,
+    color=BOT_EMBED_COLOR,
+    view=None,
+    file=None,
+):
+    embed = build_bot_embed(title, description, color=color)
+    await interaction.response.send_message(
+        embed=embed,
+        view=view,
+        file=file,
+        ephemeral=ephemeral,
+    )
+
+
+async def send_embed_followup(
+    interaction,
+    title,
+    description,
+    *,
+    ephemeral=False,
+    color=BOT_EMBED_COLOR,
+    view=None,
+    wait=False,
+):
+    embed = build_bot_embed(title, description, color=color)
+    return await interaction.followup.send(
+        embed=embed,
+        view=view,
+        ephemeral=ephemeral,
+        wait=wait,
+    )
+
+
+async def send_loading_then_edit(
+    interaction,
+    loading_text,
+    embed,
+    *,
+    view=None,
+    file=None,
+    ephemeral=False,
+    delay=2,
+):
+    loading_embed = build_bot_embed(
+        "Ожидание",
+        f":hourglass_flowing_sand: {loading_text}",
+        color=discord.Color.dark_gold(),
+    )
+    await interaction.response.send_message(
+        embed=loading_embed,
+        file=file,
+        ephemeral=ephemeral,
+    )
+    await asyncio.sleep(delay)
+    await interaction.edit_original_response(embed=embed, view=view)
+
+
+_original_interaction_send_message = discord.InteractionResponse.send_message
+_original_webhook_send = discord.Webhook.send
+
+
+async def _embed_interaction_send_message(self, content=None, *args, **kwargs):
+    if content is not None and kwargs.get("embed") is None and kwargs.get("embeds") is None:
+        kwargs["embed"] = build_bot_embed("Сообщение", str(content))
+        content = None
+    return await _original_interaction_send_message(self, content, *args, **kwargs)
+
+
+async def _embed_webhook_send(self, content=None, *args, **kwargs):
+    if content is not None and kwargs.get("embed") is None and kwargs.get("embeds") is None:
+        kwargs["embed"] = build_bot_embed("Сообщение", str(content))
+        content = None
+    return await _original_webhook_send(self, content, *args, **kwargs)
+
+
+discord.InteractionResponse.send_message = _embed_interaction_send_message
+discord.Webhook.send = _embed_webhook_send
 
 
 async def resolve_treasure_channel():
@@ -1501,16 +1612,16 @@ def build_help_pages(is_admin):
         name="Роли",
         value=(
             "`/roles` — список профессий с описаниями и кнопками покупки.\n"
-            "`/dealer` — команда торговца: заполнить повозку на 10–35%.\n"
+            "`/dealer` — команда торговца: заполнить повозку на 10–35%; кулдаун 1 час.\n"
             "`/dealer-delivery` — доставить полную повозку и получить 500–625 долларов.\n"
-            "`/moonshine` — меню самогонщика: бражка, особые ингредиенты, улучшения и доставка."
+            "`/moonshine` — меню самогонщика: бражка за 50 долларов, особые ингредиенты, улучшения и доставка."
         ),
         inline=False,
     )
     roles.add_field(
         name="Карты сокровищ",
         value=(
-            "`/excavation` — потратить карту и с шансом найти деньги и золото.\n"
+            "`/excavation` — потратить карту, выбрать одно из трёх мест и получить 2 попытки найти клад.\n"
             "Карты выдаются каждый день в **12:00 по МСК**."
         ),
         inline=False,
@@ -1600,6 +1711,8 @@ def build_help_pages(is_admin):
 
     for index, page in enumerate(pages, start=1):
         page.set_footer(text=f"Страница {index}/{len(pages)}")
+        if os.path.exists(TREASURE_BANNER_FILE):
+            page.set_image(url=f"attachment://{TREASURE_BANNER_FILE}")
 
     return pages
 
@@ -1890,6 +2003,7 @@ def build_moonshine_embed(guild, account):
             f"└─ {storage}\n\n"
             "💵 Финансы\n"
             f"├─ Наличные: **{format_money(account['cash'])}**\n"
+            f"├─ Стоимость производства: **{format_money(MOONSHINE_BATCH_COST)}**\n"
             f"├─ Конденсатор: **{format_money(MOONSHINE_CONDENSER_PRICE)}**\n"
             f"└─ Медный дистиллятор: **{format_money(MOONSHINE_DISTILLER_PRICE)}**"
         ),
@@ -1914,7 +2028,8 @@ def build_moonshine_mash_embed(moonshine):
         lines.append(
             f"Бражка #{recipe['number']} — {strength['name']} "
             f"{get_moonshine_star_emoji(recipe['stars'])}{lock}: "
-            f"{format_minutes(duration)}, выручка {format_money(recipe['payout'])}"
+            f"{format_minutes(duration)}, запуск {format_money(MOONSHINE_BATCH_COST)}, "
+            f"выручка {format_money(recipe['payout'])}"
         )
 
     embed = discord.Embed(
@@ -1922,6 +2037,8 @@ def build_moonshine_mash_embed(moonshine):
         description="\n".join(lines),
         color=discord.Color.dark_gold(),
     )
+    if os.path.exists(MOONSHINE_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{MOONSHINE_IMAGE_ATTACHMENT_NAME}")
     embed.set_footer(text="Бражка #5 открывается конденсатором, #9 — медным дистиллятором.")
     return embed
 
@@ -1936,6 +2053,7 @@ def build_moonshine_special_embed(moonshine):
             f"{get_moonshine_special_emoji()} **{recipe['name']}** "
             f"{get_moonshine_star_emoji(recipe['stars'])}{lock}: "
             f"основа — бражка {recipe['stars']} уровня, "
+            f"запуск {format_money(MOONSHINE_BATCH_COST)}, "
             f"выручка за доставку {format_money(recipe['payout'])}, "
             f"ингредиенты: {status}"
         )
@@ -1945,6 +2063,8 @@ def build_moonshine_special_embed(moonshine):
         description="\n".join(lines),
         color=discord.Color.dark_gold(),
     )
+    if os.path.exists(MOONSHINE_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{MOONSHINE_IMAGE_ATTACHMENT_NAME}")
     embed.set_footer(text="Особый самогон открывается по уровню доступной бражки; сумма — выручка за доставку повозки.")
     return embed
 
@@ -1976,7 +2096,9 @@ async def deliver_moonshine_batch(interaction):
         batch = moonshine.get("batch")
         if not batch:
             save_economy()
-            await interaction.response.send_message(
+            await send_embed_response(
+                interaction,
+                "Повозка пустая",
                 "Марсель: Повозка пока пустая, босс. Сначала поставим партию.",
                 ephemeral=True,
             )
@@ -1986,7 +2108,9 @@ async def deliver_moonshine_batch(interaction):
         seconds_left = (ready_at - now_local()).total_seconds()
         if seconds_left > 0:
             save_economy()
-            await interaction.response.send_message(
+            await send_embed_response(
+                interaction,
+                "Самогон доходит",
                 f"Марсель: Самогон ещё доходит. Осталось **{format_duration(seconds_left)}**.",
                 ephemeral=True,
             )
@@ -1998,9 +2122,16 @@ async def deliver_moonshine_batch(interaction):
         moonshine["batch"] = None
         save_economy()
 
-    await interaction.response.send_message(
+    embed = build_bot_embed(
+        "Доставка самогона",
         f"{interaction.user.mention}, повозка отвезена. "
-        f"**{name}** продан за **{format_money(payout)}**."
+        f"**{name}** продан за **{format_money(payout)}**.",
+        color=discord.Color.dark_gold(),
+    )
+    await send_loading_then_edit(
+        interaction,
+        "Повозка едет...",
+        embed,
     )
 
 
@@ -2035,7 +2166,8 @@ class MoonshineMashSelect(discord.ui.Select):
                     value=recipe["key"],
                     description=(
                         f"{format_minutes(duration)} · выручка "
-                        f"{format_number(recipe['payout'])}"
+                        f"{format_number(recipe['payout'])} · запуск "
+                        f"{format_number(MOONSHINE_BATCH_COST)}"
                     ),
                 )
             )
@@ -2054,7 +2186,9 @@ class MoonshineMashSelect(discord.ui.Select):
             moonshine = get_moonshine_account(account)
             if moonshine.get("batch"):
                 save_economy()
-                await interaction.response.send_message(
+                await send_embed_response(
+                    interaction,
+                    "Котёл занят",
                     "Марсель: Один котёл уже занят. Дождёмся готовности партии.",
                     ephemeral=True,
                 )
@@ -2062,19 +2196,41 @@ class MoonshineMashSelect(discord.ui.Select):
 
             if recipe["stars"] > get_moonshine_level(moonshine):
                 save_economy()
-                await interaction.response.send_message(
+                await send_embed_response(
+                    interaction,
+                    "Нужен апгрейд",
                     "Для этой бражки нужен апгрейд оборудования.",
                     ephemeral=True,
                 )
                 return
 
+            if account["cash"] + 0.0001 < MOONSHINE_BATCH_COST:
+                save_economy()
+                await send_embed_response(
+                    interaction,
+                    "Не хватает денег",
+                    f"Запуск партии стоит **{format_money(MOONSHINE_BATCH_COST)}**, "
+                    f"у вас **{format_money(account['cash'])}**.",
+                    ephemeral=True,
+                )
+                return
+
+            account["cash"] -= MOONSHINE_BATCH_COST
             batch = start_moonshine_batch(moonshine, recipe, "mash")
             save_economy()
 
-        await interaction.response.send_message(
+        embed = build_bot_embed(
+            "Партия запущена",
             f"Марсель ставит партию: **{batch['name']}**.\n"
+            f"Стоимость производства: **{format_money(MOONSHINE_BATCH_COST)}**.\n"
             f"Готовность через **{format_minutes(batch['duration_seconds'])}**. "
             f"Выручка: **{format_money(batch['payout'])}**.",
+            color=discord.Color.dark_gold(),
+        )
+        await send_loading_then_edit(
+            interaction,
+            "Перегонка идёт...",
+            embed,
             ephemeral=True,
         )
 
@@ -2097,7 +2253,11 @@ class MoonshineSpecialSelect(discord.ui.Select):
                 discord.SelectOption(
                     label=recipe["name"],
                     value=recipe["key"],
-                    description=f"{recipe['stars']} ур. бражки · выручка {format_number(recipe['payout'])} · {status}",
+                    description=(
+                        f"{recipe['stars']} ур. бражки · запуск "
+                        f"{format_number(MOONSHINE_BATCH_COST)} · "
+                        f"выручка {format_number(recipe['payout'])} · {status}"
+                    ),
                 )
             )
 
@@ -2119,8 +2279,11 @@ class MoonshineSpecialSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         if self.values[0] == "none":
-            await interaction.response.send_message(
-                "Марсель: Пока нет доступных особых рецептов.", ephemeral=True
+            await send_embed_response(
+                interaction,
+                "Нет рецептов",
+                "Марсель: Пока нет доступных особых рецептов.",
+                ephemeral=True,
             )
             return
 
@@ -2130,7 +2293,9 @@ class MoonshineSpecialSelect(discord.ui.Select):
             moonshine = get_moonshine_account(account)
             if moonshine.get("batch"):
                 save_economy()
-                await interaction.response.send_message(
+                await send_embed_response(
+                    interaction,
+                    "Котёл занят",
                     "Марсель: Один котёл уже занят. Дождёмся готовности партии.",
                     ephemeral=True,
                 )
@@ -2138,7 +2303,9 @@ class MoonshineSpecialSelect(discord.ui.Select):
 
             if recipe["stars"] > get_moonshine_level(moonshine):
                 save_economy()
-                await interaction.response.send_message(
+                await send_embed_response(
+                    interaction,
+                    "Нужен апгрейд",
                     "Для этой основы нужна бражка такого же уровня. Улучшите оборудование.",
                     ephemeral=True,
                 )
@@ -2151,21 +2318,43 @@ class MoonshineSpecialSelect(discord.ui.Select):
                     if moonshine["ingredients"].get(ingredient, 0) < amount
                 ]
                 save_economy()
-                await interaction.response.send_message(
+                await send_embed_response(
+                    interaction,
+                    "Не хватает ингредиентов",
                     "Не хватает ингредиентов: **" + ", ".join(missing) + "**.",
                     ephemeral=True,
                 )
                 return
 
+            if account["cash"] + 0.0001 < MOONSHINE_BATCH_COST:
+                save_economy()
+                await send_embed_response(
+                    interaction,
+                    "Не хватает денег",
+                    f"Запуск партии стоит **{format_money(MOONSHINE_BATCH_COST)}**, "
+                    f"у вас **{format_money(account['cash'])}**.",
+                    ephemeral=True,
+                )
+                return
+
+            account["cash"] -= MOONSHINE_BATCH_COST
             consume_moonshine_ingredients(moonshine, recipe)
             batch = start_moonshine_batch(moonshine, recipe, "special")
             save_economy()
 
-        await interaction.response.send_message(
+        embed = build_bot_embed(
+            "Партия запущена",
             f"Марсель добавил особые ингредиенты: **{batch['name']}**.\n"
+            f"Стоимость производства: **{format_money(MOONSHINE_BATCH_COST)}**.\n"
             f"Основа: **бражка {recipe['stars']} уровня**. "
             f"Готовность через **{format_minutes(batch['duration_seconds'])}**. "
             f"Выручка: **{format_money(batch['payout'])}**.",
+            color=discord.Color.dark_gold(),
+        )
+        await send_loading_then_edit(
+            interaction,
+            "Перегонка идёт...",
+            embed,
             ephemeral=True,
         )
 
@@ -2264,7 +2453,13 @@ class MoonshineMainView(MoonshineOwnerView):
             view = MoonshineMashView(interaction.user.id, moonshine)
             save_economy()
 
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        image = get_moonshine_image_file()
+        if image:
+            await interaction.response.send_message(
+                embed=embed, view=view, file=image, ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="Добавить особые ингредиенты", style=discord.ButtonStyle.primary, row=0)
     async def special_button(self, interaction, button):
@@ -2275,7 +2470,13 @@ class MoonshineMainView(MoonshineOwnerView):
             view = MoonshineSpecialView(interaction.user.id, moonshine)
             save_economy()
 
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        image = get_moonshine_image_file()
+        if image:
+            await interaction.response.send_message(
+                embed=embed, view=view, file=image, ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="Купить улучшения", style=discord.ButtonStyle.secondary, row=0)
     async def upgrades_button(self, interaction, button):
@@ -2294,11 +2495,22 @@ class MoonshineMainView(MoonshineOwnerView):
             ),
             color=discord.Color.dark_gold(),
         )
-        await interaction.response.send_message(
-            embed=embed,
-            view=MoonshineUpgradeView(interaction.user.id),
-            ephemeral=True,
-        )
+        if os.path.exists(MOONSHINE_IMAGE_FILE):
+            embed.set_image(url=f"attachment://{MOONSHINE_IMAGE_ATTACHMENT_NAME}")
+        image = get_moonshine_image_file()
+        if image:
+            await interaction.response.send_message(
+                embed=embed,
+                view=MoonshineUpgradeView(interaction.user.id),
+                file=image,
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                embed=embed,
+                view=MoonshineUpgradeView(interaction.user.id),
+                ephemeral=True,
+            )
 
     @discord.ui.button(label="Отвезти повозку", style=discord.ButtonStyle.success, row=0)
     async def deliver_button(self, interaction, button):
@@ -2446,9 +2658,15 @@ async def help_command(interaction: discord.Interaction):
         is_admin = interaction.user.guild_permissions.administrator
 
     pages = build_help_pages(is_admin)
-    await interaction.response.send_message(
-        embed=pages[0], view=HelpView(pages), ephemeral=True
-    )
+    banner = get_treasure_banner_file()
+    if banner:
+        await interaction.response.send_message(
+            embed=pages[0], view=HelpView(pages), file=banner, ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            embed=pages[0], view=HelpView(pages), ephemeral=True
+        )
 
 
 @bot.tree.command(name="roles", description="Показать игровые роли и купить доступные")
@@ -2488,10 +2706,13 @@ async def send_private_message_command(
 
     await interaction.response.defer(ephemeral=True)
     sender_name = interaction.user.display_name
-    dm_text = f"Сообщение от {sender_name} ({interaction.user.mention}):\n{text}"
+    dm_embed = build_bot_embed(
+        "Личное сообщение",
+        f"Отправитель: **{sender_name}** ({interaction.user.mention})\n\n{text}",
+    )
 
     try:
-        await member.send(dm_text)
+        await member.send(embed=dm_embed)
     except discord.Forbidden:
         await interaction.followup.send(
             f"Не удалось отправить сообщение {member.mention}: личные сообщения закрыты.",
@@ -2548,8 +2769,14 @@ async def balance_command(interaction: discord.Interaction):
         description=description,
         color=discord.Color.dark_gold(),
     )
+    if os.path.exists(ROLE_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{ROLE_IMAGE_ATTACHMENT_NAME}")
 
-    await interaction.followup.send(embed=embed, ephemeral=True)
+    role_image = get_role_image_file()
+    if role_image:
+        await interaction.followup.send(embed=embed, file=role_image, ephemeral=True)
+    else:
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="work", description="Заработать случайную сумму денег")
@@ -2717,6 +2944,187 @@ async def blackjack_command(interaction: discord.Interaction, bet: float = 0.0):
     )
 
 
+def build_treasure_hunt_embed(user, remaining_maps, attempts_left=2, note=None):
+    description = (
+        f"{user.mention}, карта привела вас к трём подозрительным местам.\n"
+        f"Клад спрятан только под одной кнопкой. Попыток: **{attempts_left}**.\n"
+        f"Карт осталось: **{format_treasure_maps(remaining_maps)}**."
+    )
+    if note:
+        description += f"\n\n{note}"
+
+    embed = build_bot_embed(
+        "Раскопки",
+        description,
+        color=discord.Color.dark_gold(),
+    )
+    if os.path.exists(TREASURE_BANNER_FILE):
+        embed.set_image(url=f"attachment://{TREASURE_BANNER_FILE}")
+    return embed
+
+
+def build_treasure_result_embed(user, title, description):
+    embed = build_bot_embed(
+        title,
+        f"{user.mention}, {description}",
+        color=discord.Color.gold(),
+    )
+    if os.path.exists(TREASURE_BANNER_FILE):
+        embed.set_image(url=f"attachment://{TREASURE_BANNER_FILE}")
+    return embed
+
+
+class TreasureDigButton(discord.ui.Button):
+    def __init__(self, index):
+        super().__init__(
+            label=f"Место {index + 1}",
+            style=discord.ButtonStyle.primary,
+            emoji="⛏️",
+            row=0,
+        )
+        self.index = index
+
+    async def callback(self, interaction):
+        view = self.view
+        await view.dig(interaction, self)
+
+
+class TreasureHuntView(discord.ui.View):
+    def __init__(self, user_id, treasure_index, remaining_maps):
+        super().__init__(timeout=120)
+        self.user_id = user_id
+        self.treasure_index = treasure_index
+        self.remaining_maps = remaining_maps
+        self.attempts_used = 0
+        self.finished = False
+        for index in range(3):
+            self.add_item(TreasureDigButton(index))
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.user_id:
+            await send_embed_response(
+                interaction,
+                "Чужая карта",
+                "Эта карта сокровищ открыта не для вас.",
+                ephemeral=True,
+            )
+            return False
+        return True
+
+    def attempts_left(self):
+        return max(0, 2 - self.attempts_used)
+
+    def disable_all(self):
+        for item in self.children:
+            item.disabled = True
+
+    def reveal_treasure(self):
+        for item in self.children:
+            if item.index == self.treasure_index:
+                item.emoji = "💰"
+                item.style = discord.ButtonStyle.success
+            elif item.disabled:
+                item.style = discord.ButtonStyle.danger
+
+    async def grant_reward(self, interaction):
+        cash_reward = random.randint(80, 200)
+        gold_reward = round(random.uniform(0.5, 3.9), 2)
+
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            ingredients_reward = grant_random_moonshine_ingredients(account)
+            account["cash"] += cash_reward
+            account["gold"] += gold_reward
+            remaining_maps = account["treasure_maps"]
+            save_economy()
+
+        ingredients_text = ", ".join(
+            f"{ingredient} x{amount}"
+            for ingredient, amount in sorted(ingredients_reward.items())
+        )
+        return (
+            cash_reward,
+            gold_reward,
+            ingredients_text,
+            remaining_maps,
+        )
+
+    async def dig(self, interaction, button):
+        if self.finished:
+            await send_embed_response(
+                interaction,
+                "Раскопки завершены",
+                "Эта карта уже разыграна.",
+                ephemeral=True,
+            )
+            return
+
+        if button.disabled:
+            await send_embed_response(
+                interaction,
+                "Уже проверено",
+                "Это место уже раскопано. Выберите другое.",
+                ephemeral=True,
+            )
+            return
+
+        self.attempts_used += 1
+        await interaction.response.defer()
+        await asyncio.sleep(2)
+
+        if button.index == self.treasure_index:
+            self.finished = True
+            self.disable_all()
+            button.emoji = "💰"
+            button.style = discord.ButtonStyle.success
+            cash_reward, gold_reward, ingredients_text, remaining_maps = await self.grant_reward(interaction)
+            embed = build_treasure_result_embed(
+                interaction.user,
+                "Клад найден",
+                (
+                    f"вы попали точно в отметку на карте и нашли "
+                    f"**{format_money(cash_reward)}** и **{format_gold(gold_reward)}**!\n"
+                    f"Ингредиенты: **{ingredients_text}**.\n"
+                    f"Карт осталось: **{format_treasure_maps(remaining_maps)}**."
+                ),
+            )
+            await interaction.edit_original_response(embed=embed, view=self)
+            self.stop()
+            return
+
+        button.disabled = True
+        button.style = discord.ButtonStyle.danger
+        if self.attempts_left() > 0:
+            embed = build_treasure_hunt_embed(
+                interaction.user,
+                self.remaining_maps,
+                attempts_left=self.attempts_left(),
+                note="Под лопатой только камни и сухая земля. Осталась ещё одна попытка.",
+            )
+            await interaction.edit_original_response(embed=embed, view=self)
+            return
+
+        self.finished = True
+        self.disable_all()
+        self.reveal_treasure()
+        embed = build_treasure_result_embed(
+            interaction.user,
+            "Клад ускользнул",
+            (
+                "две попытки ушли в пустую землю. Крест на карте оказался точнее, "
+                "чем сегодняшняя удача."
+            ),
+        )
+        await interaction.edit_original_response(embed=embed, view=self)
+        self.stop()
+
+    async def on_timeout(self):
+        if self.finished:
+            return
+        self.disable_all()
+        self.finished = True
+
+
 @bot.tree.command(name="excavation", description="Использовать карту сокровищ для раскопок")
 async def excavation_command(interaction: discord.Interaction):
     async with economy_lock:
@@ -2726,49 +3134,39 @@ async def excavation_command(interaction: discord.Interaction):
 
         if account["treasure_maps"] <= 0:
             save_economy()
-            await interaction.response.send_message(
+            await send_embed_response(
+                interaction,
+                "Нет карт",
                 f"У вас нет {get_map_emoji()} карт сокровищ. Дождитесь ежедневной выдачи.",
                 ephemeral=True,
             )
             return
 
         account["treasure_maps"] -= 1
-        found_treasure = random.random() < EXCAVATION_REWARD_CHANCE
-
-        if found_treasure:
-            cash_reward = random.randint(80, 200)
-            gold_reward = round(random.uniform(0.5, 3.9), 2)
-            ingredients_reward = grant_random_moonshine_ingredients(account)
-            account["cash"] += cash_reward
-            account["gold"] += gold_reward
-            ingredients_text = ", ".join(
-                f"{ingredient} x{amount}"
-                for ingredient, amount in sorted(ingredients_reward.items())
-            )
-            message = (
-                f"{interaction.user.mention}, вы использовали **1 {get_map_emoji()} карту** "
-                f"и нашли клад: **{format_money(cash_reward)}** и "
-                f"**{format_gold(gold_reward)}**!\n"
-                f"Ингредиенты: **{ingredients_text}**.\n"
-                f"Осталось карт: **{format_treasure_maps(account['treasure_maps'])}**."
-            )
-        else:
-            message = (
-                f"{interaction.user.mention}, вы использовали **1 {get_map_emoji()} карту**, "
-                "но раскопки ничего не дали.\n"
-                f"Осталось карт: **{format_treasure_maps(account['treasure_maps'])}**."
-            )
-
+        remaining_maps = account["treasure_maps"]
         save_economy()
 
-    await interaction.response.send_message(message)
+    treasure_index = random.randint(0, 2)
+    view = TreasureHuntView(interaction.user.id, treasure_index, remaining_maps)
+    embed = build_treasure_hunt_embed(interaction.user, remaining_maps)
+    banner = get_treasure_banner_file()
+    await send_loading_then_edit(
+        interaction,
+        "Копаем клад...",
+        embed,
+        view=view,
+        file=banner,
+    )
 
 
 @bot.tree.command(name="dealer", description="Торговец: заполнить повозку товарами")
 async def dealer_command(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message(
-            "Эту команду можно использовать только на сервере.", ephemeral=True
+        await send_embed_response(
+            interaction,
+            "Только на сервере",
+            "Эту команду можно использовать только на сервере.",
+            ephemeral=True,
         )
         return
 
@@ -2779,7 +3177,9 @@ async def dealer_command(interaction: discord.Interaction):
 
         if not has_game_role(interaction.user, DEALER_ROLE_KEY, account):
             save_economy()
-            await interaction.response.send_message(
+            await send_embed_response(
+                interaction,
+                "Нужна роль",
                 "Команда доступна только роли **Торговец**. Купить её можно через `/roles`.",
                 ephemeral=True,
             )
@@ -2788,28 +3188,55 @@ async def dealer_command(interaction: discord.Interaction):
         old_fill = account["dealer_wagon"]
         if old_fill >= 100:
             save_economy()
-            await interaction.response.send_message(
-                "Повозка уже заполнена на **100%**.", ephemeral=True
+            await send_embed_response(
+                interaction,
+                "Повозка полная",
+                "Повозка уже заполнена на **100%**.",
+                ephemeral=True,
+            )
+            return
+
+        cooldown = get_dealer_cooldown(account)
+        if cooldown > 0:
+            save_economy()
+            await send_embed_response(
+                interaction,
+                "Повозка в пути",
+                f"Следующую загрузку можно сделать через **{format_duration(cooldown)}**.",
+                ephemeral=True,
             )
             return
 
         added_fill = random.randint(DEALER_MIN_FILL, DEALER_MAX_FILL)
         account["dealer_wagon"] = min(100.0, old_fill + added_fill)
         actual_added = account["dealer_wagon"] - old_fill
+        account["last_dealer_at"] = now_local().isoformat(timespec="seconds")
+        current_fill = account["dealer_wagon"]
         save_economy()
 
-    await interaction.response.send_message(
+    embed = build_bot_embed(
+        "Повозка торговца",
         f"{interaction.user.mention}, вы загрузили повозку на "
         f"**+{format_percent(actual_added)}**.\n"
-        f"Текущее заполнение: **{format_percent(account['dealer_wagon'])}**."
+        f"Текущее заполнение: **{format_percent(current_fill)}**.\n"
+        f"Следующая загрузка: через **{format_duration(DEALER_COOLDOWN_SECONDS)}**.",
+        color=discord.Color.dark_gold(),
+    )
+    await send_loading_then_edit(
+        interaction,
+        "Повозка едет...",
+        embed,
     )
 
 
 @bot.tree.command(name="dealer-delivery", description="Торговец: доставить полную повозку")
 async def dealer_delivery_command(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message(
-            "Эту команду можно использовать только на сервере.", ephemeral=True
+        await send_embed_response(
+            interaction,
+            "Только на сервере",
+            "Эту команду можно использовать только на сервере.",
+            ephemeral=True,
         )
         return
 
@@ -2820,7 +3247,9 @@ async def dealer_delivery_command(interaction: discord.Interaction):
 
         if not has_game_role(interaction.user, DEALER_ROLE_KEY, account):
             save_economy()
-            await interaction.response.send_message(
+            await send_embed_response(
+                interaction,
+                "Нужна роль",
                 "Команда доступна только роли **Торговец**. Купить её можно через `/roles`.",
                 ephemeral=True,
             )
@@ -2829,7 +3258,9 @@ async def dealer_delivery_command(interaction: discord.Interaction):
         if account["dealer_wagon"] < 100:
             current_fill = account["dealer_wagon"]
             save_economy()
-            await interaction.response.send_message(
+            await send_embed_response(
+                interaction,
+                "Повозка не готова",
                 "Для доставки нужна повозка, заполненная на **100%**.\n"
                 f"Сейчас заполнено: **{format_percent(current_fill)}**.",
                 ephemeral=True,
@@ -2841,10 +3272,17 @@ async def dealer_delivery_command(interaction: discord.Interaction):
         account["cash"] += reward
         save_economy()
 
-    await interaction.response.send_message(
+    embed = build_bot_embed(
+        "Доставка завершена",
         f"{interaction.user.mention}, доставка завершена! Вы получили "
         f"**{format_money(reward)}**.\n"
-        "Повозка снова пустая: **0,0%**."
+        "Повозка снова пустая: **0,0%**.",
+        color=discord.Color.dark_gold(),
+    )
+    await send_loading_then_edit(
+        interaction,
+        "Повозка едет...",
+        embed,
     )
 
 
@@ -3865,7 +4303,7 @@ async def on_message(message):
                 thread = await message.create_thread(
                     name=thread_name, auto_archive_duration=1440
                 )
-                await thread.send("Share your thoughts.")
+                await thread.send(embed=build_bot_embed("Обсуждение", "Делитесь мыслями."))
             except discord.Forbidden:
                 print(f"Нет прав для создания треда в канале {message.channel.id}")
             except discord.HTTPException as e:
