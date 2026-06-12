@@ -20,9 +20,7 @@ def home():
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
-
-Thread(target=run_web).start()
+    app.run(host='0.0.0.0', port=port, use_reloader=False)
 
 CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
@@ -1255,12 +1253,15 @@ async def send_embed_response(
     file=None,
 ):
     embed = build_bot_embed(title, description, color=color)
-    await interaction.response.send_message(
-        embed=embed,
-        view=view,
-        file=file,
-        ephemeral=ephemeral,
-    )
+    
+    # Динамически собираем параметры
+    kwargs = {"embed": embed, "ephemeral": ephemeral}
+    if view is not None:
+        kwargs["view"] = view
+    if file is not None:
+        kwargs["file"] = file
+        
+    await interaction.response.send_message(**kwargs)
 
 
 async def send_embed_followup(
@@ -1274,12 +1275,12 @@ async def send_embed_followup(
     wait=False,
 ):
     embed = build_bot_embed(title, description, color=color)
-    return await interaction.followup.send(
-        embed=embed,
-        view=view,
-        ephemeral=ephemeral,
-        wait=wait,
-    )
+    
+    kwargs = {"embed": embed, "ephemeral": ephemeral, "wait": wait}
+    if view is not None:
+        kwargs["view"] = view
+        
+    return await interaction.followup.send(**kwargs)
 
 
 async def send_loading_then_edit(
@@ -1297,14 +1298,21 @@ async def send_loading_then_edit(
         f":hourglass_flowing_sand: {loading_text}",
         color=discord.Color.dark_gold(),
     )
-    await interaction.response.send_message(
-        embed=loading_embed,
-        file=file,
-        ephemeral=ephemeral,
-    )
+    
+    # Защита при отправке загрузочного сообщения
+    send_kwargs = {"embed": loading_embed, "ephemeral": ephemeral}
+    if file is not None:
+        send_kwargs["file"] = file
+        
+    await interaction.response.send_message(**send_kwargs)
     await asyncio.sleep(delay)
-    await interaction.edit_original_response(embed=embed, view=view)
-
+    
+    # Защита при обновлении на итоговое сообщение
+    edit_kwargs = {"embed": embed}
+    if view is not None:
+        edit_kwargs["view"] = view
+        
+    await interaction.edit_original_response(**edit_kwargs)
 
 _original_interaction_send_message = discord.InteractionResponse.send_message
 _original_webhook_send = discord.Webhook.send
@@ -2040,7 +2048,7 @@ def build_moonshine_mash_embed(moonshine):
         )
         lock = "" if required_level <= level else " 🔒"
         lines.append(
-            f"Бражка #{recipe['number']} — {strength['name']} "
+            f"Бражка {strength['name']} —  "
             f"{get_moonshine_star_emoji(recipe['stars'])}{lock}: "
             f"{format_minutes(duration)}, запуск {format_money(MOONSHINE_BATCH_COST)}, "
             f"выручка {format_money(recipe['payout'])}"
@@ -2059,18 +2067,38 @@ def build_moonshine_mash_embed(moonshine):
 
 def build_moonshine_special_embed(moonshine):
     level = get_moonshine_level(moonshine)
+    cost_str = format_money(MOONSHINE_BATCH_COST)
+    
+    # Выносим эмодзи, чтобы не вызывать функцию в цикле сотни раз
+    special_emoji = get_moonshine_special_emoji()
+    
+    # Сортируем рецепты заранее
+    sorted_recipes = sorted(
+        MOONSHINE_SPECIAL_RECIPES, 
+        key=lambda item: (item["stars"], item["name"])
+    )
+    
     lines = []
-    for recipe in sorted(MOONSHINE_SPECIAL_RECIPES, key=lambda item: (item["stars"], item["name"])):
-        lock = "" if recipe["stars"] <= level else " 🔒"
+    for recipe in sorted_recipes:
+        stars = recipe["stars"]
+        
+        # Понятные и лаконичные тернарные операторы
+        lock = "" if stars <= level else " 🔒"
         status = "есть" if has_moonshine_ingredients(moonshine, recipe) else "не хватает"
-        lines.append(
-            f"{get_moonshine_special_emoji()} **{recipe['name']}** "
-            f"{get_moonshine_star_emoji(recipe['stars'])}{lock}: "
-            f"основа — бражка {recipe['stars']} уровня, "
-            f"запуск {format_money(MOONSHINE_BATCH_COST)}, "
-            f"выручка за доставку {format_money(recipe['payout'])}, "
-            f"ингредиенты: {status}"
+        
+        star_emoji = get_moonshine_star_emoji(stars)
+        payout_str = format_money(recipe['payout'])
+        
+        # Разбиваем длинную строку на логические блоки для читаемости
+        line = (
+            f"{special_emoji} **{recipe['name']}** {star_emoji}{lock}:\n"
+            f"└ Основа: бражка {stars} ур. | "
+            f"Запуск: {cost_str} | "
+            f"Выручка: {payout_str}\n"
+            f"└ Ингредиенты: **{status}**"
         )
+        lines.append(line)
+
 
     embed = discord.Embed(
         title="Особые ингредиенты",
@@ -4332,6 +4360,7 @@ def main():
             "Token not found. Set DISCORD_TOKEN in .env or in the environment."
         )
 
+    Thread(target=run_web, daemon=True).start()
     bot.run(token)
 
 

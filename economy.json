@@ -1,21 +1,21 @@
 {
-  "gold_rate": 548.2,
-  "gold_rate_date": "2026-06-10",
+  "gold_rate": 536.42,
+  "gold_rate_date": "2026-06-12",
   "cash_emoji": "<:money:1513958512085041192>",
   "gold_emoji": "<:gold:1513960325207298138>",
   "users": {
     "576432479200870430": {
-      "cash": 526.8,
+      "cash": 1108.3,
       "gold": 1.0,
-      "deposit": 43.34561284420396,
-      "deposit_updated_at": "2026-06-10T23:51:46+05:00",
+      "deposit": 44.755066118711404,
+      "deposit_updated_at": "2026-06-12T01:50:30+05:00",
       "last_work_at": "2026-06-10T23:14:52+05:00",
-      "treasure_maps": 0,
+      "treasure_maps": 1,
       "owned_roles": [
         "trader",
         "moonshiner"
       ],
-      "dealer_wagon": 100.0,
+      "dealer_wagon": 80.0,
       "collection_showcase": [],
       "moonshine": {
         "upgrade_level": 1,
@@ -28,13 +28,15 @@
           "recipe_key": "weak_1",
           "name": "Слабый самогон",
           "stars": 1,
+          "cost": 50.0,
           "payout": 82.5,
-          "started_at": "2026-06-10T23:15:21+05:00",
-          "ready_at": "2026-06-10T23:45:21+05:00",
+          "started_at": "2026-06-12T01:34:09+05:00",
+          "ready_at": "2026-06-12T02:04:09+05:00",
           "duration_seconds": 1800
         },
         "bottles": 0
-      }
+      },
+      "last_dealer_at": "2026-06-12T01:33:43+05:00"
     },
     "710125939337723916": {
       "cash": 305.0,
@@ -42,7 +44,7 @@
       "deposit": 0.0,
       "deposit_updated_at": "2026-06-10T21:26:41+05:00",
       "last_work_at": "2026-06-10T16:16:24+05:00",
-      "treasure_maps": 0,
+      "treasure_maps": 1,
       "owned_roles": [],
       "dealer_wagon": 0.0,
       "collection_showcase": [],
@@ -54,7 +56,8 @@
         "bottles": 0,
         "ingredients": {},
         "batch": null
-      }
+      },
+      "last_dealer_at": null
     },
     "589808942952087553": {
       "cash": 246.0,
@@ -62,7 +65,7 @@
       "deposit": 0.0,
       "deposit_updated_at": "2026-06-10T23:14:27+05:00",
       "last_work_at": "2026-06-10T23:14:27+05:00",
-      "treasure_maps": 0,
+      "treasure_maps": 1,
       "owned_roles": [],
       "dealer_wagon": 0.0,
       "collection_showcase": [],
@@ -74,7 +77,8 @@
         "bottles": 0,
         "ingredients": {},
         "batch": null
-      }
+      },
+      "last_dealer_at": null
     },
     "118410136980160516": {
       "cash": 285.0,
@@ -82,7 +86,7 @@
       "deposit": 0.0,
       "deposit_updated_at": "2026-06-10T21:14:04+05:00",
       "last_work_at": "2026-06-10T21:13:25+05:00",
-      "treasure_maps": 0,
+      "treasure_maps": 1,
       "owned_roles": [],
       "dealer_wagon": 0.0,
       "collection_showcase": [],
@@ -94,7 +98,8 @@
         "bottles": 0,
         "ingredients": {},
         "batch": null
-      }
+      },
+      "last_dealer_at": null
     },
     "1196422220222836749": {
       "cash": 0.0,
@@ -102,21 +107,41 @@
       "deposit": 0.0,
       "deposit_updated_at": "2026-06-10T00:36:16+05:00",
       "last_work_at": null,
-      "treasure_maps": 2,
+      "treasure_maps": 3,
       "owned_roles": [],
       "dealer_wagon": 0.0,
-      "collection_showcase": []
+      "collection_showcase": [],
+      "last_dealer_at": null,
+      "moonshine": {
+        "upgrade_level": 1,
+        "has_condenser": false,
+        "has_distiller": false,
+        "skill": false,
+        "bottles": 0,
+        "ingredients": {},
+        "batch": null
+      }
     },
     "749617119091752970": {
       "cash": 0.0,
       "gold": 0.0,
       "deposit": 0.0,
-      "treasure_maps": 2,
+      "treasure_maps": 3,
       "owned_roles": [],
       "dealer_wagon": 0.0,
       "collection_showcase": [],
       "deposit_updated_at": "2026-06-10T16:40:20+05:00",
-      "last_work_at": null
+      "last_work_at": null,
+      "last_dealer_at": null,
+      "moonshine": {
+        "upgrade_level": 1,
+        "has_condenser": false,
+        "has_distiller": false,
+        "skill": false,
+        "bottles": 0,
+        "ingredients": {},
+        "batch": null
+      }
     }
   },
   "map_emoji": "<:map:1513973947975073862>",
