@@ -1,172 +1,1040 @@
 {
-  "gold_rate": 536.42,
-  "gold_rate_date": "2026-06-12",
-  "cash_emoji": "<:money:1513958512085041192>",
-  "gold_emoji": "<:gold:1513960325207298138>",
-  "users": {
-    "576432479200870430": {
-      "cash": 1108.3,
-      "gold": 1.0,
-      "deposit": 44.755066118711404,
-      "deposit_updated_at": "2026-06-12T01:50:30+05:00",
-      "last_work_at": "2026-06-10T23:14:52+05:00",
-      "treasure_maps": 1,
-      "owned_roles": [
-        "trader",
-        "moonshiner"
-      ],
-      "dealer_wagon": 80.0,
-      "collection_showcase": [],
-      "moonshine": {
-        "upgrade_level": 1,
-        "has_condenser": false,
-        "has_distiller": false,
-        "skill": false,
-        "ingredients": {},
-        "batch": {
-          "type": "mash",
-          "recipe_key": "weak_1",
-          "name": "Слабый самогон",
-          "stars": 1,
-          "cost": 50.0,
-          "payout": 82.5,
-          "started_at": "2026-06-12T01:34:09+05:00",
-          "ready_at": "2026-06-12T02:04:09+05:00",
-          "duration_seconds": 1800
+  "version": 2,
+  "guilds": {
+    "global": {
+      "gold_rate": 533.12,
+      "gold_rate_date": "2026-06-13",
+      "cash_emoji": "<:money:1513958512085041192>",
+      "gold_emoji": "<:gold:1513960325207298138>",
+      "users": {
+        "576432479200870430": {
+          "cash": 1309.96,
+          "gold": 4.560000000000002,
+          "deposit": 47.38236491426507,
+          "deposit_updated_at": "2026-06-13T19:09:05+00:00",
+          "last_work_at": "2026-06-12T16:30:53+00:00",
+          "treasure_maps": 1,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "ingredients": {
+              "Карибский ром": 1,
+              "Консервированные персики": 1
+            },
+            "batch": null,
+            "bottles": 0
+          },
+          "last_dealer_at": "2026-06-12T16:29:38+00:00",
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
         },
-        "bottles": 0
+        "710125939337723916": {
+          "cash": 474.0,
+          "gold": 500.66,
+          "deposit": 0.0,
+          "deposit_updated_at": "2026-06-13T15:20:15+00:00",
+          "last_work_at": "2026-06-12T20:33:10+05:00",
+          "treasure_maps": 2,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {
+              "Малина": 1
+            },
+            "batch": null
+          },
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "589808942952087553": {
+          "cash": 638.0,
+          "gold": 2.72,
+          "deposit": 0.0,
+          "deposit_updated_at": "2026-06-13T14:54:21+00:00",
+          "last_work_at": "2026-06-13T14:54:21+00:00",
+          "treasure_maps": 1,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "118410136980160516": {
+          "cash": 790.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "deposit_updated_at": "2026-06-13T11:37:01+00:00",
+          "last_work_at": "2026-06-13T10:57:55+00:00",
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "1196422220222836749": {
+          "cash": 0.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "deposit_updated_at": "2026-06-10T00:36:16+05:00",
+          "last_work_at": null,
+          "treasure_maps": 5,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "last_dealer_at": null,
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "749617119091752970": {
+          "cash": 0.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 5,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T11:38:11+00:00",
+          "last_work_at": null,
+          "last_dealer_at": null,
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "446975090022678528": {
+          "cash": 20.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T14:53:20+00:00",
+          "last_work_at": "2026-06-13T14:53:06+00:00",
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "618383835553464321": {
+          "cash": 0.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 1,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T11:37:58+00:00",
+          "last_work_at": null
+        }
       },
-      "last_dealer_at": "2026-06-12T01:33:43+05:00"
-    },
-    "710125939337723916": {
-      "cash": 305.0,
-      "gold": 0.0,
-      "deposit": 0.0,
-      "deposit_updated_at": "2026-06-10T21:26:41+05:00",
-      "last_work_at": "2026-06-10T16:16:24+05:00",
-      "treasure_maps": 1,
-      "owned_roles": [],
-      "dealer_wagon": 0.0,
-      "collection_showcase": [],
-      "moonshine": {
-        "upgrade_level": 1,
-        "has_condenser": false,
-        "has_distiller": false,
-        "skill": false,
-        "bottles": 0,
-        "ingredients": {},
-        "batch": null
+      "map_emoji": "<:map:1513973947975073862>",
+      "investment_emoji": "<:invest:1514028324354134197>",
+      "treasure_channel_id": 1513973397367820369,
+      "last_treasure_map_drop_date": "2026-06-12",
+      "role_icons": {
+        "1514005559190356189": "<:hunter:1513992564682784788>",
+        "1514000596024430652": "<:dealer:1513993188094775346>",
+        "1514005536608096509": "<:moonshiner:1513992724376846509>",
+        "1514005658758938744": "<:naturalist:1513992627295359086>",
+        "1514005691033980948": "<:collector:1513992804672602356>"
       },
-      "last_dealer_at": null
-    },
-    "589808942952087553": {
-      "cash": 246.0,
-      "gold": 0.0,
-      "deposit": 0.0,
-      "deposit_updated_at": "2026-06-10T23:14:27+05:00",
-      "last_work_at": "2026-06-10T23:14:27+05:00",
-      "treasure_maps": 1,
-      "owned_roles": [],
-      "dealer_wagon": 0.0,
-      "collection_showcase": [],
-      "moonshine": {
-        "upgrade_level": 1,
-        "has_condenser": false,
-        "has_distiller": false,
-        "skill": false,
-        "bottles": 0,
-        "ingredients": {},
-        "batch": null
+      "role_discounts": {},
+      "moonshine_star_emojis": {
+        "1": "<:1stars:1514234004407324822>",
+        "2": "<:2stars:1514233883259047966>",
+        "3": "<:3stars:1514233946555023510>"
       },
-      "last_dealer_at": null
-    },
-    "118410136980160516": {
-      "cash": 285.0,
-      "gold": 0.0,
-      "deposit": 0.0,
-      "deposit_updated_at": "2026-06-10T21:14:04+05:00",
-      "last_work_at": "2026-06-10T21:13:25+05:00",
-      "treasure_maps": 1,
-      "owned_roles": [],
-      "dealer_wagon": 0.0,
-      "collection_showcase": [],
-      "moonshine": {
-        "upgrade_level": 1,
-        "has_condenser": false,
-        "has_distiller": false,
-        "skill": false,
-        "bottles": 0,
-        "ingredients": {},
-        "batch": null
+      "moonshine_special_emoji": "<:3goldenstars:1514234166311518230>",
+      "moonshine_button_emojis": {
+        "mash": "🥃",
+        "special": "<:3goldenstars:1514234166311518230>",
+        "upgrades": "⚙️",
+        "delivery": "<:wheel:1514246612568903881>",
+        "refresh": "🔄"
       },
-      "last_dealer_at": null
-    },
-    "1196422220222836749": {
-      "cash": 0.0,
-      "gold": 0.0,
-      "deposit": 0.0,
-      "deposit_updated_at": "2026-06-10T00:36:16+05:00",
-      "last_work_at": null,
-      "treasure_maps": 3,
-      "owned_roles": [],
-      "dealer_wagon": 0.0,
-      "collection_showcase": [],
-      "last_dealer_at": null,
-      "moonshine": {
-        "upgrade_level": 1,
-        "has_condenser": false,
-        "has_distiller": false,
-        "skill": false,
-        "bottles": 0,
-        "ingredients": {},
-        "batch": null
+      "stats_emoji": "<:person:1514312204688818259>",
+      "naturalist_button_emojis": {
+        "sample": "🔬",
+        "sell": "💵",
+        "collection": "📖",
+        "legendary": "🐾",
+        "shop": "🧪",
+        "refresh": "🔄"
+      },
+      "bounty_button_emojis": {
+        "easy": "🎯",
+        "medium": "⚔️",
+        "hard": "🔥",
+        "ambush": "🌵",
+        "chase": "🐎",
+        "negotiate": "🤝"
+      },
+      "role_key_icons": {
+        "bounty_hunter": "🎯",
+        "trader": "🛒",
+        "moonshiner": "🥃",
+        "naturalist": "🌿",
+        "collector": "💎"
+      },
+      "custom_messages": {
+        "roles_description": "Выберите профессию и купите доступную роль за золото.",
+        "roles_footer": "Доступные роли покупаются зелёными кнопками ниже.",
+        "work_success": "{mention}, {scenario} и получили **{reward}**.",
+        "role_required": "Команда доступна только роли **{role}**. Купить её можно через `/roles`.",
+        "reset_prompt": "Для полного сброса сервера введите: Я знаю что я делаю или I know what I'm doing."
       }
     },
-    "749617119091752970": {
-      "cash": 0.0,
-      "gold": 0.0,
-      "deposit": 0.0,
-      "treasure_maps": 3,
-      "owned_roles": [],
-      "dealer_wagon": 0.0,
-      "collection_showcase": [],
-      "deposit_updated_at": "2026-06-10T16:40:20+05:00",
-      "last_work_at": null,
-      "last_dealer_at": null,
-      "moonshine": {
-        "upgrade_level": 1,
-        "has_condenser": false,
-        "has_distiller": false,
-        "skill": false,
-        "bottles": 0,
-        "ingredients": {},
-        "batch": null
+    "1512631375180599437": {
+      "gold_rate": 543.45,
+      "gold_rate_date": "2026-06-13",
+      "cash_emoji": "$",
+      "gold_emoji": "<:gold:1513960325207298138>",
+      "map_emoji": "🗺️",
+      "investment_emoji": "📈",
+      "stats_emoji": "👤",
+      "moonshine_star_emojis": {
+        "1": "⭐",
+        "2": "⭐⭐",
+        "3": "⭐⭐⭐"
+      },
+      "moonshine_special_emoji": "🌟🌟🌟",
+      "moonshine_button_emojis": {
+        "mash": "🥣",
+        "special": "🌿",
+        "upgrades": "⚙️",
+        "delivery": "🛺",
+        "refresh": "🔄"
+      },
+      "naturalist_button_emojis": {
+        "sample": "🔬",
+        "sell": "💵",
+        "collection": "📖",
+        "legendary": "🐾",
+        "shop": "🧪",
+        "refresh": "🔄"
+      },
+      "bounty_button_emojis": {
+        "easy": "🎯",
+        "medium": "⚔️",
+        "hard": "🔥",
+        "ambush": "🌵",
+        "chase": "🐎",
+        "negotiate": "🤝"
+      },
+      "role_key_icons": {
+        "bounty_hunter": "🎯",
+        "trader": "🛒",
+        "moonshiner": "🥃",
+        "naturalist": "🌿",
+        "collector": "💎"
+      },
+      "custom_messages": {
+        "roles_description": "Выберите профессию и купите доступную роль за золото.",
+        "roles_footer": "Доступные роли покупаются зелёными кнопками ниже.",
+        "work_success": "{mention}, {scenario} и получили **{reward}**.",
+        "role_required": "Команда доступна только роли **{role}**. Купить её можно через `/roles`.",
+        "reset_prompt": "Для полного сброса сервера введите: Я знаю что я делаю или I know what I'm doing."
+      },
+      "treasure_channel_id": null,
+      "last_treasure_map_drop_date": null,
+      "role_icons": {},
+      "role_discounts": {},
+      "users": {
+        "576432479200870430": {
+          "cash": 2078.96,
+          "gold": 10.120000000000003,
+          "deposit": 47.41952701027815,
+          "treasure_maps": 2,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {
+              "Смородина": 2,
+              "Пустынный мак": 1,
+              "Консервированная клубника": 1,
+              "Мята": 1,
+              "Карибский ром": 1,
+              "Цветок ванили": 1,
+              "Консервированные персики": 1,
+              "Ежевика": 1,
+              "Консервированные абрикосы": 1,
+              "Консервированные ананасы": 1,
+              "Магония": 1
+            },
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "446975090022678528": {
+          "cash": 513.0,
+          "gold": 1.81,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {
+              "Груша": 1
+            },
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "710125939337723916": {
+          "cash": 734.2,
+          "gold": 424.38000000000005,
+          "deposit": 300.0153001026451,
+          "deposit_updated_at": "2026-06-13T19:42:42+00:00",
+          "last_work_at": "2026-06-13T19:42:42+00:00",
+          "treasure_maps": 0,
+          "owned_roles": [
+            "bounty_hunter",
+            "trader",
+            "moonshiner",
+            "naturalist"
+          ],
+          "dealer_wagon": 32.0,
+          "collection_showcase": [],
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {
+              "Малина": 1,
+              "Женьшень": 1,
+              "Консервированные абрикосы": 1,
+              "Смородина": 1
+            },
+            "batch": {
+              "type": "mash",
+              "recipe_key": "weak_1",
+              "name": "Слабый самогон",
+              "stars": 1,
+              "cost": 50.0,
+              "payout": 82.5,
+              "started_at": "2026-06-13T19:41:42+00:00",
+              "ready_at": "2026-06-13T20:11:42+00:00",
+              "duration_seconds": 1800
+            }
+          },
+          "last_dealer_at": "2026-06-13T19:37:41+00:00",
+          "bounty": {
+            "level": 1,
+            "xp": 70,
+            "captures": 1,
+            "escaped": 0,
+            "last_bounty_at": "2026-06-13T19:27:27+00:00"
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "589808942952087553": {
+          "cash": 1038.0,
+          "gold": 2.72,
+          "deposit": 0.0,
+          "deposit_updated_at": "2026-06-13T19:38:26+00:00",
+          "last_work_at": "2026-06-13T14:54:21+00:00",
+          "treasure_maps": 1,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "118410136980160516": {
+          "cash": 1192.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "deposit_updated_at": "2026-06-13T19:44:02+00:00",
+          "last_work_at": "2026-06-13T19:42:48+00:00",
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "1196422220222836749": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null,
+          "treasure_maps": 5,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "last_dealer_at": null,
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "749617119091752970": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 5,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null,
+          "last_dealer_at": null,
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          }
+        },
+        "618383835553464321": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 1,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "238346657245167617": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "888427059540557834": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "891992780673536001": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "991435310242209903": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "1028370440978174064": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "1036710827471929386": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        },
+        "1203394694030041160": {
+          "cash": 400.0,
+          "gold": 0.0,
+          "deposit": 0.0,
+          "treasure_maps": 0,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {},
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "last_work_at": null
+        }
       }
     }
-  },
-  "map_emoji": "<:map:1513973947975073862>",
-  "investment_emoji": "<:invest:1514028324354134197>",
-  "treasure_channel_id": 1513973397367820369,
-  "last_treasure_map_drop_date": null,
-  "role_icons": {
-    "1514005559190356189": "<:hunter:1513992564682784788>",
-    "1514000596024430652": "<:dealer:1513993188094775346>",
-    "1514005536608096509": "<:moonshiner:1513992724376846509>",
-    "1514005658758938744": "<:naturalist:1513992627295359086>",
-    "1514005691033980948": "<:collector:1513992804672602356>"
-  },
-  "role_discounts": {},
-  "moonshine_star_emojis": {
-    "1": "<:1stars:1514234004407324822>",
-    "2": "<:2stars:1514233883259047966>",
-    "3": "<:3stars:1514233946555023510>"
-  },
-  "moonshine_special_emoji": "<:3goldenstars:1514234166311518230>",
-  "moonshine_button_emojis": {
-    "mash": "🥃",
-    "special": "<:3goldenstars:1514234166311518230>",
-    "upgrades": "⚙️",
-    "delivery": "<:wheel:1514246612568903881>"
-  },
-  "stats_emoji": "<:person:1514312204688818259>"
+  }
 }

@@ -1,0 +1,162 @@
+{
+  "version": 2,
+  "guilds": {
+    "123": {
+      "gold_rate": 543.45,
+      "gold_rate_date": "2026-06-13",
+      "cash_emoji": "$",
+      "gold_emoji": "🪙",
+      "map_emoji": "🗺️",
+      "investment_emoji": "📈",
+      "stats_emoji": "👤",
+      "moonshine_star_emojis": {
+        "1": "⭐",
+        "2": "⭐⭐",
+        "3": "⭐⭐⭐"
+      },
+      "moonshine_special_emoji": "🌟🌟🌟",
+      "moonshine_button_emojis": {
+        "mash": "🥣",
+        "special": "🌿",
+        "upgrades": "⚙️",
+        "delivery": "🛺",
+        "refresh": "🔄"
+      },
+      "naturalist_button_emojis": {
+        "sample": "🔬",
+        "sell": "💵",
+        "collection": "📖",
+        "legendary": "🐾",
+        "shop": "🧪",
+        "refresh": "🔄"
+      },
+      "bounty_button_emojis": {
+        "easy": "🎯",
+        "medium": "⚔️",
+        "hard": "🔥",
+        "ambush": "🌵",
+        "chase": "🐎",
+        "negotiate": "🤝"
+      },
+      "role_key_icons": {
+        "bounty_hunter": "🎯",
+        "trader": "🛒",
+        "moonshiner": "🥃",
+        "naturalist": "🌿",
+        "collector": "💎"
+      },
+      "custom_messages": {
+        "roles_description": "Выберите профессию и купите доступную роль за золото.",
+        "roles_footer": "Доступные роли покупаются зелёными кнопками ниже.",
+        "work_success": "{mention}, {scenario} и получили **{reward}**.",
+        "role_required": "Команда доступна только роли **{role}**. Купить её можно через `/roles`.",
+        "reset_prompt": "Для полного сброса сервера введите: Я знаю что я делаю или I know what I'm doing."
+      },
+      "treasure_channel_id": null,
+      "last_treasure_map_drop_date": null,
+      "role_icons": {},
+      "role_discounts": {},
+      "users": {
+        "456": {
+          "cash": 1500.96,
+          "gold": 8.41,
+          "deposit": 0.0,
+          "treasure_maps": 2,
+          "owned_roles": [],
+          "dealer_wagon": 0.0,
+          "last_dealer_at": null,
+          "bounty": {
+            "level": 1,
+            "xp": 0,
+            "captures": 0,
+            "escaped": 0,
+            "last_bounty_at": null
+          },
+          "moonshine": {
+            "upgrade_level": 1,
+            "has_condenser": false,
+            "has_distiller": false,
+            "skill": false,
+            "bottles": 0,
+            "ingredients": {
+              "Слива поручейная": 1,
+              "Пустынный мак": 1,
+              "Магония": 1
+            },
+            "batch": null
+          },
+          "naturalist": {
+            "level": 1,
+            "xp": 0,
+            "samples": {},
+            "inventory": {
+              "tranquilizers": 50
+            },
+            "last_sample_at": null,
+            "legendary_cooldown_until": null
+          },
+          "collection_showcase": [],
+          "deposit_updated_at": "2026-06-13T19:13:28+00:00",
+          "last_work_at": null
+        }
+      }
+    },
+    "global": {
+      "gold_rate": 543.45,
+      "gold_rate_date": "2026-06-13",
+      "cash_emoji": "$",
+      "gold_emoji": "🪙",
+      "map_emoji": "🗺️",
+      "investment_emoji": "📈",
+      "stats_emoji": "👤",
+      "moonshine_star_emojis": {
+        "1": "⭐",
+        "2": "⭐⭐",
+        "3": "⭐⭐⭐"
+      },
+      "moonshine_special_emoji": "🌟🌟🌟",
+      "moonshine_button_emojis": {
+        "mash": "🥣",
+        "special": "🌿",
+        "upgrades": "⚙️",
+        "delivery": "🛺",
+        "refresh": "🔄"
+      },
+      "naturalist_button_emojis": {
+        "sample": "🔬",
+        "sell": "💵",
+        "collection": "📖",
+        "legendary": "🐾",
+        "shop": "🧪",
+        "refresh": "🔄"
+      },
+      "bounty_button_emojis": {
+        "easy": "🎯",
+        "medium": "⚔️",
+        "hard": "🔥",
+        "ambush": "🌵",
+        "chase": "🐎",
+        "negotiate": "🤝"
+      },
+      "role_key_icons": {
+        "bounty_hunter": "🎯",
+        "trader": "🛒",
+        "moonshiner": "🥃",
+        "naturalist": "🌿",
+        "collector": "💎"
+      },
+      "custom_messages": {
+        "roles_description": "Выберите профессию и купите доступную роль за золото.",
+        "roles_footer": "Доступные роли покупаются зелёными кнопками ниже.",
+        "work_success": "{mention}, {scenario} и получили **{reward}**.",
+        "role_required": "Команда доступна только роли **{role}**. Купить её можно через `/roles`.",
+        "reset_prompt": "Для полного сброса сервера введите: Я знаю что я делаю или I know what I'm doing."
+      },
+      "treasure_channel_id": null,
+      "last_treasure_map_drop_date": null,
+      "role_icons": {},
+      "role_discounts": {},
+      "users": {}
+    }
+  }
+}

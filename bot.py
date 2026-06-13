@@ -1,46 +1,62 @@
-import asyncio
+import os
 import json
+import random
 import math
+import asyncio
+import re
+from contextvars import ContextVar
 from flask import Flask
 from threading import Thread
-import os
-import random
 from datetime import date, datetime, time, timedelta, timezone
-
-
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is alive!"
-
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port, use_reloader=False)
-
+from discord import PartialEmoji
 CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
 BOT_TOKEN = ""
 ECONOMY_FILE = "economy.json"
+ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
+
+# Minimal web server for uptime probe (keeps previous behavior)
+app = Flask("")
+
+
+@app.route("/")
+def _healthcheck():
+    return "OK", 200
+
+
+def run_web():
+    try:
+        # Run Flask in a separate thread as before; use a non-privileged port.
+        app.run(host="0.0.0.0", port=8080)
+    except Exception:
+        # Keep bot running even if the web thread fails to start.
+        return
 MIN_GOLD_RATE = 50.0
 DEPOSIT_DAILY_RATE = 0.03
 WORK_COOLDOWN_SECONDS = 60 * 60
 DEALER_COOLDOWN_SECONDS = 60 * 60
 DEFAULT_CASH_EMOJI = "$"
-DEFAULT_GOLD_EMOJI = "🟡"
+DEFAULT_GOLD_EMOJI = "🪙"
 DEFAULT_MAP_EMOJI = "🗺️"
 DEFAULT_INVESTMENT_EMOJI = "📈"
 DEFAULT_STATS_EMOJI = "👤"
-TREASURE_BANNER_FILE = "image.png"
-ROLE_IMAGE_FILE = "image 2.png"
+TREASURE_BANNER_FILE = "goldenmap.png"
+ROLE_IMAGE_FILE = "roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
-MOONSHINE_IMAGE_FILE = "image 3.png"
+BALANCE_IMAGE_FILE = "balance.png"
+BALANCE_IMAGE_ATTACHMENT_NAME = "balance.png"
+BOUNTY_IMAGE_FILE = "hunter.png"
+BOUNTY_IMAGE_ATTACHMENT_NAME = "hunter.png"
+NATURALIST_IMAGE_FILE = "naturalist.png"
+NATURALIST_IMAGE_ATTACHMENT_NAME = "naturalist.png"
+COLLECTOR_IMAGE_FILE = "collector.png"
+COLLECTOR_IMAGE_ATTACHMENT_NAME = "collector.png"
+MOONSHINE_IMAGE_FILE = "moonshine.png"
 MOONSHINE_IMAGE_ATTACHMENT_NAME = "moonshine.png"
 TREASURE_MAPS_PER_DROP = 1
 EXCAVATION_REWARD_CHANCE = 0.15
@@ -67,6 +83,30 @@ DEFAULT_MOONSHINE_BUTTON_EMOJIS = {
     "special": "🌿",
     "upgrades": "⚙️",
     "delivery": "🛺",
+    "refresh": "🔄",
+}
+DEFAULT_NATURALIST_BUTTON_EMOJIS = {
+    "sample": "🔬",
+    "sell": "💵",
+    "collection": "📖",
+    "legendary": "🐾",
+    "shop": "🧪",
+    "refresh": "🔄",
+}
+DEFAULT_BOUNTY_BUTTON_EMOJIS = {
+    "easy": "🎯",
+    "medium": "⚔️",
+    "hard": "🔥",
+    "ambush": "🌵",
+    "chase": "🐎",
+    "negotiate": "🤝",
+}
+DEFAULT_CUSTOM_MESSAGES = {
+    "roles_description": "Выберите профессию и купите доступную роль за золото.",
+    "roles_footer": "Доступные роли покупаются зелёными кнопками ниже.",
+    "work_success": "{mention}, {scenario} и получили **{reward}**.",
+    "role_required": "Команда доступна только роли **{role}**. Купить её можно через `/roles`.",
+    "reset_prompt": "Для полного сброса сервера введите: Я знаю что я делаю или I know what I'm doing.",
 }
 CARD_RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"]
 CARD_SUITS = ["♠", "♥", "♦", "♣"]
@@ -88,7 +128,7 @@ ROLE_DEFINITIONS = [
         "name": "Охотник за головами",
         "aliases": [],
         "emoji": "🎯",
-        "available": False,
+        "available": True,
         "description": (
             "Выслеживает опасные цели, берёт контракты на поимку и получает награды "
             "за точность, выдержку и холодную голову."
@@ -121,7 +161,7 @@ ROLE_DEFINITIONS = [
         "name": "Натуралист",
         "aliases": [],
         "emoji": "🌿",
-        "available": False,
+        "available": True,
         "description": (
             "Изучает природу, выслеживает редких животных и собирает знания там, "
             "где другие видят только дикую местность."
@@ -139,6 +179,113 @@ ROLE_DEFINITIONS = [
         ),
     },
 ]
+
+DEFAULT_ROLE_EMOJIS = {
+    role_definition["key"]: role_definition["emoji"]
+    for role_definition in ROLE_DEFINITIONS
+}
+
+BOUNTY_ROLE_KEY = "bounty_hunter"
+NATURALIST_ROLE_KEY = "naturalist"
+
+BOUNTY_COOLDOWN_SECONDS = 10 * 60
+BOUNTY_MAX_LEVEL = 20
+BOUNTY_DIFFICULTIES = {
+    "easy": {
+        "name": "Лёгкий контракт",
+        "mod": 2,
+        "reward_min": 70,
+        "reward_max": 110,
+        "gold": 0.05,
+        "xp": 70,
+        "targets": ["Карманник из Валентайна", "Пьяный налётчик", "Беглый конокрад"],
+    },
+    "medium": {
+        "name": "Опасный преступник",
+        "mod": 5,
+        "reward_min": 130,
+        "reward_max": 210,
+        "gold": 0.12,
+        "xp": 130,
+        "targets": ["Главарь шайки", "Грабитель дилижансов", "Поджигатель складов"],
+    },
+    "hard": {
+        "name": "Легендарная цель",
+        "mod": 8,
+        "reward_min": 240,
+        "reward_max": 360,
+        "gold": 0.25,
+        "xp": 230,
+        "targets": ["Чёрный стрелок", "Королева контрабандистов", "Мясник из каньона"],
+    },
+}
+BOUNTY_TACTICS = {
+    "ambush": {
+        "name": "Засада",
+        "mod": 2,
+        "reward_multiplier": 1.0,
+        "description": "+2 к броску, но при провале цель сразу сбегает.",
+    },
+    "chase": {
+        "name": "Погоня",
+        "mod": 0,
+        "reward_multiplier": 1.0,
+        "description": "Без модификатора, зато без штрафов к награде.",
+    },
+    "negotiate": {
+        "name": "Переговоры",
+        "mod": 1,
+        "reward_multiplier": 0.8,
+        "description": "+1 к броску, награда меньше на 20%.",
+    },
+}
+
+NATURALIST_MAX_LEVEL = 20
+NATURALIST_SAMPLE_COOLDOWN_SECONDS = 5 * 60
+NATURALIST_LEGENDARY_COOLDOWN_SECONDS = 60 * 60
+NATURALIST_TRANQ_PRICE = 5.0
+NATURALIST_START_TRANQS = 50
+NATURALIST_BASE_TRANQ_CAP = 200
+NATURALIST_UPGRADED_TRANQ_CAP = 250
+
+NATURALIST_REGIONS = {
+    "forest": {"name": "Лес", "emoji": "🌲"},
+    "mountains": {"name": "Горы", "emoji": "⛰️"},
+    "wetlands": {"name": "Болота", "emoji": "💧"},
+    "desert": {"name": "Пустыня", "emoji": "🏜️"},
+}
+ANIMALS = {
+    "rabbit": {"name": "Кролик", "region": "forest", "shots": 1, "chance": 0.88, "cash": 2.5, "xp": 25},
+    "deer": {"name": "Олень", "region": "forest", "shots": 2, "chance": 0.78, "cash": 4.0, "xp": 45},
+    "fox": {"name": "Лиса", "region": "forest", "shots": 2, "chance": 0.72, "cash": 4.5, "xp": 50},
+    "wolf": {"name": "Волк", "region": "forest", "shots": 3, "chance": 0.60, "cash": 6.0, "xp": 75},
+    "bighorn": {"name": "Горный баран", "region": "mountains", "shots": 2, "chance": 0.70, "cash": 4.5, "xp": 55},
+    "eagle": {"name": "Орёл", "region": "mountains", "shots": 1, "chance": 0.62, "cash": 5.0, "xp": 65},
+    "moose": {"name": "Лось", "region": "mountains", "shots": 5, "chance": 0.48, "cash": 9.0, "xp": 105},
+    "bear": {"name": "Медведь", "region": "mountains", "shots": 5, "chance": 0.42, "cash": 10.0, "xp": 120},
+    "beaver": {"name": "Бобр", "region": "wetlands", "shots": 2, "chance": 0.74, "cash": 4.0, "xp": 45},
+    "frog": {"name": "Лягушка", "region": "wetlands", "shots": 1, "chance": 0.86, "cash": 2.0, "xp": 20},
+    "boar": {"name": "Кабан", "region": "wetlands", "shots": 2, "chance": 0.66, "cash": 5.0, "xp": 65},
+    "alligator": {"name": "Аллигатор", "region": "wetlands", "shots": 5, "chance": 0.45, "cash": 9.5, "xp": 115},
+    "coyote": {"name": "Койот", "region": "desert", "shots": 2, "chance": 0.73, "cash": 4.0, "xp": 45},
+    "snake": {"name": "Гремучая змея", "region": "desert", "shots": 1, "chance": 0.68, "cash": 3.5, "xp": 40},
+    "pronghorn": {"name": "Вилорог", "region": "desert", "shots": 2, "chance": 0.76, "cash": 4.0, "xp": 45},
+    "cougar": {"name": "Пума", "region": "desert", "shots": 3, "chance": 0.55, "cash": 7.0, "xp": 85},
+}
+CATEGORIES = {
+    region_key: [
+        animal_key
+        for animal_key, animal in ANIMALS.items()
+        if animal["region"] == region_key
+    ]
+    for region_key in NATURALIST_REGIONS
+}
+LEGENDARY_ANIMALS = {
+    "legendary_buck": {"name": "Легендарный олень", "required_level": 5, "cash": 60.0, "gold": 1.0, "xp": 260},
+    "legendary_wolf": {"name": "Легендарный волк", "required_level": 8, "cash": 75.0, "gold": 1.2, "xp": 320},
+    "legendary_bear": {"name": "Легендарный медведь", "required_level": 12, "cash": 95.0, "gold": 1.5, "xp": 420},
+    "legendary_cougar": {"name": "Легендарная пума", "required_level": 16, "cash": 120.0, "gold": 2.0, "xp": 560},
+}
 
 MOONSHINE_STRENGTHS = {
     "weak": {"name": "Слабый", "duration_skill": 24 * 60, "duration_no_skill": 30 * 60},
@@ -322,7 +469,7 @@ def load_env_file():
 
 
 def today_iso():
-    return date.today().isoformat()
+    return now_local().date().isoformat()
 
 
 def today_msk_iso():
@@ -330,7 +477,7 @@ def today_msk_iso():
 
 
 def now_local():
-    return datetime.now().astimezone()
+    return datetime.now(timezone.utc)
 
 
 def default_economy():
@@ -345,6 +492,10 @@ def default_economy():
         "moonshine_star_emojis": DEFAULT_MOONSHINE_STAR_EMOJIS.copy(),
         "moonshine_special_emoji": DEFAULT_MOONSHINE_SPECIAL_EMOJI,
         "moonshine_button_emojis": DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy(),
+        "naturalist_button_emojis": DEFAULT_NATURALIST_BUTTON_EMOJIS.copy(),
+        "bounty_button_emojis": DEFAULT_BOUNTY_BUTTON_EMOJIS.copy(),
+        "role_key_icons": DEFAULT_ROLE_EMOJIS.copy(),
+        "custom_messages": DEFAULT_CUSTOM_MESSAGES.copy(),
         "treasure_channel_id": None,
         "last_treasure_map_drop_date": None,
         "role_icons": {},
@@ -353,57 +504,193 @@ def default_economy():
     }
 
 
-def load_economy():
-    if not os.path.exists(ECONOMY_FILE):
-        return default_economy()
-
-    try:
-        with open(ECONOMY_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError:
-        print(f"{ECONOMY_FILE} поврежён; создаётся новая экономика.")
-        return default_economy()
-
+def normalize_economy_data(data):
+    # If input is not a dict, replace it immediately with defaults
     if not isinstance(data, dict):
-        return default_economy()
+        data = default_economy()
 
+    # Ensure gold_emoji is always a non-empty string
+    gold = data.get("gold_emoji", DEFAULT_GOLD_EMOJI)
+    if gold is None:
+        gold = DEFAULT_GOLD_EMOJI
+    try:
+        gold = str(gold)
+    except Exception:
+        gold = DEFAULT_GOLD_EMOJI
+    if not gold:
+        gold = DEFAULT_GOLD_EMOJI
+    data["gold_emoji"] = gold
+
+    # Now continue normal defaults and normalization
     data.setdefault("gold_rate", START_GOLD_RATE)
     data.setdefault("gold_rate_date", today_iso())
     data.setdefault("cash_emoji", DEFAULT_CASH_EMOJI)
-    data.setdefault("gold_emoji", DEFAULT_GOLD_EMOJI)
+    # other defaults
     data.setdefault("map_emoji", DEFAULT_MAP_EMOJI)
     data.setdefault("investment_emoji", DEFAULT_INVESTMENT_EMOJI)
     data.setdefault("stats_emoji", DEFAULT_STATS_EMOJI)
     data.setdefault("moonshine_star_emojis", DEFAULT_MOONSHINE_STAR_EMOJIS.copy())
     data.setdefault("moonshine_special_emoji", DEFAULT_MOONSHINE_SPECIAL_EMOJI)
     data.setdefault("moonshine_button_emojis", DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy())
+    data.setdefault("naturalist_button_emojis", DEFAULT_NATURALIST_BUTTON_EMOJIS.copy())
+    data.setdefault("bounty_button_emojis", DEFAULT_BOUNTY_BUTTON_EMOJIS.copy())
+    data.setdefault("role_key_icons", DEFAULT_ROLE_EMOJIS.copy())
+    data.setdefault("custom_messages", DEFAULT_CUSTOM_MESSAGES.copy())
     data.setdefault("treasure_channel_id", None)
     data.setdefault("last_treasure_map_drop_date", None)
     data.setdefault("role_icons", {})
     data.setdefault("role_discounts", {})
     data.setdefault("users", {})
+
     if not isinstance(data["role_icons"], dict):
         data["role_icons"] = {}
     if not isinstance(data["role_discounts"], dict):
         data["role_discounts"] = {}
+    if not isinstance(data["role_key_icons"], dict):
+        data["role_key_icons"] = DEFAULT_ROLE_EMOJIS.copy()
+    for role_key, emoji in DEFAULT_ROLE_EMOJIS.items():
+        data["role_key_icons"].setdefault(role_key, emoji)
+    if not isinstance(data["custom_messages"], dict):
+        data["custom_messages"] = DEFAULT_CUSTOM_MESSAGES.copy()
+    for key, message in DEFAULT_CUSTOM_MESSAGES.items():
+        data["custom_messages"].setdefault(key, message)
     if not isinstance(data["moonshine_star_emojis"], dict):
         data["moonshine_star_emojis"] = DEFAULT_MOONSHINE_STAR_EMOJIS.copy()
     for level, emoji in DEFAULT_MOONSHINE_STAR_EMOJIS.items():
         data["moonshine_star_emojis"].setdefault(level, emoji)
-    if not data["moonshine_special_emoji"]:
+    for level in ("1", "2", "3"):
+        if not data["moonshine_star_emojis"].get(level):
+            data["moonshine_star_emojis"][level] = DEFAULT_MOONSHINE_STAR_EMOJIS[level]
+    if not data.get("moonshine_special_emoji"):
         data["moonshine_special_emoji"] = DEFAULT_MOONSHINE_SPECIAL_EMOJI
     if not isinstance(data["moonshine_button_emojis"], dict):
         data["moonshine_button_emojis"] = DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy()
     for key, emoji in DEFAULT_MOONSHINE_BUTTON_EMOJIS.items():
         data["moonshine_button_emojis"].setdefault(key, emoji)
+    if not isinstance(data["naturalist_button_emojis"], dict):
+        data["naturalist_button_emojis"] = DEFAULT_NATURALIST_BUTTON_EMOJIS.copy()
+    for key, emoji in DEFAULT_NATURALIST_BUTTON_EMOJIS.items():
+        data["naturalist_button_emojis"].setdefault(key, emoji)
+    if not isinstance(data["bounty_button_emojis"], dict):
+        data["bounty_button_emojis"] = DEFAULT_BOUNTY_BUTTON_EMOJIS.copy()
+    for key, emoji in DEFAULT_BOUNTY_BUTTON_EMOJIS.items():
+        data["bounty_button_emojis"].setdefault(key, emoji)
     if not isinstance(data["users"], dict):
         data["users"] = {}
+
     return data
+
+def load_economy():
+    if not os.path.exists(ECONOMY_FILE):
+        return {"version": 2, "guilds": {ECONOMY_GLOBAL_KEY: default_economy()}}
+
+    try:
+        with open(ECONOMY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        print(f"{ECONOMY_FILE} поврежён; создаётся новая экономика.")
+        return {"version": 2, "guilds": {ECONOMY_GLOBAL_KEY: default_economy()}}
+
+    if not isinstance(data, dict):
+        return {"version": 2, "guilds": {ECONOMY_GLOBAL_KEY: default_economy()}}
+
+    if isinstance(data.get("guilds"), dict):
+        guilds = {}
+        for guild_id, guild_data in data["guilds"].items():
+            guilds[str(guild_id)] = normalize_economy_data(guild_data)
+        guilds.setdefault(ECONOMY_GLOBAL_KEY, default_economy())
+        return {"version": 2, "guilds": guilds}
+
+    legacy_data = normalize_economy_data(data)
+    return {"version": 2, "guilds": {ECONOMY_GLOBAL_KEY: legacy_data}}
+
+
+current_economy_guild_id = ContextVar("current_economy_guild_id", default=None)
+
+
+def set_economy_guild_id(guild_id):
+    return current_economy_guild_id.set(str(guild_id) if guild_id else ECONOMY_GLOBAL_KEY)
+
+
+def reset_economy_guild_id(token):
+    current_economy_guild_id.reset(token)
+
+
+def get_current_economy_key():
+    return current_economy_guild_id.get() or ECONOMY_GLOBAL_KEY
+
+
+def with_economy_context(func):
+    async def wrapper(interaction, *args, **kwargs):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            return await func(interaction, *args, **kwargs)
+        finally:
+            reset_economy_guild_id(token)
+    return wrapper
+
+
+class EconomyStore:
+    def __init__(self, root):
+        self.root = root if isinstance(root, dict) else {}
+        self.root.setdefault("version", 2)
+        if not isinstance(self.root.get("guilds"), dict):
+            self.root["guilds"] = {}
+        self.root["guilds"].setdefault(ECONOMY_GLOBAL_KEY, default_economy())
+
+    def current(self):
+        guild_id = get_current_economy_key()
+        if guild_id not in self.root["guilds"]:
+            self.root["guilds"][guild_id] = default_economy()
+        return normalize_economy_data(self.root["guilds"][guild_id])
+
+    def guild_data(self, guild_id):
+        guild_key = str(guild_id) if guild_id else ECONOMY_GLOBAL_KEY
+        if guild_key not in self.root["guilds"]:
+            self.root["guilds"][guild_key] = default_economy()
+        return normalize_economy_data(self.root["guilds"][guild_key])
+
+    def reset_current(self):
+        self.root["guilds"][get_current_economy_key()] = default_economy()
+
+    def reset_guild(self, guild_id):
+        guild_key = str(guild_id) if guild_id else ECONOMY_GLOBAL_KEY
+        self.root["guilds"][guild_key] = default_economy()
+
+    def configured_treasure_guild_ids(self):
+        return [
+            guild_id
+            for guild_id, guild_data in self.root["guilds"].items()
+            if guild_id != ECONOMY_GLOBAL_KEY and guild_data.get("treasure_channel_id")
+        ]
+
+    def to_json(self):
+        for guild_id, guild_data in list(self.root["guilds"].items()):
+            self.root["guilds"][guild_id] = normalize_economy_data(guild_data)
+        return self.root
+
+    def get(self, key, default=None):
+        return self.current().get(key, default)
+
+    def setdefault(self, key, default=None):
+        return self.current().setdefault(key, default)
+
+    def pop(self, key, default=None):
+        return self.current().pop(key, default)
+
+    def __getitem__(self, key):
+        return self.current()[key]
+
+    def __setitem__(self, key, value):
+        self.current()[key] = value
+
+    def __contains__(self, key):
+        return key in self.current()
 
 
 def save_economy():
     with open(ECONOMY_FILE, "w", encoding="utf-8") as f:
-        json.dump(economy_data, f, ensure_ascii=False, indent=2)
+        json.dump(economy_data.to_json(), f, ensure_ascii=False, indent=2)
 
 
 def parse_local_datetime(value):
@@ -416,15 +703,15 @@ def parse_local_datetime(value):
         return now_local()
 
     if parsed.tzinfo is None:
-        return parsed.astimezone()
-    return parsed
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def parse_local_date(value):
     try:
         return date.fromisoformat(value)
     except (TypeError, ValueError):
-        return date.today()
+        return now_local().date()
 
 
 def format_number(value, decimals=2):
@@ -433,37 +720,92 @@ def format_number(value, decimals=2):
 
 
 def get_cash_emoji():
-    return economy_data.get("cash_emoji") or DEFAULT_CASH_EMOJI
+    emoji = economy_data.get("cash_emoji")
+    if not emoji:
+        return DEFAULT_CASH_EMOJI
+    return emoji
 
 
 def get_gold_emoji():
-    return economy_data.get("gold_emoji") or DEFAULT_GOLD_EMOJI
-
+    emoji = economy_data.get("gold_emoji")
+    if not emoji:
+        return DEFAULT_GOLD_EMOJI
+    return str(emoji)
 
 def get_map_emoji():
-    return economy_data.get("map_emoji") or DEFAULT_MAP_EMOJI
+    emoji = economy_data.get("map_emoji")
+    if not emoji:
+        return DEFAULT_MAP_EMOJI
+    return emoji
 
 
 def get_investment_emoji():
-    return economy_data.get("investment_emoji") or DEFAULT_INVESTMENT_EMOJI
+    emoji = economy_data.get("investment_emoji")
+    if not emoji:
+        return DEFAULT_INVESTMENT_EMOJI
+    return emoji
 
 
 def get_stats_emoji():
-    return economy_data.get("stats_emoji") or DEFAULT_STATS_EMOJI
+    emoji = economy_data.get("stats_emoji")
+    if not emoji:
+        return DEFAULT_STATS_EMOJI
+    return emoji
 
 
 def get_moonshine_star_emoji(level):
     emojis = economy_data.get("moonshine_star_emojis", {})
-    return emojis.get(str(level)) or DEFAULT_MOONSHINE_STAR_EMOJIS[str(level)]
+    emoji = emojis.get(str(level))
+    if not emoji:
+        return DEFAULT_MOONSHINE_STAR_EMOJIS[str(level)]
+    return emoji
 
 
 def get_moonshine_special_emoji():
-    return economy_data.get("moonshine_special_emoji") or DEFAULT_MOONSHINE_SPECIAL_EMOJI
+    emoji = economy_data.get("moonshine_special_emoji")
+    if not emoji:
+        return DEFAULT_MOONSHINE_SPECIAL_EMOJI
+    return emoji
 
 
 def get_moonshine_button_emoji(button_key):
     emojis = economy_data.get("moonshine_button_emojis", {})
-    return emojis.get(button_key) or DEFAULT_MOONSHINE_BUTTON_EMOJIS[button_key]
+    emoji = emojis.get(button_key)
+    if not emoji:
+        return DEFAULT_MOONSHINE_BUTTON_EMOJIS[button_key]
+    return emoji
+
+
+def debug_gold_info():
+    """Return tuple (economy_key, stored_value, resolved_string) for debugging."""
+    key = get_current_economy_key()
+    stored = economy_data.get("gold_emoji")
+    resolved = get_gold_emoji()
+    return key, stored, resolved
+
+
+def get_naturalist_button_emoji(button_key):
+    emojis = economy_data.get("naturalist_button_emojis", {})
+    emoji = emojis.get(button_key)
+    if not emoji:
+        return DEFAULT_NATURALIST_BUTTON_EMOJIS[button_key]
+    return emoji
+
+
+def get_bounty_button_emoji(button_key):
+    emojis = economy_data.get("bounty_button_emojis", {})
+    emoji = emojis.get(button_key)
+    if not emoji:
+        return DEFAULT_BOUNTY_BUTTON_EMOJIS[button_key]
+    return emoji
+
+
+def get_custom_message(message_key):
+    messages = economy_data.get("custom_messages", {})
+    msg = messages.get(message_key)
+    if not msg:
+        return DEFAULT_CUSTOM_MESSAGES[message_key]
+    return msg
 
 
 def format_money(value):
@@ -506,7 +848,7 @@ def format_gold_price_value(value):
 
 
 def format_role_price(value):
-    return f"{format_gold_price_value(value)} {get_gold_emoji()} золотых"
+    return f"{format_gold_price_value(value)} {get_gold_emoji()}"
 
 
 def format_percent(value):
@@ -727,6 +1069,22 @@ def format_moonshine_ingredients(ingredients):
     return text
 
 
+def fit_embed_description(lines, limit=3900):
+    description = ""
+    hidden_count = 0
+    for line in lines:
+        next_description = f"{description}\n{line}" if description else line
+        if len(next_description) > limit:
+            hidden_count += 1
+            continue
+        description = next_description
+    if hidden_count:
+        suffix = f"\n…и ещё {hidden_count} строк. Уточните выбор через меню ниже."
+        if len(description) + len(suffix) <= 4096:
+            description += suffix
+    return description
+
+
 def format_recipe_ingredients(recipe):
     return ", ".join(
         f"{amount}x {ingredient}" for ingredient, amount in recipe["ingredients"].items()
@@ -804,6 +1162,243 @@ def grant_random_moonshine_ingredients(account):
     return granted
 
 
+def xp_for_next_level(level, base):
+    return max(1, int(level * base))
+
+
+def apply_role_xp(progress, amount, max_level, base):
+    progress["xp"] = max(0, int(progress.get("xp", 0)) + int(amount))
+    progress["level"] = max(1, min(max_level, int(progress.get("level", 1))))
+    levels_gained = 0
+
+    while progress["level"] < max_level:
+        needed = xp_for_next_level(progress["level"], base)
+        if progress["xp"] < needed:
+            break
+        progress["xp"] -= needed
+        progress["level"] += 1
+        levels_gained += 1
+
+    if progress["level"] >= max_level:
+        progress["level"] = max_level
+        progress["xp"] = min(progress["xp"], xp_for_next_level(max_level, base))
+
+    return levels_gained
+
+
+def default_bounty_data():
+    return {
+        "level": 1,
+        "xp": 0,
+        "captures": 0,
+        "escaped": 0,
+        "last_bounty_at": None,
+    }
+
+
+def normalize_bounty_data(bounty):
+    if not isinstance(bounty, dict):
+        bounty = default_bounty_data()
+
+    try:
+        bounty["level"] = max(1, min(BOUNTY_MAX_LEVEL, int(bounty.get("level", 1))))
+    except (TypeError, ValueError):
+        bounty["level"] = 1
+    try:
+        bounty["xp"] = max(0, int(bounty.get("xp", 0)))
+    except (TypeError, ValueError):
+        bounty["xp"] = 0
+    try:
+        bounty["captures"] = max(0, int(bounty.get("captures", 0)))
+    except (TypeError, ValueError):
+        bounty["captures"] = 0
+    try:
+        bounty["escaped"] = max(0, int(bounty.get("escaped", 0)))
+    except (TypeError, ValueError):
+        bounty["escaped"] = 0
+    bounty.setdefault("last_bounty_at", None)
+    return bounty
+
+
+def get_bounty_account(account):
+    account["bounty"] = normalize_bounty_data(account.get("bounty"))
+    return account["bounty"]
+
+
+def get_bounty_cooldown(bounty):
+    last_bounty_at = bounty.get("last_bounty_at")
+    if not last_bounty_at:
+        return 0
+    seconds_passed = (now_local() - parse_local_datetime(last_bounty_at)).total_seconds()
+    return max(0, BOUNTY_COOLDOWN_SECONDS - seconds_passed)
+
+
+def format_bounty_short(account):
+    bounty = get_bounty_account(account)
+    needed = xp_for_next_level(bounty["level"], 140)
+    return (
+        f"уровень {bounty['level']}, опыт {bounty['xp']}/{needed}, "
+        f"поймано {format_integer(bounty['captures'])}"
+    )
+
+
+def default_naturalist_data():
+    return {
+        "level": 1,
+        "xp": 0,
+        "samples": {},
+        "inventory": {"tranquilizers": NATURALIST_START_TRANQS},
+        "last_sample_at": None,
+        "legendary_cooldown_until": None,
+    }
+
+
+def get_naturalist_tranq_cap(naturalist):
+    return (
+        NATURALIST_UPGRADED_TRANQ_CAP
+        if int(naturalist.get("level", 1)) >= 3
+        else NATURALIST_BASE_TRANQ_CAP
+    )
+
+
+def normalize_naturalist_data(naturalist):
+    if not isinstance(naturalist, dict):
+        naturalist = default_naturalist_data()
+
+    try:
+        naturalist["level"] = max(
+            1, min(NATURALIST_MAX_LEVEL, int(naturalist.get("level", 1)))
+        )
+    except (TypeError, ValueError):
+        naturalist["level"] = 1
+    try:
+        naturalist["xp"] = max(0, int(naturalist.get("xp", 0)))
+    except (TypeError, ValueError):
+        naturalist["xp"] = 0
+
+    samples = naturalist.get("samples", {})
+    if not isinstance(samples, dict):
+        samples = {}
+    normalized_samples = {}
+    valid_sample_keys = set(ANIMALS) | set(LEGENDARY_ANIMALS)
+    for sample_key, amount in samples.items():
+        if sample_key not in valid_sample_keys:
+            continue
+        try:
+            amount = max(0, int(amount))
+        except (TypeError, ValueError):
+            amount = 0
+        if amount > 0:
+            normalized_samples[sample_key] = amount
+    naturalist["samples"] = normalized_samples
+
+    inventory = naturalist.get("inventory", {})
+    if not isinstance(inventory, dict):
+        inventory = {}
+    try:
+        tranquilizers = max(0, int(inventory.get("tranquilizers", NATURALIST_START_TRANQS)))
+    except (TypeError, ValueError):
+        tranquilizers = NATURALIST_START_TRANQS
+    naturalist["inventory"] = {
+        "tranquilizers": min(tranquilizers, get_naturalist_tranq_cap(naturalist))
+    }
+    naturalist.setdefault("last_sample_at", None)
+    naturalist.setdefault("legendary_cooldown_until", None)
+    return naturalist
+
+
+def get_naturalist_account(account):
+    account["naturalist"] = normalize_naturalist_data(account.get("naturalist"))
+    return account["naturalist"]
+
+
+def naturalist_sample_cooldown_seconds(naturalist):
+    cooldown = NATURALIST_SAMPLE_COOLDOWN_SECONDS
+    if naturalist.get("level", 1) >= 10:
+        cooldown = int(cooldown * 0.8)
+    return cooldown
+
+
+def get_naturalist_sample_cooldown(naturalist):
+    last_sample_at = naturalist.get("last_sample_at")
+    if not last_sample_at:
+        return 0
+    cooldown = naturalist_sample_cooldown_seconds(naturalist)
+    seconds_passed = (now_local() - parse_local_datetime(last_sample_at)).total_seconds()
+    return max(0, cooldown - seconds_passed)
+
+
+def get_naturalist_legendary_cooldown(naturalist):
+    cooldown_until = naturalist.get("legendary_cooldown_until")
+    if not cooldown_until:
+        return 0
+    seconds_left = (parse_local_datetime(cooldown_until) - now_local()).total_seconds()
+    return max(0, seconds_left)
+
+
+def get_naturalist_success_chance(naturalist, base_chance):
+    level = int(naturalist.get("level", 1))
+    bonus = level * 0.01
+    if level >= 5:
+        bonus += 0.05
+    if level >= 15:
+        bonus += 0.10
+    return min(0.95, base_chance + bonus)
+
+
+def get_naturalist_sale_multiplier(naturalist):
+    return 1.05 if naturalist.get("level", 1) >= 20 else 1.0
+
+
+def format_sample_name(sample_key):
+    if sample_key in ANIMALS:
+        return ANIMALS[sample_key]["name"]
+    if sample_key in LEGENDARY_ANIMALS:
+        return LEGENDARY_ANIMALS[sample_key]["name"]
+    return sample_key
+
+
+def count_naturalist_samples(naturalist):
+    return sum(int(amount) for amount in naturalist.get("samples", {}).values())
+
+
+def format_naturalist_samples_short(naturalist):
+    samples = naturalist.get("samples", {})
+    if not samples:
+        return "нет"
+    rows = [
+        f"{format_sample_name(sample_key)} x{amount}"
+        for sample_key, amount in sorted(samples.items())
+    ]
+    text = ", ".join(rows[:6])
+    if len(rows) > 6:
+        text += f" и ещё {len(rows) - 6}"
+    return text
+
+
+def format_naturalist_short(account):
+    naturalist = get_naturalist_account(account)
+    needed = xp_for_next_level(naturalist["level"], 180)
+    tranqs = naturalist["inventory"]["tranquilizers"]
+    cap = get_naturalist_tranq_cap(naturalist)
+    return (
+        f"уровень {naturalist['level']}, опыт {naturalist['xp']}/{needed}, "
+        f"транквилизаторы {tranqs}/{cap}, образцы: {format_naturalist_samples_short(naturalist)}"
+    )
+
+
+def has_full_naturalist_category(naturalist, region_key):
+    samples = naturalist.get("samples", {})
+    return all(samples.get(animal_key, 0) > 0 for animal_key in CATEGORIES[region_key])
+
+
+def get_naturalist_category_progress(naturalist, region_key):
+    samples = naturalist.get("samples", {})
+    collected = sum(1 for animal_key in CATEGORIES[region_key] if samples.get(animal_key, 0) > 0)
+    total = len(CATEGORIES[region_key])
+    return collected, total
+
+
 def format_balance_role_sections(guild, member, account):
     owned_rows = []
     unavailable_sections = []
@@ -825,6 +1420,10 @@ def format_balance_role_sections(guild, member, account):
                     f"   Уровень аппарата: {get_moonshine_level(moonshine)}\n"
                     f"   Статус: {format_moonshine_batch_status(moonshine)}"
                 )
+            elif role_definition["key"] == BOUNTY_ROLE_KEY:
+                row = f"{icon} {name}: {format_bounty_short(account)}"
+            elif role_definition["key"] == NATURALIST_ROLE_KEY:
+                row = f"{icon} {name}: {format_naturalist_short(account)}"
             else:
                 row = f"{icon} {name}: {format_progress_percent(100)}"
             owned_rows.append(row)
@@ -859,14 +1458,20 @@ def format_account(account):
 
 def format_duration(seconds):
     seconds = max(0, int(seconds))
+    days, seconds = divmod(seconds, 86400)
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
 
+    parts = []
+    if days:
+        parts.append(f"{days} д")
     if hours:
-        return f"{hours}h {minutes}m"
+        parts.append(f"{hours} ч")
     if minutes:
-        return f"{minutes}m {seconds}s"
-    return f"{seconds}s"
+        parts.append(f"{minutes} мин")
+    if seconds or not parts:
+        parts.append(f"{seconds} сек")
+    return " ".join(parts[:2])
 
 
 def is_valid_amount(amount):
@@ -875,7 +1480,7 @@ def is_valid_amount(amount):
 
 def update_gold_rate():
     current_day = parse_local_date(economy_data.get("gold_rate_date", today_iso()))
-    target_day = date.today()
+    target_day = now_local().date()
     rate = float(economy_data.get("gold_rate", START_GOLD_RATE))
 
     if current_day > target_day:
@@ -910,12 +1515,25 @@ def get_account(user_id):
             "owned_roles": [],
             "dealer_wagon": 0.0,
             "last_dealer_at": None,
+            "bounty": default_bounty_data(),
             "moonshine": default_moonshine_data(),
+            "naturalist": default_naturalist_data(),
             "collection_showcase": [],
             "deposit_updated_at": now_local().isoformat(timespec="seconds"),
             "last_work_at": None,
         },
     )
+
+    # --- Ensure numeric fields are valid floats (fix corrupted data)
+    try:
+        account["cash"] = float(account.get("cash", 0.0))
+    except (TypeError, ValueError):
+        account["cash"] = 0.0
+
+    try:
+        account["gold"] = float(account.get("gold", 0.0))
+    except (TypeError, ValueError):
+        account["gold"] = 0.0
 
     account.setdefault("cash", 0.0)
     account.setdefault("gold", 0.0)
@@ -924,7 +1542,9 @@ def get_account(user_id):
     account.setdefault("owned_roles", [])
     account.setdefault("dealer_wagon", 0.0)
     account.setdefault("last_dealer_at", None)
+    account["bounty"] = normalize_bounty_data(account.get("bounty"))
     account["moonshine"] = normalize_moonshine_data(account.get("moonshine"))
+    account["naturalist"] = normalize_naturalist_data(account.get("naturalist"))
     account.setdefault("collection_showcase", [])
     try:
         account["treasure_maps"] = max(0, int(account["treasure_maps"]))
@@ -964,6 +1584,20 @@ def accrue_deposit_interest(account):
 
 def random_work_reward():
     return min(300, max(20, round(20 + (300 - 20) * (random.random() ** 2.35))))
+
+
+WORK_SCENARIOS = [
+    "вы помогли фермеру перегнать скот",
+    "вы разгрузили ящики на станции",
+    "вы сопроводили дилижанс до соседнего города",
+    "вы починили изгородь у ранчо",
+    "вы нашли подработку у конюха",
+    "вы доставили посылку старому знакомому",
+]
+
+
+def random_work_scenario():
+    return random.choice(WORK_SCENARIOS)
 
 
 def get_work_cooldown(account):
@@ -1067,6 +1701,10 @@ def get_role_icon(role_definition, role=None):
         configured_icon = economy_data.get("role_icons", {}).get(str(role.id))
         if configured_icon:
             return configured_icon
+    role_key_icons = economy_data.get("role_key_icons", {})
+    configured_role_icon = role_key_icons.get(role_definition["key"])
+    if configured_role_icon:
+        return configured_role_icon
     return role_definition.get("emoji", "")
 
 
@@ -1104,7 +1742,7 @@ def format_role_price_line(role):
     if not discount:
         return f"Цена: **{format_role_price(ROLE_BASE_PRICE)}**"
 
-    expires_text = discount["expires_at"].strftime("%d.%m.%Y")
+    expires_text = discount["expires_at"].astimezone(MSK_TZ).strftime("%d.%m.%Y")
     return (
         f"Цена: ~~{format_role_price(ROLE_BASE_PRICE)}~~ "
         f"**{format_role_price(discount['price'])}**\n"
@@ -1228,10 +1866,28 @@ def get_role_image_file():
     return discord.File(ROLE_IMAGE_FILE, filename=ROLE_IMAGE_ATTACHMENT_NAME)
 
 
+def get_balance_image_file():
+    if not os.path.exists(BALANCE_IMAGE_FILE):
+        return None
+    return discord.File(BALANCE_IMAGE_FILE, filename=BALANCE_IMAGE_ATTACHMENT_NAME)
+
+
 def get_moonshine_image_file():
     if not os.path.exists(MOONSHINE_IMAGE_FILE):
         return None
     return discord.File(MOONSHINE_IMAGE_FILE, filename=MOONSHINE_IMAGE_ATTACHMENT_NAME)
+
+
+def get_bounty_image_file():
+    if not os.path.exists(BOUNTY_IMAGE_FILE):
+        return None
+    return discord.File(BOUNTY_IMAGE_FILE, filename=BOUNTY_IMAGE_ATTACHMENT_NAME)
+
+
+def get_naturalist_image_file():
+    if not os.path.exists(NATURALIST_IMAGE_FILE):
+        return None
+    return discord.File(NATURALIST_IMAGE_FILE, filename=NATURALIST_IMAGE_ATTACHMENT_NAME)
 
 
 def build_bot_embed(title, description, color=BOT_EMBED_COLOR):
@@ -1394,17 +2050,247 @@ async def run_treasure_map_event(
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 active_channels = load_channels()
-economy_data = load_economy()
+economy_data = EconomyStore(load_economy())
 economy_lock = asyncio.Lock()
 
+RESET_CONFIRMATION_PHRASES = ("Я знаю что я делаю", "I know what I'm doing")
+ALL_TARGET_ALIASES = {"all", "@everyone", "everyone", "все", "всем", "всех"}
+ADMIN_COMMAND_NAMES = {
+    "reset-all",
+    "delete-role",
+    "check",
+    "give-money",
+    "remove-money",
+    "set-money",
+    "give-gold",
+    "remove-gold",
+    "set-gold",
+    "give-map",
+    "set-deposit",
+    "set-rate",
+    "treasure-channel",
+    "treasure-event",
+    "set-icon-roles",
+    "set-discounts-roles",
+    "clear-discounts-roles",
+    "fill-dealer",
+    "give-moonshine-ingredient",
+    "remove-moonshine-ingredient",
+    "set-moonshine-upgrade",
+    "set-moonshine-skill",
+    "finish-moonshine",
+    "reset-moonshine",
+    "set-emoji",
+    "set-message",
+    "reset-work",
+}
 
-def build_roles_embed(guild):
+
+def is_admin_interaction(interaction):
+    permissions = getattr(interaction.user, "guild_permissions", None)
+    return bool(permissions and permissions.administrator)
+
+
+async def ensure_admin_interaction(interaction):
+    if is_admin_interaction(interaction):
+        return True
+
+    message = "У вас недостаточно прав. Требуется право Администратор."
+    if interaction.response.is_done():
+        await interaction.followup.send(message, ephemeral=True)
+    else:
+        await interaction.response.send_message(message, ephemeral=True)
+    return False
+
+
+def is_all_target(value):
+    return str(value).strip().casefold() in ALL_TARGET_ALIASES
+
+
+def parse_member_id(value):
+    text = str(value).strip()
+    mention_match = re.fullmatch(r"<@!?(\d{15,25})>", text)
+    if mention_match:
+        return int(mention_match.group(1))
+    if text.isdigit():
+        return int(text)
+    return None
+
+
+async def resolve_member_text(interaction, value):
+    if isinstance(value, discord.Member):
+        return value
+
+    if interaction.guild is None:
+        return None
+
+    text = str(value).strip()
+    member_id = parse_member_id(text)
+    if member_id is not None:
+        member = interaction.guild.get_member(member_id)
+        if member is not None:
+            return member
+        try:
+            return await interaction.guild.fetch_member(member_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            return None
+
+    normalized = text.casefold()
+    for member in interaction.guild.members:
+        names = {
+            member.name.casefold(),
+            member.display_name.casefold(),
+            str(member).casefold(),
+        }
+        global_name = getattr(member, "global_name", None)
+        if global_name:
+            names.add(global_name.casefold())
+        if normalized in names:
+            return member
+    return None
+
+
+async def resolve_admin_targets(interaction, value):
+    if is_all_target(value):
+        if interaction.guild is None:
+            return [], True, "Команда `all` доступна только на сервере."
+        members = [member for member in interaction.guild.members if not member.bot]
+        if not members:
+            return [], True, "Не нашёл участников для массовой операции."
+        return members, True, None
+
+    member = await resolve_member_text(interaction, value)
+    if member is None:
+        return [], False, "Не нашёл участника. Укажите `all`, ID, упоминание или точное имя."
+    return [member], False, None
+
+
+def format_target_result(targets, is_all):
+    if is_all:
+        return f"**{format_integer(len(targets))} участников**"
+    return targets[0].mention
+
+
+async def role_key_autocomplete(interaction: discord.Interaction, current: str):
+    normalized = normalize_role_name(current)
+    choices = []
+    for role_definition in ROLE_DEFINITIONS:
+        search_values = [
+            role_definition["key"],
+            role_definition["name"],
+            *role_definition.get("aliases", []),
+        ]
+        if normalized and not any(
+            normalized in normalize_role_name(value) for value in search_values
+        ):
+            continue
+        choices.append(
+            app_commands.Choice(
+                name=f"{role_definition['emoji']} {role_definition['name']}",
+                value=role_definition["key"],
+            )
+        )
+    return choices[:25]
+
+
+async def role_name_autocomplete(interaction: discord.Interaction, current: str):
+    normalized = normalize_role_name(current)
+    choices = []
+    for role_definition in ROLE_DEFINITIONS:
+        search_values = [
+            role_definition["key"],
+            role_definition["name"],
+            *role_definition.get("aliases", []),
+        ]
+        if normalized and not any(
+            normalized in normalize_role_name(value) for value in search_values
+        ):
+            continue
+        choices.append(
+            app_commands.Choice(
+                name=f"{role_definition['emoji']} {role_definition['name']}",
+                value=role_definition["name"],
+            )
+        )
+
+    guild = interaction.guild
+    if guild is not None:
+        existing = {choice.value.casefold() for choice in choices}
+        for role in guild.roles:
+            if normalized and normalized not in normalize_role_name(role.name):
+                continue
+            if role.name.casefold() in existing or role.is_default():
+                continue
+            choices.append(app_commands.Choice(name=role.name[:100], value=role.name))
+            if len(choices) >= 25:
+                break
+    return choices[:25]
+
+
+EMOJI_TARGETS = [
+    ("Деньги", "cash"),
+    ("Золото", "gold"),
+    ("Карта сокровищ", "map"),
+    ("Инвестиции", "investment"),
+    ("Статистика", "stats"),
+    ("Самогон: 1 звезда", "moonshine_star_1"),
+    ("Самогон: 2 звезды", "moonshine_star_2"),
+    ("Самогон: 3 звезды", "moonshine_star_3"),
+    ("Особый самогон", "moonshine_special"),
+    ("Кнопка: бражка", "moonshine_button_mash"),
+    ("Кнопка: особые ингредиенты", "moonshine_button_special"),
+    ("Кнопка: улучшения", "moonshine_button_upgrades"),
+    ("Кнопка: доставка", "moonshine_button_delivery"),
+    ("Кнопка: обновить самогон", "moonshine_button_refresh"),
+    ("Натуралист: взять образец", "naturalist_button_sample"),
+    ("Натуралист: сдать образцы", "naturalist_button_sell"),
+    ("Натуралист: справочник", "naturalist_button_collection"),
+    ("Натуралист: легендарка", "naturalist_button_legendary"),
+    ("Натуралист: магазин", "naturalist_button_shop"),
+    ("Натуралист: обновить", "naturalist_button_refresh"),
+    ("Охотник: лёгкий контракт", "bounty_button_easy"),
+    ("Охотник: опасный контракт", "bounty_button_medium"),
+    ("Охотник: легендарная цель", "bounty_button_hard"),
+    ("Охотник: засада", "bounty_button_ambush"),
+    ("Охотник: погоня", "bounty_button_chase"),
+    ("Охотник: переговоры", "bounty_button_negotiate"),
+    ("Роль: охотник за головами", "role_icon_bounty_hunter"),
+    ("Роль: торговец", "role_icon_trader"),
+    ("Роль: самогонщик", "role_icon_moonshiner"),
+    ("Роль: натуралист", "role_icon_naturalist"),
+    ("Роль: коллекционер", "role_icon_collector"),
+]
+
+
+async def emoji_target_autocomplete(interaction: discord.Interaction, current: str):
+    normalized = normalize_role_name(current)
+    matches = []
+    for name, value in EMOJI_TARGETS:
+        if normalized and normalized not in normalize_role_name(name) and normalized not in value:
+            continue
+        matches.append(app_commands.Choice(name=name, value=value))
+    return matches[:25]
+
+
+async def bind_economy_context(interaction: discord.Interaction):
+    set_economy_guild_id(interaction.guild_id)
+    command_name = getattr(getattr(interaction, "command", None), "name", None)
+    if command_name in ADMIN_COMMAND_NAMES and not is_admin_interaction(interaction):
+        await ensure_admin_interaction(interaction)
+        return False
+    return True
+
+bot.tree.interaction_check = bind_economy_context
+
+
+def build_roles_embed(guild, member=None, account=None):
     embed = discord.Embed(
         title="Роли",
-        description="Выберите профессию и купите доступную роль за золото.",
+        description=get_custom_message("roles_description"),
         color=discord.Color.gold(),
     )
     if os.path.exists(ROLE_IMAGE_FILE):
@@ -1413,7 +2299,14 @@ def build_roles_embed(guild):
     for role_definition in ROLE_DEFINITIONS:
         role = find_guild_role(guild, role_definition)
         icon = get_role_icon(role_definition, role)
-        status = "доступно" if role_definition["available"] else "пока недоступно"
+        owns_role = (
+            member is not None
+            and has_game_role(member, role_definition["key"], account)
+        )
+        if owns_role:
+            status = f"{icon} Куплено"
+        else:
+            status = "доступно" if role_definition["available"] else "пока недоступно"
         price_line = format_role_price_line(role)
         role_note = "" if role is not None else "\nDiscord-роль на сервере не найдена."
         embed.add_field(
@@ -1426,7 +2319,41 @@ def build_roles_embed(guild):
             inline=False,
         )
 
-    embed.set_footer(text="Доступные роли покупаются зелёными кнопками ниже.")
+    embed.set_footer(text=get_custom_message("roles_footer"))
+    return embed
+
+
+def build_balance_embed(guild, member, account, rate, interest=0.0):
+    cash = account["cash"]
+    gold = account["gold"]
+    deposit = account["deposit"]
+    treasure_maps = account["treasure_maps"]
+    role_sections, unavailable_role_sections = format_balance_role_sections(
+        guild, member, account
+    )
+
+    description = (
+        "💰 Финансы\n"
+        f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
+        f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
+        f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
+        "🎭 Роли\n"
+        f"{role_sections}\n"
+        "\n"
+        "🏦 Банк\n"
+        f"├─ {get_investment_emoji()} Вклад: {format_money_plain(deposit)}\n"
+        f"├─ Доход: +{format_money_plain(interest)}\n"
+        f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
+        "🔒 Недоступные роли\n"
+        f"{unavailable_role_sections}"
+    )
+    embed = discord.Embed(
+        title=f"{get_stats_emoji()}Статистика: {member.display_name}",
+        description=description,
+        color=discord.Color.dark_gold(),
+    )
+    if os.path.exists(BALANCE_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{BALANCE_IMAGE_ATTACHMENT_NAME}")
     return embed
 
 
@@ -1438,112 +2365,142 @@ async def buy_game_role(interaction, role_key):
 
     await interaction.response.defer(ephemeral=True)
 
-    if not role_definition["available"]:
-        await interaction.followup.send("Эта роль пока недоступна.", ephemeral=True)
-        return
+    token = set_economy_guild_id(interaction.guild_id)
+    try:
+        if not role_definition["available"]:
+            await interaction.followup.send("Эта роль пока недоступна.", ephemeral=True)
+            return
 
-    if interaction.guild is None or not isinstance(interaction.user, discord.Member):
-        await interaction.followup.send(
-            "Роли можно покупать только на сервере.", ephemeral=True
-        )
-        return
-
-    member = interaction.user
-    role = find_guild_role(interaction.guild, role_definition)
-    if role is None:
-        await interaction.followup.send(
-            f"На сервере нет роли **{role_definition['name']}**. "
-            "Администратор должен создать её или переименовать существующую.",
-            ephemeral=True,
-        )
-        return
-
-    if role not in member.roles and hasattr(role, "is_assignable") and not role.is_assignable():
-        await interaction.followup.send(
-            f"Я не могу выдать роль {role.mention}: она выше роли бота "
-            "или управляется Discord.",
-            ephemeral=True,
-        )
-        return
-
-    paid_price = 0.0
-    charged = False
-    already_owned = False
-
-    async with economy_lock:
-        remove_expired_role_discounts()
-        update_gold_rate()
-        account = get_account(member.id)
-        accrue_deposit_interest(account)
-        already_owned = role_key in account["owned_roles"] or role in member.roles
-
-        if already_owned:
-            add_owned_role(account, role_key)
-            save_economy()
-        else:
-            paid_price = get_role_price(role)
-            if account["gold"] + 0.0001 < paid_price:
-                save_economy()
-                await interaction.followup.send(
-                    f"Недостаточно золота. Нужно **{format_role_price(paid_price)}**, "
-                    f"а у вас **{format_gold(account['gold'])}**.",
-                    ephemeral=True,
-                )
-                return
-
-            account["gold"] -= paid_price
-            add_owned_role(account, role_key)
-            charged = True
-            save_economy()
-
-    if role not in member.roles:
-        try:
-            await member.add_roles(role, reason="Покупка игровой роли")
-        except (discord.Forbidden, discord.HTTPException) as e:
-            if charged:
-                async with economy_lock:
-                    account = get_account(member.id)
-                    account["gold"] += paid_price
-                    if role_key in account["owned_roles"]:
-                        account["owned_roles"].remove(role_key)
-                    save_economy()
-
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
             await interaction.followup.send(
-                f"Не удалось выдать роль {role.mention}. Покупка отменена: {e}",
+                "Роли можно покупать только на сервере.", ephemeral=True
+            )
+            return
+
+        member = interaction.user
+        role = find_guild_role(interaction.guild, role_definition)
+        if role is None:
+            await interaction.followup.send(
+                f"На сервере нет роли **{role_definition['name']}**. "
+                "Администратор должен создать её или переименовать существующую.",
                 ephemeral=True,
             )
             return
 
-    if already_owned:
-        message = f"У вас уже есть роль {role.mention}."
-    else:
-        message = (
-            f"Вы купили роль {role.mention} за **{format_role_price(paid_price)}**."
-        )
+        if (
+            role not in member.roles
+            and hasattr(role, "is_assignable")
+            and not role.is_assignable()
+        ):
+            await interaction.followup.send(
+                f"Я не могу выдать роль {role.mention}: она выше роли бота "
+                "или управляется Discord.",
+                ephemeral=True,
+            )
+            return
 
-    message += get_role_command_hint(role_key)
-    await interaction.followup.send(message, ephemeral=True)
+        paid_price = 0.0
+        charged = False
+        already_owned = False
 
+        async with economy_lock:
+            remove_expired_role_discounts()
+            update_gold_rate()
+            account = get_account(member.id)
+            accrue_deposit_interest(account)
+            already_owned = role_key in account["owned_roles"] or role in member.roles
+
+            if already_owned:
+                add_owned_role(account, role_key)
+                save_economy()
+            else:
+                paid_price = get_role_price(role)
+                if account['gold'] + 0.0001 < paid_price:
+                    save_economy()
+                    await interaction.followup.send(
+                        f"Недостаточно золота. Нужно **{format_role_price(paid_price)}**, "
+                        f"а у вас **{format_gold(account.get('gold', 0.0))}**.",
+                        ephemeral=True,
+                    )
+                    return
+                else:
+                    account["gold"] -= paid_price
+                    add_owned_role(account, role_key)
+                    charged = True
+                    save_economy()
+            
+
+        if role not in member.roles:
+            try:
+                await member.add_roles(role, reason="Покупка игровой роли")
+            except (discord.Forbidden, discord.HTTPException) as e:
+                if charged:
+                    async with economy_lock:
+                        account = get_account(member.id)
+                        account["gold"] += paid_price
+                        if role_key in account["owned_roles"]:
+                            account["owned_roles"].remove(role_key)
+                        save_economy()
+
+                await interaction.followup.send(
+                    f"Не удалось выдать роль {role.mention}. Покупка отменена: {e}",
+                    ephemeral=True,
+                )
+                return
+
+        if already_owned:
+            message = f"У вас уже есть роль {role.mention}."
+        else:
+            message = (
+                f"Вы купили роль {role.mention} за **{format_role_price(paid_price)}**."
+            )
+
+        message += get_role_command_hint(role_key)
+        await interaction.followup.send(message, ephemeral=True)
+    finally:
+        reset_economy_guild_id(token)
 
 class RoleBuyButton(discord.ui.Button):
-    def __init__(self, role_definition, guild):
+    def __init__(self, role_definition, guild, member=None, account=None):
         role = find_guild_role(guild, role_definition)
         price = get_role_price(role)
         icon = get_role_icon(role_definition, role)
+        owns_role = (
+            member is not None
+            and has_game_role(member, role_definition["key"], account)
+        )
 
-        if role_definition["available"]:
-            label = f"Купить за {format_gold_price_value(price)} золотых"
+        if owns_role:
+            label = "Куплено"
+            style = discord.ButtonStyle.secondary
+            disabled = True
+            emoji_to_use = icon or None
+
+        elif role_definition["available"]:
+            label = f"Купить за {format_gold_price_value(price)}"
             style = discord.ButtonStyle.success
             disabled = False
+
+            # Иконка роли → приоритет, иначе золотой эмодзи
+            if icon:
+                emoji_to_use = icon
+            else:
+                gold_raw = get_gold_emoji()
+                try:
+                    emoji_to_use = discord.PartialEmoji.from_str(gold_raw)
+                except Exception:
+                    emoji_to_use = gold_raw  # стандартный символ (🟡) сработает
+
         else:
             label = "Пока недоступно"
             style = discord.ButtonStyle.secondary
             disabled = True
+            emoji_to_use = icon or None
 
         super().__init__(
             label=label,
             style=style,
-            emoji=icon,
+            emoji=emoji_to_use,
             disabled=disabled,
             custom_id=f"role_shop:{role_definition['key']}",
         )
@@ -1551,14 +2508,15 @@ class RoleBuyButton(discord.ui.Button):
 
     async def callback(self, interaction):
         await buy_game_role(interaction, self.role_key)
-
-
 class RoleShopView(discord.ui.View):
-    def __init__(self, guild):
+    def __init__(self, guild, member=None, account=None):
         super().__init__(timeout=600)
         for role_definition in ROLE_DEFINITIONS:
-            self.add_item(RoleBuyButton(role_definition, guild))
+            self.add_item(RoleBuyButton(role_definition, guild, member, account))
 
+    async def interaction_check(self, interaction):
+        set_economy_guild_id(interaction.guild_id)
+        return True
 
 def build_help_pages(is_admin):
     pages = []
@@ -1679,10 +2637,10 @@ def build_help_pages(is_admin):
             name="Балансы",
             value=(
                 "`/check member` — показать баланс участника.\n"
-                "`/give-money member amount` — выдать деньги.\n"
+                "`/give-money member/all amount` — выдать деньги.\n"
                 "`/remove-money member amount` — отнять деньги.\n"
                 "`/set-money member amount` — установить деньги.\n"
-                "`/give-gold member amount` — выдать золото.\n"
+                "`/give-gold member/all amount` — выдать золото.\n"
                 "`/remove-gold member amount` — отнять золото.\n"
                 "`/set-gold member amount` — установить золото.\n"
                 "`/set-deposit member amount` — установить вклад."
@@ -1692,7 +2650,7 @@ def build_help_pages(is_admin):
         admin.add_field(
             name="Карты и Повозка",
             value=(
-                "`/give-map member amount` — выдать карты сокровищ.\n"
+                "`/give-map member/all amount` — выдать карты сокровищ.\n"
                 "`/treasure-channel channel` — задать канал объявлений карт.\n"
                 "`/treasure-event amount` — выдать всем карты и объявить ивент.\n"
                 "`/fill-dealer percent member` — изменить заполнение повозки."
@@ -1715,7 +2673,8 @@ def build_help_pages(is_admin):
             name="Настройки",
             value=(
                 "`/set-rate rate` — установить курс золота.\n"
-                "`/set-emoji currency emoji` — настроить эмодзи валют, звёзд и кнопок самогона.\n"
+                "`/set-emoji currency emoji` — настроить эмодзи валют, кнопок и ролей.\n"
+                "`/set-message message_key text` — изменить текстовые шаблоны.\n"
                 "`/set-icon-roles role emoji` — задать иконку роли в `/roles`.\n"
                 "`/set-discounts-roles role price` — скидка на роль на неделю.\n"
                 "`/clear-discounts-roles role` — снять скидку с роли.\n"
@@ -1864,6 +2823,7 @@ class BlackjackView(discord.ui.View):
         self.message = None
 
     async def interaction_check(self, interaction):
+        set_economy_guild_id(interaction.guild_id)
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
                 "Это не ваша партия blackjack.", ephemeral=True
@@ -2102,7 +3062,7 @@ def build_moonshine_special_embed(moonshine):
 
     embed = discord.Embed(
         title="Особые ингредиенты",
-        description="\n".join(lines),
+        description=fit_embed_description(lines),
         color=discord.Color.dark_gold(),
     )
     if os.path.exists(MOONSHINE_IMAGE_FILE):
@@ -2183,6 +3143,7 @@ class MoonshineOwnerView(discord.ui.View):
         self.user_id = user_id
 
     async def interaction_check(self, interaction):
+        set_economy_guild_id(interaction.guild_id)
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
                 "Это меню открыто не для вас.", ephemeral=True
@@ -2485,6 +3446,7 @@ class MoonshineMainView(MoonshineOwnerView):
         self.special_button.emoji = get_moonshine_button_emoji("special")
         self.upgrades_button.emoji = get_moonshine_button_emoji("upgrades")
         self.deliver_button.emoji = get_moonshine_button_emoji("delivery")
+        self.refresh_button.emoji = get_moonshine_button_emoji("refresh")
 
     @discord.ui.button(label="Выбрать бражку", style=discord.ButtonStyle.primary, row=0)
     async def choose_mash_button(self, interaction, button):
@@ -2558,27 +3520,827 @@ class MoonshineMainView(MoonshineOwnerView):
     async def deliver_button(self, interaction, button):
         await deliver_moonshine_batch(interaction)
 
+    @discord.ui.button(label="Обновить", style=discord.ButtonStyle.secondary, row=1)
+    async def refresh_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            embed = build_moonshine_embed(interaction.guild, account)
+            save_economy()
+
+        await interaction.response.edit_message(
+            embed=embed, view=MoonshineMainView(interaction.user.id)
+        )
+
+
+def build_bounty_embed(guild, account):
+    bounty = get_bounty_account(account)
+    role_definition = get_role_definition(BOUNTY_ROLE_KEY)
+    role = find_guild_role(guild, role_definition)
+    icon = get_role_icon(role_definition, role)
+    needed = xp_for_next_level(bounty["level"], 140)
+    cooldown = get_bounty_cooldown(bounty)
+    cooldown_text = "готов к контракту" if cooldown <= 0 else format_duration(cooldown)
+    embed = discord.Embed(
+        title=f"{icon} Охотник за головами",
+        description=(
+            "Выберите сложность контракта, затем тактику поимки.\n\n"
+            "📜 Прогресс\n"
+            f"├─ Уровень: **{bounty['level']}/{BOUNTY_MAX_LEVEL}**\n"
+            f"├─ Опыт: **{bounty['xp']}/{needed}**\n"
+            f"├─ Поймано: **{format_integer(bounty['captures'])}**\n"
+            f"├─ Сбежало: **{format_integer(bounty['escaped'])}**\n"
+            f"└─ Кулдаун: **{cooldown_text}**"
+        ),
+        color=discord.Color.dark_gold(),
+    )
+    if os.path.exists(BOUNTY_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
+    return embed
+
+
+class BountyOwnerView(discord.ui.View):
+    def __init__(self, user_id, timeout=600):
+        super().__init__(timeout=timeout)
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction):
+        set_economy_guild_id(interaction.guild_id)
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "Это меню охотника открыто не для вас.", ephemeral=True
+            )
+            return False
+        return True
+
+
+class BountyDifficultyButton(discord.ui.Button):
+    def __init__(self, difficulty_key):
+        difficulty = BOUNTY_DIFFICULTIES[difficulty_key]
+        super().__init__(
+            label=difficulty["name"],
+            style=discord.ButtonStyle.primary,
+            emoji=get_bounty_button_emoji(difficulty_key),
+            custom_id=f"bounty:difficulty:{difficulty_key}",
+        )
+        self.difficulty_key = difficulty_key
+
+    async def callback(self, interaction):
+        difficulty = BOUNTY_DIFFICULTIES[self.difficulty_key]
+        target_name = random.choice(difficulty["targets"])
+        embed = build_bot_embed(
+            "Выбор тактики",
+            (
+                f"Цель: **{target_name}**\n"
+                f"Сложность броска преступника: **d20 + {difficulty['mod']}**\n\n"
+                "Выберите подход: нужно выиграть 2 из 3 бросков."
+            ),
+            color=discord.Color.dark_gold(),
+        )
+        if os.path.exists(BOUNTY_IMAGE_FILE):
+            embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
+        await interaction.response.edit_message(
+            embed=embed,
+            view=BountyTacticView(interaction.user.id, self.difficulty_key, target_name),
+        )
+
+
+class BountyMainView(BountyOwnerView):
+    def __init__(self, user_id):
+        super().__init__(user_id)
+        for difficulty_key in BOUNTY_DIFFICULTIES:
+            self.add_item(BountyDifficultyButton(difficulty_key))
+
+
+class BountyTacticButton(discord.ui.Button):
+    def __init__(self, tactic_key):
+        tactic = BOUNTY_TACTICS[tactic_key]
+        super().__init__(
+            label=tactic["name"],
+            style=discord.ButtonStyle.secondary,
+            emoji=get_bounty_button_emoji(tactic_key),
+            custom_id=f"bounty:tactic:{tactic_key}",
+        )
+        self.tactic_key = tactic_key
+
+    async def callback(self, interaction):
+        view = self.view
+        difficulty = BOUNTY_DIFFICULTIES[view.difficulty_key]
+        tactic = BOUNTY_TACTICS[self.tactic_key]
+
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            bounty = get_bounty_account(account)
+            if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
+                save_economy()
+                await interaction.response.send_message(
+                    get_custom_message("role_required").format(
+                        role="Охотник за головами"
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            cooldown = get_bounty_cooldown(bounty)
+            if cooldown > 0:
+                save_economy()
+                await interaction.response.send_message(
+                    f"Следующий контракт будет доступен через **{format_duration(cooldown)}**.",
+                    ephemeral=True,
+                )
+                return
+
+            level_mod = bounty["level"] // 5
+            rounds = []
+            player_wins = 0
+            target_wins = 0
+            for round_number in range(1, 4):
+                player_roll = random.randint(1, 20)
+                target_roll = random.randint(1, 20)
+                player_total = player_roll + tactic["mod"] + level_mod
+                target_total = target_roll + difficulty["mod"]
+                if player_total >= target_total:
+                    player_wins += 1
+                    outcome = "успех"
+                else:
+                    target_wins += 1
+                    outcome = "провал"
+                rounds.append(
+                    f"{round_number}. Вы: {player_roll}+{tactic['mod']}+{level_mod} = "
+                    f"**{player_total}**; цель: {target_roll}+{difficulty['mod']} = "
+                    f"**{target_total}** — {outcome}"
+                )
+                if self.tactic_key == "ambush" and outcome == "провал":
+                    target_wins = 2
+                    rounds.append("Засада сорвалась: цель сразу ушла от преследования.")
+                    break
+                if player_wins >= 2 or target_wins >= 2:
+                    break
+
+            bounty["last_bounty_at"] = now_local().isoformat(timespec="seconds")
+            if player_wins >= 2:
+                reward = random.randint(
+                    difficulty["reward_min"], difficulty["reward_max"]
+                )
+                reward = round(reward * tactic["reward_multiplier"], 2)
+                gold_reward = difficulty["gold"]
+                xp_reward = difficulty["xp"]
+                account["cash"] += reward
+                account["gold"] += gold_reward
+                bounty["captures"] += 1
+                levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                title = "Цель поймана"
+                result = (
+                    f"Награда: **{format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
+                    f"Опыт охотника: **+{xp_reward}**."
+                )
+                if levels:
+                    result += f"\nНовый уровень: **{bounty['level']}**."
+            else:
+                xp_reward = max(20, difficulty["xp"] // 5)
+                bounty["escaped"] += 1
+                levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                title = "Цель сбежала"
+                result = f"Вы получили **+{xp_reward}** опыта за попытку."
+                if levels:
+                    result += f"\nНовый уровень: **{bounty['level']}**."
+
+            save_economy()
+
+        embed = discord.Embed(
+            title=title,
+            description=(
+                f"Цель: **{view.target_name}**\n"
+                f"Тактика: **{tactic['name']}** — {tactic['description']}\n\n"
+                + "\n".join(rounds)
+                + f"\n\n{result}"
+            ),
+            color=discord.Color.dark_gold(),
+        )
+        if os.path.exists(BOUNTY_IMAGE_FILE):
+            embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
+        await interaction.response.edit_message(
+            embed=embed, view=BountyMainView(interaction.user.id)
+        )
+
+
+class BountyTacticView(BountyOwnerView):
+    def __init__(self, user_id, difficulty_key, target_name):
+        super().__init__(user_id)
+        self.difficulty_key = difficulty_key
+        self.target_name = target_name
+        for tactic_key in BOUNTY_TACTICS:
+            self.add_item(BountyTacticButton(tactic_key))
+
+
+def build_naturalist_embed(guild, account, note=None):
+    naturalist = get_naturalist_account(account)
+    role_definition = get_role_definition(NATURALIST_ROLE_KEY)
+    role = find_guild_role(guild, role_definition)
+    icon = get_role_icon(role_definition, role)
+    needed = xp_for_next_level(naturalist["level"], 180)
+    tranqs = naturalist["inventory"]["tranquilizers"]
+    tranq_cap = get_naturalist_tranq_cap(naturalist)
+    sample_cooldown = get_naturalist_sample_cooldown(naturalist)
+    legendary_cooldown = get_naturalist_legendary_cooldown(naturalist)
+    sample_cooldown_text = "готово" if sample_cooldown <= 0 else format_duration(sample_cooldown)
+    legendary_text = (
+        "доступно"
+        if naturalist["level"] >= 5 and legendary_cooldown <= 0
+        else "с 5 уровня"
+        if naturalist["level"] < 5
+        else format_duration(legendary_cooldown)
+    )
+    note_text = f"\n\n{note}" if note else ""
+    embed = discord.Embed(
+        title=f"{icon} Натуралист",
+        description=(
+            "Собирайте образцы, сдавайте их Гарриет и закрывайте категории справочника.\n\n"
+            "🌿 Прогресс\n"
+            f"├─ Уровень: **{naturalist['level']}/{NATURALIST_MAX_LEVEL}**\n"
+            f"├─ Опыт: **{naturalist['xp']}/{needed}**\n"
+            f"├─ Транквилизаторы: **{tranqs}/{tranq_cap}**\n"
+            f"├─ Образцы: **{count_naturalist_samples(naturalist)}**\n"
+            f"├─ Обычная охота: **{sample_cooldown_text}**\n"
+            f"└─ Легендарка: **{legendary_text}**"
+            f"{note_text}"
+        ),
+        color=discord.Color.dark_green(),
+    )
+    if os.path.exists(NATURALIST_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
+    return embed
+
+
+class NaturalistOwnerView(discord.ui.View):
+    def __init__(self, user_id, timeout=600):
+        super().__init__(timeout=timeout)
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction):
+        set_economy_guild_id(interaction.guild_id)
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "Это меню натуралиста открыто не для вас.", ephemeral=True
+            )
+            return False
+        return True
+
+
+class NaturalistMainView(NaturalistOwnerView):
+    def __init__(self, user_id):
+        super().__init__(user_id)
+        self.sample_button.emoji = get_naturalist_button_emoji("sample")
+        self.sell_button.emoji = get_naturalist_button_emoji("sell")
+        self.collection_button.emoji = get_naturalist_button_emoji("collection")
+        self.legendary_button.emoji = get_naturalist_button_emoji("legendary")
+        self.shop_button.emoji = get_naturalist_button_emoji("shop")
+        self.refresh_button.emoji = get_naturalist_button_emoji("refresh")
+
+    @discord.ui.button(label="Взять образец", style=discord.ButtonStyle.primary, row=0)
+    async def sample_button(self, interaction, button):
+        embed = build_bot_embed(
+            "Выбор региона",
+            "Выберите регион, где хотите искать животное.",
+            color=discord.Color.dark_green(),
+        )
+        if os.path.exists(NATURALIST_IMAGE_FILE):
+            embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistRegionView(interaction.user.id)
+        )
+
+    @discord.ui.button(label="Сдать образцы", style=discord.ButtonStyle.success, row=0)
+    async def sell_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            samples = dict(naturalist.get("samples", {}))
+            if not samples:
+                save_economy()
+                await interaction.response.send_message(
+                    "У вас пока нет образцов для сдачи.", ephemeral=True
+                )
+                return
+
+            multiplier = get_naturalist_sale_multiplier(naturalist)
+            cash_total = 0.0
+            gold_total = 0.0
+            xp_total = 0
+            sold_count = 0
+            for sample_key, amount in samples.items():
+                if sample_key in ANIMALS:
+                    item = ANIMALS[sample_key]
+                    cash_total += item["cash"] * amount
+                    xp_total += item["xp"] * amount
+                else:
+                    item = LEGENDARY_ANIMALS[sample_key]
+                    cash_total += item["cash"] * amount
+                    gold_total += item["gold"] * amount
+                    xp_total += item["xp"] * amount
+                sold_count += amount
+            cash_total = round(cash_total * multiplier, 2)
+            account["cash"] += cash_total
+            account["gold"] += gold_total
+            naturalist["samples"] = {}
+            levels = apply_role_xp(naturalist, xp_total, NATURALIST_MAX_LEVEL, 180)
+            save_economy()
+
+            note = (
+                f"Гарриет приняла **{format_integer(sold_count)}** образцов: "
+                f"**{format_money(cash_total)}**"
+            )
+            if gold_total > 0:
+                note += f" и **{format_gold(gold_total)}**"
+            note += f". Опыт: **+{xp_total}**."
+            if levels:
+                note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
+            embed = build_naturalist_embed(interaction.guild, account, note=note)
+
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistMainView(interaction.user.id)
+        )
+
+    @discord.ui.button(label="Справочник", style=discord.ButtonStyle.secondary, row=0)
+    async def collection_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            embed = build_naturalist_collection_embed(naturalist)
+            save_economy()
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistCollectionView(interaction.user.id, naturalist)
+        )
+
+    @discord.ui.button(label="Легендарное животное", style=discord.ButtonStyle.primary, row=1)
+    async def legendary_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            if naturalist["level"] < 5:
+                save_economy()
+                await interaction.response.send_message(
+                    "Легендарные животные открываются с 5 уровня натуралиста.",
+                    ephemeral=True,
+                )
+                return
+            embed = build_naturalist_legendary_embed(naturalist)
+            save_economy()
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistLegendaryView(interaction.user.id, naturalist)
+        )
+
+    @discord.ui.button(label="Магазин", style=discord.ButtonStyle.secondary, row=1)
+    async def shop_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            embed = build_naturalist_shop_embed(account, naturalist)
+            save_economy()
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistShopView(interaction.user.id)
+        )
+
+    @discord.ui.button(label="Обновить", style=discord.ButtonStyle.secondary, row=1)
+    async def refresh_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            embed = build_naturalist_embed(interaction.guild, account)
+            save_economy()
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistMainView(interaction.user.id)
+        )
+
+
+class NaturalistRegionSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(
+                label=f"{region['emoji']} {region['name']}",
+                value=region_key,
+                description=", ".join(ANIMALS[key]["name"] for key in CATEGORIES[region_key]),
+            )
+            for region_key, region in NATURALIST_REGIONS.items()
+        ]
+        super().__init__(
+            placeholder="Выберите регион",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction):
+        region_key = self.values[0]
+        region = NATURALIST_REGIONS[region_key]
+        lines = []
+        for animal_key in CATEGORIES[region_key]:
+            animal = ANIMALS[animal_key]
+            lines.append(
+                f"**{animal['name']}** — {animal['shots']} патр., "
+                f"шанс {format_percent(animal['chance'] * 100)}, "
+                f"сдача {format_money(animal['cash'])}, опыт {animal['xp']}"
+            )
+        embed = build_bot_embed(
+            f"{region['emoji']} {region['name']}",
+            "\n".join(lines),
+            color=discord.Color.dark_green(),
+        )
+        if os.path.exists(NATURALIST_IMAGE_FILE):
+            embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistAnimalView(interaction.user.id, region_key)
+        )
+
+
+class NaturalistRegionView(NaturalistOwnerView):
+    def __init__(self, user_id):
+        super().__init__(user_id)
+        self.add_item(NaturalistRegionSelect())
+
+
+class NaturalistAnimalSelect(discord.ui.Select):
+    def __init__(self, region_key):
+        options = []
+        for animal_key in CATEGORIES[region_key]:
+            animal = ANIMALS[animal_key]
+            options.append(
+                discord.SelectOption(
+                    label=animal["name"],
+                    value=animal_key,
+                    description=(
+                        f"{animal['shots']} патр. · шанс {format_percent(animal['chance'] * 100)} · "
+                        f"{format_number(animal['cash'])}$"
+                    ),
+                )
+            )
+        super().__init__(
+            placeholder="Выберите животное",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction):
+        animal_key = self.values[0]
+        animal = ANIMALS[animal_key]
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            cooldown = get_naturalist_sample_cooldown(naturalist)
+            if cooldown > 0:
+                save_economy()
+                await interaction.response.send_message(
+                    f"Следующий образец можно брать через **{format_duration(cooldown)}**.",
+                    ephemeral=True,
+                )
+                return
+            if naturalist["inventory"]["tranquilizers"] < animal["shots"]:
+                save_economy()
+                await interaction.response.send_message(
+                    "Не хватает транквилизаторов. Купите их в магазине натуралиста.",
+                    ephemeral=True,
+                )
+                return
+
+            naturalist["inventory"]["tranquilizers"] -= animal["shots"]
+            naturalist["last_sample_at"] = now_local().isoformat(timespec="seconds")
+            chance = get_naturalist_success_chance(naturalist, animal["chance"])
+            success = random.random() <= chance
+            if success:
+                naturalist["samples"][animal_key] = naturalist["samples"].get(animal_key, 0) + 1
+                xp_reward = random.randint(20, 30)
+                levels = apply_role_xp(
+                    naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180
+                )
+                note = (
+                    f"Образец **{animal['name']}** получен. "
+                    f"Потрачено патронов: **{animal['shots']}**. "
+                    f"Опыт: **+{xp_reward}**."
+                )
+                if levels:
+                    note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
+            else:
+                note = (
+                    f"**{animal['name']}** убежал. "
+                    f"Потрачено патронов: **{animal['shots']}**. "
+                    f"Шанс был **{format_percent(chance * 100)}**."
+                )
+            save_economy()
+            embed = build_naturalist_embed(interaction.guild, account, note=note)
+
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistMainView(interaction.user.id)
+        )
+
+
+class NaturalistAnimalView(NaturalistOwnerView):
+    def __init__(self, user_id, region_key):
+        super().__init__(user_id)
+        self.add_item(NaturalistAnimalSelect(region_key))
+
+
+def build_naturalist_collection_embed(naturalist):
+    lines = []
+    for region_key, region in NATURALIST_REGIONS.items():
+        collected, total = get_naturalist_category_progress(naturalist, region_key)
+        status = "готово к сдаче" if collected == total else f"{collected}/{total}"
+        lines.append(f"{region['emoji']} **{region['name']}** — {status}")
+    samples = format_naturalist_samples_short(naturalist)
+    embed = build_bot_embed(
+        "Справочник натуралиста",
+        "\n".join(lines) + f"\n\nОбразцы: **{samples}**",
+        color=discord.Color.dark_green(),
+    )
+    if os.path.exists(NATURALIST_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
+    return embed
+
+
+class NaturalistCategoryButton(discord.ui.Button):
+    def __init__(self, region_key, naturalist):
+        region = NATURALIST_REGIONS[region_key]
+        complete = has_full_naturalist_category(naturalist, region_key)
+        super().__init__(
+            label=f"Сдать: {region['name']}",
+            style=discord.ButtonStyle.success if complete else discord.ButtonStyle.secondary,
+            emoji=region["emoji"],
+            disabled=not complete,
+            custom_id=f"naturalist:category:{region_key}",
+        )
+        self.region_key = region_key
+
+    async def callback(self, interaction):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            if not has_full_naturalist_category(naturalist, self.region_key):
+                save_economy()
+                await interaction.response.send_message(
+                    "Для сдачи категории нужен хотя бы один образец каждого животного.",
+                    ephemeral=True,
+                )
+                return
+            for animal_key in CATEGORIES[self.region_key]:
+                naturalist["samples"][animal_key] -= 1
+                if naturalist["samples"][animal_key] <= 0:
+                    naturalist["samples"].pop(animal_key, None)
+            cash_reward = round(100.0 * get_naturalist_sale_multiplier(naturalist), 2)
+            gold_reward = 0.5
+            xp_reward = 300
+            account["cash"] += cash_reward
+            account["gold"] += gold_reward
+            levels = apply_role_xp(naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180)
+            save_economy()
+            region = NATURALIST_REGIONS[self.region_key]
+            note = (
+                f"Категория **{region['name']}** сдана: "
+                f"**{format_money(cash_reward)}**, **{format_gold(gold_reward)}**, "
+                f"опыт **+{xp_reward}**."
+            )
+            if levels:
+                note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
+            embed = build_naturalist_embed(interaction.guild, account, note=note)
+
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistMainView(interaction.user.id)
+        )
+
+
+class NaturalistCollectionView(NaturalistOwnerView):
+    def __init__(self, user_id, naturalist):
+        super().__init__(user_id)
+        for region_key in NATURALIST_REGIONS:
+            self.add_item(NaturalistCategoryButton(region_key, naturalist))
+
+
+def build_naturalist_legendary_embed(naturalist):
+    lines = []
+    for animal_key, animal in LEGENDARY_ANIMALS.items():
+        lock = "" if naturalist["level"] >= animal["required_level"] else " 🔒"
+        lines.append(
+            f"**{animal['name']}**{lock} — с {animal['required_level']} ур., "
+            f"10 патр., сдача {format_money(animal['cash'])} + {format_gold(animal['gold'])}"
+        )
+    embed = build_bot_embed(
+        "Легендарное животное",
+        "\n".join(lines),
+        color=discord.Color.dark_green(),
+    )
+    if os.path.exists(NATURALIST_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
+    return embed
+
+
+class NaturalistLegendarySelect(discord.ui.Select):
+    def __init__(self, naturalist):
+        options = []
+        for animal_key, animal in LEGENDARY_ANIMALS.items():
+            if naturalist["level"] < animal["required_level"]:
+                continue
+            options.append(
+                discord.SelectOption(
+                    label=animal["name"],
+                    value=animal_key,
+                    description=(
+                        f"10 патр. · {format_number(animal['cash'])}$ · "
+                        f"{format_number(animal['gold'])} зол."
+                    ),
+                )
+            )
+        if not options:
+            options.append(
+                discord.SelectOption(
+                    label="Нет доступных легендарных животных",
+                    value="none",
+                    description="Повысьте уровень натуралиста",
+                )
+            )
+        super().__init__(
+            placeholder="Выберите легендарное животное",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction):
+        if self.values[0] == "none":
+            await interaction.response.send_message(
+                "Пока нет доступных легендарных животных.", ephemeral=True
+            )
+            return
+
+        animal_key = self.values[0]
+        animal = LEGENDARY_ANIMALS[animal_key]
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            cooldown = get_naturalist_legendary_cooldown(naturalist)
+            if cooldown > 0:
+                save_economy()
+                await interaction.response.send_message(
+                    f"Следующая легендарная охота будет доступна через **{format_duration(cooldown)}**.",
+                    ephemeral=True,
+                )
+                return
+            if naturalist["level"] < animal["required_level"]:
+                save_economy()
+                await interaction.response.send_message(
+                    "Уровень натуралиста пока слишком низкий.", ephemeral=True
+                )
+                return
+            if naturalist["inventory"]["tranquilizers"] < 10:
+                save_economy()
+                await interaction.response.send_message(
+                    "Для легендарной охоты нужно 10 транквилизаторов.",
+                    ephemeral=True,
+                )
+                return
+
+            naturalist["inventory"]["tranquilizers"] -= 10
+            naturalist["legendary_cooldown_until"] = (
+                now_local() + timedelta(seconds=NATURALIST_LEGENDARY_COOLDOWN_SECONDS)
+            ).isoformat(timespec="seconds")
+            chance = min(0.70, 0.50 + naturalist["level"] * 0.01)
+            success = random.random() <= chance
+            if success:
+                naturalist["samples"][animal_key] = naturalist["samples"].get(animal_key, 0) + 1
+                xp_reward = max(20, animal["xp"] // 3)
+                levels = apply_role_xp(
+                    naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180
+                )
+                note = (
+                    f"Легендарный образец **{animal['name']}** получен. "
+                    f"Опыт: **+{xp_reward}**."
+                )
+                if levels:
+                    note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
+            else:
+                note = (
+                    f"**{animal['name']}** ушёл от вас. "
+                    f"Шанс был **{format_percent(chance * 100)}**."
+                )
+            save_economy()
+            embed = build_naturalist_embed(interaction.guild, account, note=note)
+
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistMainView(interaction.user.id)
+        )
+
+
+class NaturalistLegendaryView(NaturalistOwnerView):
+    def __init__(self, user_id, naturalist):
+        super().__init__(user_id)
+        self.add_item(NaturalistLegendarySelect(naturalist))
+
+
+def build_naturalist_shop_embed(account, naturalist):
+    tranqs = naturalist["inventory"]["tranquilizers"]
+    cap = get_naturalist_tranq_cap(naturalist)
+    return build_bot_embed(
+        "Магазин натуралиста",
+        (
+            f"Транквилизатор: **{format_money(NATURALIST_TRANQ_PRICE)}** за штуку.\n"
+            f"Инвентарь: **{tranqs}/{cap}**\n"
+            f"Наличные: **{format_money(account['cash'])}**"
+        ),
+        color=discord.Color.dark_green(),
+    )
+
+
+class NaturalistShopButton(discord.ui.Button):
+    def __init__(self, amount, label):
+        super().__init__(
+            label=label,
+            style=discord.ButtonStyle.success,
+            emoji=get_naturalist_button_emoji("shop"),
+        )
+        self.amount = amount
+
+    async def callback(self, interaction):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            naturalist = get_naturalist_account(account)
+            cap = get_naturalist_tranq_cap(naturalist)
+            current = naturalist["inventory"]["tranquilizers"]
+            space = max(0, cap - current)
+            if space <= 0:
+                save_economy()
+                await interaction.response.send_message(
+                    "Сумка транквилизаторов уже заполнена.", ephemeral=True
+                )
+                return
+            if self.amount == "max":
+                affordable = int(account["cash"] // NATURALIST_TRANQ_PRICE)
+                amount = min(space, affordable)
+            else:
+                amount = min(space, int(self.amount))
+            cost = amount * NATURALIST_TRANQ_PRICE
+            if amount <= 0 or account["cash"] + 0.0001 < cost:
+                save_economy()
+                await interaction.response.send_message(
+                    "Не хватает денег на покупку транквилизаторов.", ephemeral=True
+                )
+                return
+            account["cash"] -= cost
+            naturalist["inventory"]["tranquilizers"] += amount
+            save_economy()
+            note = f"Куплено **{amount}** транквилизаторов за **{format_money(cost)}**."
+            embed = build_naturalist_embed(interaction.guild, account, note=note)
+
+        await interaction.response.edit_message(
+            embed=embed, view=NaturalistMainView(interaction.user.id)
+        )
+
+
+class NaturalistShopView(NaturalistOwnerView):
+    def __init__(self, user_id):
+        super().__init__(user_id)
+        self.add_item(NaturalistShopButton(10, "Купить 10"))
+        self.add_item(NaturalistShopButton(50, "Купить 50"))
+        self.add_item(NaturalistShopButton("max", "Купить максимум"))
+
 
 @tasks.loop(time=time(hour=12, minute=0, tzinfo=MSK_TZ))
 async def daily_treasure_map_event():
-    try:
-        granted_count, channel, skipped = await run_treasure_map_event(scheduled=True)
-    except discord.HTTPException as e:
-        print(f"Ежедневная выдача карт сохранена, но объявление не отправилось: {e}")
-        return
+    for guild_id in economy_data.configured_treasure_guild_ids():
+        guild = bot.get_guild(int(guild_id)) if str(guild_id).isdigit() else None
+        token = set_economy_guild_id(guild_id)
+        try:
+            try:
+                granted_count, channel, skipped = await run_treasure_map_event(
+                    scheduled=True, guild=guild
+                )
+            except discord.HTTPException as e:
+                print(
+                    "Ежедневная выдача карт сохранена, но объявление не отправилось "
+                    f"для сервера {guild_id}: {e}"
+                )
+                continue
 
-    if skipped:
-        return
+            if skipped:
+                continue
 
-    if channel is None:
-        print(
-            "Ежедневная карта сокровищ выдана, но канал объявлений не настроен "
-            f"или недоступен. Игроков: {granted_count}"
-        )
+            if channel is None:
+                print(
+                    "Ежедневная карта сокровищ выдана, но канал объявлений не настроен "
+                    f"или недоступен. Сервер: {guild_id}; игроков: {granted_count}"
+                )
+        finally:
+            reset_economy_guild_id(token)
 
 
 @daily_treasure_map_event.before_loop
 async def before_daily_treasure_map_event():
+    await bot.wait_until_ready()
+
+
+@tasks.loop(minutes=5)
+async def periodic_economy_save():
+    async with economy_lock:
+        save_economy()
+
+
+@periodic_economy_save.before_loop
+async def before_periodic_economy_save():
     await bot.wait_until_ready()
 
 
@@ -2613,6 +4375,8 @@ async def on_ready():
     print(f"Бот {bot.user.name} запущен!")
     if not daily_treasure_map_event.is_running():
         daily_treasure_map_event.start()
+    if not periodic_economy_save.is_running():
+        periodic_economy_save.start()
 
     if COMMANDS_SYNCED:
         return
@@ -2715,9 +4479,10 @@ async def help_command(interaction: discord.Interaction):
 async def roles_command(interaction: discord.Interaction):
     async with economy_lock:
         remove_expired_role_discounts()
+        account = get_account(interaction.user.id)
         save_economy()
-        embed = build_roles_embed(interaction.guild)
-        view = RoleShopView(interaction.guild)
+        embed = build_roles_embed(interaction.guild, interaction.user, account)
+        view = RoleShopView(interaction.guild, interaction.user, account)
 
     role_image = get_role_image_file()
     if role_image:
@@ -2773,6 +4538,183 @@ async def send_private_message_command(
     )
 
 
+async def perform_reset_all(interaction: discord.Interaction):
+    if interaction.guild is None:
+        await interaction.response.send_message("Эта команда доступна только на сервере.", ephemeral=True)
+        return
+
+    if not await ensure_admin_interaction(interaction):
+        return
+
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=True)
+
+    guild = interaction.guild
+    guild_id = guild.id
+    roles_to_remove = [
+        role
+        for role_definition in ROLE_DEFINITIONS
+        if (role := find_guild_role(guild, role_definition)) is not None
+    ]
+
+    async with economy_lock:
+        economy_data.reset_guild(guild_id)
+        save_economy()
+
+    removed_count = 0
+    failed_count = 0
+    for role in roles_to_remove:
+        for member in list(guild.members):
+            if role not in member.roles:
+                continue
+            try:
+                await member.remove_roles(role, reason="Reset by admin via /reset-all")
+                removed_count += 1
+            except (discord.Forbidden, discord.HTTPException):
+                failed_count += 1
+
+    message = (
+        "Сервер успешно сброшен: экономика обнулена, игровые роли удалены по возможности.\n"
+        f"Удалений ролей: **{format_integer(removed_count)}**."
+    )
+    if failed_count:
+        message += f"\nНе удалось удалить ролей: **{format_integer(failed_count)}**."
+    await interaction.followup.send(message, ephemeral=True)
+
+
+class ResetAllConfirmModal(discord.ui.Modal):
+    def __init__(self, requester_id):
+        super().__init__(title="Подтверждение полного сброса")
+        self.requester_id = requester_id
+        self.confirmation = discord.ui.TextInput(
+            label="Фраза подтверждения",
+            placeholder="Я знаю что я делаю / I know what I'm doing",
+            max_length=64,
+            required=True,
+        )
+        self.add_item(self.confirmation)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if interaction.user.id != self.requester_id:
+            await interaction.response.send_message(
+                "Это подтверждение открыто не для вас.", ephemeral=True
+            )
+            return
+
+        if str(self.confirmation.value).strip() not in RESET_CONFIRMATION_PHRASES:
+            await interaction.response.send_message(
+                "Подтверждение неверно. Сброс отменён.", ephemeral=True
+            )
+            return
+
+        await perform_reset_all(interaction)
+
+
+class ResetAllConfirmButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Ввести подтверждение",
+            style=discord.ButtonStyle.danger,
+            custom_id="reset_all:confirm",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        if interaction.user.id != view.requester_id:
+            await interaction.response.send_message(
+                "Это подтверждение открыто не для вас.", ephemeral=True
+            )
+            return
+        if not await ensure_admin_interaction(interaction):
+            return
+        await interaction.response.send_modal(ResetAllConfirmModal(view.requester_id))
+
+
+class ResetAllConfirmView(discord.ui.View):
+    def __init__(self, requester_id):
+        super().__init__(timeout=120)
+        self.requester_id = requester_id
+        self.add_item(ResetAllConfirmButton())
+
+
+@bot.tree.command(
+    name="reset-all",
+    description="Полный сброс сервера: обнуление экономики и удаление игровых ролей",
+)
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+async def reset_all_command(interaction: discord.Interaction):
+    if interaction.guild is None:
+        await interaction.response.send_message("Эта команда доступна только на сервере.", ephemeral=True)
+        return
+
+    if not await ensure_admin_interaction(interaction):
+        return
+
+    embed = build_bot_embed(
+        "Полный сброс сервера",
+        (
+            f"{get_custom_message('reset_prompt')}\n\n"
+            "Будут обнулены деньги, золото, карты, профессии, прогресс ролей, "
+            "самогон, натуралист, охотник и настройки экономики этого сервера. "
+            "Игровые Discord-роли будут удалены у участников по возможности."
+        ),
+        color=discord.Color.red(),
+    )
+    await interaction.response.send_message(
+        embed=embed, view=ResetAllConfirmView(interaction.user.id), ephemeral=True
+    )
+
+
+@bot.tree.command(
+    name="delete-role",
+    description="Удалить одну игровую роль у участника (внутренняя игровая покупка и Discord-роль)",
+)
+@app_commands.describe(member="Участник", role_key="Ключ роли (например: bounty_hunter, trader)")
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.autocomplete(role_key=role_key_autocomplete)
+async def delete_role_command(interaction: discord.Interaction, member: discord.Member, role_key: str):
+    if interaction.guild is None:
+        await interaction.response.send_message("Эта команда доступна только на сервере.", ephemeral=True)
+        return
+
+    role_definition = get_role_definition(role_key)
+    if role_definition is None:
+        # Try matching by name
+        rd = find_role_definition_by_name(role_key)
+        if rd is None:
+            await interaction.response.send_message(
+                "Роль не найдена. Укажите ключ роли (например: bounty_hunter, trader, moonshiner, naturalist).",
+                ephemeral=True,
+            )
+            return
+        role_definition = rd
+
+    await interaction.response.defer(ephemeral=True)
+
+    async with economy_lock:
+        account = get_account(member.id)
+        if role_definition["key"] in account.get("owned_roles", []):
+            try:
+                account["owned_roles"].remove(role_definition["key"])
+            except ValueError:
+                pass
+        save_economy()
+
+    # Remove the Discord role object if present on the guild member
+    discord_role = find_guild_role(interaction.guild, role_definition)
+    if discord_role is not None:
+        try:
+            if discord_role in member.roles:
+                await member.remove_roles(discord_role, reason="Role removed by admin via /delete-role")
+        except discord.Forbidden:
+            await interaction.followup.send("Не хватает прав, чтобы удалить Discord-роль у участника.", ephemeral=True)
+            return
+
+    await interaction.followup.send(f"Роль '{role_definition['name']}' удалена у {member.mention} (игровая покупка и Discord-роль обновлены).", ephemeral=True)
+
+
 @bot.tree.command(name="balance", description="Показать ваш баланс")
 async def balance_command(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -2783,40 +4725,11 @@ async def balance_command(interaction: discord.Interaction):
         interest = accrue_deposit_interest(account)
         save_economy()
 
-        cash = account["cash"]
-        gold = account["gold"]
-        deposit = account["deposit"]
-        treasure_maps = account["treasure_maps"]
-        role_sections, unavailable_role_sections = format_balance_role_sections(
-            interaction.guild, interaction.user, account
-        )
+        embed = build_balance_embed(interaction.guild, interaction.user, account, rate, interest)
 
-    description = (
-        "💰 Финансы\n"
-        f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
-        f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
-        f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
-        "🎭 Роли\n"
-        f"{role_sections}\n"
-        "\n"
-        "🏦 Банк\n"
-        f"├─ {get_investment_emoji()} Вклад: {format_money_plain(deposit)}\n"
-        f"├─ Доход: +{format_money_plain(interest)}\n"
-        f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
-        "🔒 Недоступные роли\n"
-        f"{unavailable_role_sections}"
-    )
-    embed = discord.Embed(
-        title=f"{get_stats_emoji()}Статистика",
-        description=description,
-        color=discord.Color.dark_gold(),
-    )
-    if os.path.exists(ROLE_IMAGE_FILE):
-        embed.set_image(url=f"attachment://{ROLE_IMAGE_ATTACHMENT_NAME}")
-
-    role_image = get_role_image_file()
-    if role_image:
-        await interaction.followup.send(embed=embed, file=role_image, ephemeral=True)
+    balance_image = get_balance_image_file()
+    if balance_image:
+        await interaction.followup.send(embed=embed, file=balance_image, ephemeral=True)
     else:
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -2839,12 +4752,18 @@ async def work_command(interaction: discord.Interaction):
             return
 
         reward = random_work_reward()
+        scenario = random_work_scenario()
         account["cash"] += reward
         account["last_work_at"] = now_local().isoformat(timespec="seconds")
         save_economy()
 
+    message_template = get_custom_message("work_success")
     await interaction.response.send_message(
-        f"{interaction.user.mention}, вы поработали и получили **{format_money(reward)}**."
+        message_template.format(
+            mention=interaction.user.mention,
+            reward=format_money(reward),
+            scenario=scenario,
+        )
     )
 
 
@@ -3032,17 +4951,20 @@ class TreasureDigButton(discord.ui.Button):
 
 
 class TreasureHuntView(discord.ui.View):
-    def __init__(self, user_id, treasure_index, remaining_maps):
+    def __init__(self, user_id, treasure_index, remaining_maps, guild_id=None):
         super().__init__(timeout=120)
         self.user_id = user_id
+        self.guild_id = guild_id
         self.treasure_index = treasure_index
         self.remaining_maps = remaining_maps
         self.attempts_used = 0
         self.finished = False
+        self._is_digging = False
         for index in range(3):
             self.add_item(TreasureDigButton(index))
 
     async def interaction_check(self, interaction):
+        set_economy_guild_id(interaction.guild_id)
         if interaction.user.id != self.user_id:
             await send_embed_response(
                 interaction,
@@ -3072,24 +4994,30 @@ class TreasureHuntView(discord.ui.View):
         cash_reward = random.randint(80, 200)
         gold_reward = round(random.uniform(0.5, 3.9), 2)
 
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            ingredients_reward = grant_random_moonshine_ingredients(account)
-            account["cash"] += cash_reward
-            account["gold"] += gold_reward
-            remaining_maps = account["treasure_maps"]
-            save_economy()
+        # Явно устанавливаем guild_id: ContextVar сбрасывается после await asyncio.sleep,
+        # поэтому без этого get_account() смотрит в "global" вместо реального сервера.
+        guild_id = self.guild_id or interaction.guild_id
+        token = set_economy_guild_id(guild_id)
+        extra_map_granted = False
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                ingredients_reward = grant_random_moonshine_ingredients(account)
+                account["cash"] += cash_reward
+                account["gold"] += gold_reward
+                if random.random() < EXCAVATION_REWARD_CHANCE:
+                    account["treasure_maps"] += 1
+                    extra_map_granted = True
+                remaining_maps = account["treasure_maps"]
+                save_economy()
+        finally:
+            reset_economy_guild_id(token)
 
         ingredients_text = ", ".join(
             f"{ingredient} x{amount}"
             for ingredient, amount in sorted(ingredients_reward.items())
-        )
-        return (
-            cash_reward,
-            gold_reward,
-            ingredients_text,
-            remaining_maps,
-        )
+        ) or "нет"
+        return cash_reward, gold_reward, ingredients_text, remaining_maps, extra_map_granted
 
     async def dig(self, interaction, button):
         if self.finished:
@@ -3097,6 +5025,15 @@ class TreasureHuntView(discord.ui.View):
                 interaction,
                 "Раскопки завершены",
                 "Эта карта уже разыграна.",
+                ephemeral=True,
+            )
+            return
+
+        if getattr(self, "_is_digging", False):
+            await send_embed_response(
+                interaction,
+                "Копаем...",
+                "Подождите, раскопки уже в процессе.",
                 ephemeral=True,
             )
             return
@@ -3110,55 +5047,64 @@ class TreasureHuntView(discord.ui.View):
             )
             return
 
-        self.attempts_used += 1
-        await interaction.response.defer()
-        await asyncio.sleep(2)
+        self._is_digging = True
+        try:
+            self.attempts_used += 1
+            button.disabled = True
+            await interaction.response.edit_message(view=self)
+            await asyncio.sleep(2)
 
-        if button.index == self.treasure_index:
+            if button.index == self.treasure_index:
+                self.finished = True
+                self.disable_all()
+                button.emoji = "💰"
+                button.style = discord.ButtonStyle.success
+                cash_reward, gold_reward, ingredients_text, remaining_maps, extra_map_granted = await self.grant_reward(interaction)
+                
+                result_text = (
+                    f"вы нашли тайник! Получено: **{format_money(cash_reward)}** "
+                    f"и **{format_gold(gold_reward)}**!\n"
+                    f"Ингредиенты самогонщика: **{ingredients_text}**.\n"
+                )
+                if extra_map_granted:
+                    result_text += "✨ **Вам повезло! Вы нашли дополнительную карту сокровищ!** ✨\n"
+                result_text += f"Карт осталось: **{format_treasure_maps(remaining_maps)}**."
+                
+                embed = build_treasure_result_embed(
+                    interaction.user,
+                    "💰 Клад найден!",
+                    result_text,
+                )
+                await interaction.edit_original_response(embed=embed, view=self)
+                self.stop()
+                return
+
+            button.style = discord.ButtonStyle.danger
+            if self.attempts_left() > 0:
+                embed = build_treasure_hunt_embed(
+                    interaction.user,
+                    self.remaining_maps,
+                    attempts_left=self.attempts_left(),
+                    note="Под лопатой только камни и сухая земля. Осталась ещё одна попытка.",
+                )
+                await interaction.edit_original_response(embed=embed, view=self)
+                return
+
             self.finished = True
             self.disable_all()
-            button.emoji = "💰"
-            button.style = discord.ButtonStyle.success
-            cash_reward, gold_reward, ingredients_text, remaining_maps = await self.grant_reward(interaction)
+            self.reveal_treasure()
             embed = build_treasure_result_embed(
                 interaction.user,
-                "Клад найден",
+                "Клад ускользнул",
                 (
-                    f"вы попали точно в отметку на карте и нашли "
-                    f"**{format_money(cash_reward)}** и **{format_gold(gold_reward)}**!\n"
-                    f"Ингредиенты: **{ingredients_text}**.\n"
-                    f"Карт осталось: **{format_treasure_maps(remaining_maps)}**."
+                    "две попытки ушли в пустую землю. Крест на карте оказался точнее, "
+                    "чем сегодняшняя удача."
                 ),
             )
             await interaction.edit_original_response(embed=embed, view=self)
             self.stop()
-            return
-
-        button.disabled = True
-        button.style = discord.ButtonStyle.danger
-        if self.attempts_left() > 0:
-            embed = build_treasure_hunt_embed(
-                interaction.user,
-                self.remaining_maps,
-                attempts_left=self.attempts_left(),
-                note="Под лопатой только камни и сухая земля. Осталась ещё одна попытка.",
-            )
-            await interaction.edit_original_response(embed=embed, view=self)
-            return
-
-        self.finished = True
-        self.disable_all()
-        self.reveal_treasure()
-        embed = build_treasure_result_embed(
-            interaction.user,
-            "Клад ускользнул",
-            (
-                "две попытки ушли в пустую землю. Крест на карте оказался точнее, "
-                "чем сегодняшняя удача."
-            ),
-        )
-        await interaction.edit_original_response(embed=embed, view=self)
-        self.stop()
+        finally:
+            self._is_digging = False
 
     async def on_timeout(self):
         if self.finished:
@@ -3189,7 +5135,7 @@ async def excavation_command(interaction: discord.Interaction):
         save_economy()
 
     treasure_index = random.randint(0, 2)
-    view = TreasureHuntView(interaction.user.id, treasure_index, remaining_maps)
+    view = TreasureHuntView(interaction.user.id, treasure_index, remaining_maps, guild_id=interaction.guild_id)
     embed = build_treasure_hunt_embed(interaction.user, remaining_maps)
     banner = get_treasure_banner_file()
     await send_loading_then_edit(
@@ -3362,6 +5308,120 @@ async def moonshine_command(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+@bot.tree.command(name="bounty", description="Охотник за головами: открыть контракты")
+async def bounty_command(interaction: discord.Interaction):
+    if not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message(
+            "Эту команду можно использовать только на сервере.", ephemeral=True
+        )
+        return
+
+    async with economy_lock:
+        update_gold_rate()
+        account = get_account(interaction.user.id)
+        accrue_deposit_interest(account)
+        if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
+            save_economy()
+            await interaction.response.send_message(
+                get_custom_message("role_required").format(
+                    role="Охотник за головами"
+                ),
+                ephemeral=True,
+            )
+            return
+        embed = build_bounty_embed(interaction.guild, account)
+        save_economy()
+
+    image = get_bounty_image_file()
+    view = BountyMainView(interaction.user.id)
+    if image:
+        await interaction.response.send_message(
+            embed=embed, view=view, file=image, ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+@bot.tree.command(name="bounty-leaderboard", description="Топ охотников за головами")
+async def bounty_leaderboard_command(interaction: discord.Interaction):
+    async with economy_lock:
+        rows = []
+        for user_id, account in economy_data["users"].items():
+            if not isinstance(account, dict):
+                continue
+            bounty = normalize_bounty_data(account.get("bounty"))
+            if bounty["captures"] <= 0 and bounty["xp"] <= 0:
+                continue
+            rows.append((user_id, bounty))
+        rows.sort(
+            key=lambda item: (
+                item[1]["level"],
+                item[1]["captures"],
+                item[1]["xp"],
+            ),
+            reverse=True,
+        )
+        save_economy()
+
+    if not rows:
+        description = "Пока никто не закрыл ни одного контракта."
+    else:
+        lines = []
+        for index, (user_id, bounty) in enumerate(rows[:10], start=1):
+            member = interaction.guild.get_member(int(user_id)) if interaction.guild else None
+            name = member.mention if member else f"`{user_id}`"
+            lines.append(
+                f"**{index}.** {name} — ур. {bounty['level']}, "
+                f"поймано {format_integer(bounty['captures'])}, опыт {bounty['xp']}"
+            )
+        description = "\n".join(lines)
+
+    embed = build_bot_embed(
+        "Лучшие охотники за головами",
+        description,
+        color=discord.Color.dark_gold(),
+    )
+    if os.path.exists(BOUNTY_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
+    image = get_bounty_image_file()
+    if image:
+        await interaction.response.send_message(embed=embed, file=image, ephemeral=True)
+    else:
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(name="naturalist", description="Натуралист: образцы, справочник и магазин")
+async def naturalist_command(interaction: discord.Interaction):
+    if not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message(
+            "Эту команду можно использовать только на сервере.", ephemeral=True
+        )
+        return
+
+    async with economy_lock:
+        update_gold_rate()
+        account = get_account(interaction.user.id)
+        accrue_deposit_interest(account)
+        if not has_game_role(interaction.user, NATURALIST_ROLE_KEY, account):
+            save_economy()
+            await interaction.response.send_message(
+                get_custom_message("role_required").format(role="Натуралист"),
+                ephemeral=True,
+            )
+            return
+        embed = build_naturalist_embed(interaction.guild, account)
+        save_economy()
+
+    image = get_naturalist_image_file()
+    view = NaturalistMainView(interaction.user.id)
+    if image:
+        await interaction.response.send_message(
+            embed=embed, view=view, file=image, ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
 @bot.tree.command(name="gold-rate", description="Показать текущий курс золота")
 async def gold_rate_command(interaction: discord.Interaction):
     async with economy_lock:
@@ -3517,44 +5577,61 @@ async def withdraw_deposit_command(
 @bot.tree.command(name="check", description="Админ: показать баланс участника")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(member="Member whose balance you want to view")
+@app_commands.describe(member="Участник, чей баланс нужно посмотреть")
 async def admin_balance_command(interaction: discord.Interaction, member: discord.Member):
+    await interaction.response.defer(ephemeral=True)
+
     async with economy_lock:
         rate = update_gold_rate()
         account = get_account(member.id)
         interest = accrue_deposit_interest(account)
         save_economy()
-        message = (
-            f"Баланс для {member.mention}\n"
-            f"{format_account(account)}\n"
-            f"Курс: **1 {get_gold_emoji()} = {format_money(rate)}**"
-        )
-        if interest > 0:
-            message += f"\nВклад вырос: **+{format_money(interest)}**"
+        embed = build_balance_embed(interaction.guild, member, account, rate, interest)
 
-    await interaction.response.send_message(message, ephemeral=True)
+    balance_image = get_balance_image_file()
+    if balance_image:
+        await interaction.followup.send(embed=embed, file=balance_image, ephemeral=True)
+    else:
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="give-money", description="Админ: выдать деньги участнику")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(member="Участник, который получает деньги", amount="Сумма денег")
+@app_commands.describe(member="Участник, ID, упоминание или all", amount="Сумма денег")
 async def admin_give_cash_command(
-    interaction: discord.Interaction, member: discord.Member, amount: float
+    interaction: discord.Interaction, member: str, amount: float
 ):
     if not is_valid_amount(amount):
         await interaction.response.send_message(
-            "Enter an amount greater than zero.", ephemeral=True
+            "Введите сумму больше нуля.", ephemeral=True
         )
+        return
+
+    targets, is_all, error = await resolve_admin_targets(interaction, member)
+    if error:
+        await interaction.response.send_message(error, ephemeral=True)
         return
 
     async with economy_lock:
         update_gold_rate()
-        account = get_account(member.id)
-        accrue_deposit_interest(account)
-        account["cash"] += amount
+        for target in targets:
+            account = get_account(target.id)
+            accrue_deposit_interest(account)
+            account["cash"] += amount
         save_economy()
-        message = f"{member.mention} получил(а) **{format_money(amount)}**.\n{format_account(account)}"
+        if is_all:
+            total = amount * len(targets)
+            message = (
+                f"{format_target_result(targets, is_all)} получили по **{format_money(amount)}**.\n"
+                f"Всего выдано: **{format_money(total)}**."
+            )
+        else:
+            account = get_account(targets[0].id)
+            message = (
+                f"{targets[0].mention} получил(а) **{format_money(amount)}**.\n"
+                f"{format_account(account)}"
+            )
 
     await interaction.response.send_message(message, ephemeral=True)
 
@@ -3562,24 +5639,39 @@ async def admin_give_cash_command(
 @bot.tree.command(name="remove-money", description="Админ: отнять деньги у участника")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(member="Участник, у которого забирают деньги", amount="Сумма денег")
+@app_commands.describe(member="Участник, ID, упоминание или all", amount="Сумма денег")
 async def admin_remove_cash_command(
-    interaction: discord.Interaction, member: discord.Member, amount: float
+    interaction: discord.Interaction, member: str, amount: float
 ):
     if not is_valid_amount(amount):
         await interaction.response.send_message(
-            "Enter an amount greater than zero.", ephemeral=True
+            "Введите сумму больше нуля.", ephemeral=True
         )
+        return
+
+    targets, is_all, error = await resolve_admin_targets(interaction, member)
+    if error:
+        await interaction.response.send_message(error, ephemeral=True)
         return
 
     async with economy_lock:
         update_gold_rate()
-        account = get_account(member.id)
-        accrue_deposit_interest(account)
-        taken = min(account["cash"], amount)
-        account["cash"] -= taken
+        total_taken = 0.0
+        for target in targets:
+            account = get_account(target.id)
+            accrue_deposit_interest(account)
+            taken = min(account["cash"], amount)
+            account["cash"] -= taken
+            total_taken += taken
         save_economy()
-        message = f"Снято **{format_money(taken)}** с {member.mention}.\n{format_account(account)}"
+        if is_all:
+            message = (
+                f"{format_target_result(targets, is_all)}: снято по **{format_money(amount)}**.\n"
+                f"Всего снято: **{format_money(total_taken)}**."
+            )
+        else:
+            account = get_account(targets[0].id)
+            message = f"Снято **{format_money(total_taken)}** с {targets[0].mention}.\n{format_account(account)}"
 
     await interaction.response.send_message(message, ephemeral=True)
 
@@ -3611,23 +5703,40 @@ async def admin_set_cash_command(
 @bot.tree.command(name="give-gold", description="Админ: выдать золото участнику")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(member="Участник, который получает золото", amount="Сумма золота")
+@app_commands.describe(member="Участник, ID, упоминание или all", amount="Сумма золота")
 async def admin_give_gold_command(
-    interaction: discord.Interaction, member: discord.Member, amount: float
+    interaction: discord.Interaction, member: str, amount: float
 ):
     if not is_valid_amount(amount):
         await interaction.response.send_message(
-            "Enter an amount greater than zero.", ephemeral=True
+            "Введите сумму больше нуля.", ephemeral=True
         )
+        return
+
+    targets, is_all, error = await resolve_admin_targets(interaction, member)
+    if error:
+        await interaction.response.send_message(error, ephemeral=True)
         return
 
     async with economy_lock:
         update_gold_rate()
-        account = get_account(member.id)
-        accrue_deposit_interest(account)
-        account["gold"] += amount
+        for target in targets:
+            account = get_account(target.id)
+            accrue_deposit_interest(account)
+            account["gold"] += amount
         save_economy()
-        message = f"{member.mention} получил(а) **{format_gold(amount)}**.\n{format_account(account)}"
+        if is_all:
+            total = amount * len(targets)
+            message = (
+                f"{format_target_result(targets, is_all)} получили по **{format_gold(amount)}**.\n"
+                f"Всего выдано: **{format_gold(total)}**."
+            )
+        else:
+            account = get_account(targets[0].id)
+            message = (
+                f"{targets[0].mention} получил(а) **{format_gold(amount)}**.\n"
+                f"{format_account(account)}"
+            )
 
     await interaction.response.send_message(message, ephemeral=True)
 
@@ -3635,24 +5744,39 @@ async def admin_give_gold_command(
 @bot.tree.command(name="remove-gold", description="Админ: отнять золото у участника")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(member="Участник, у которого забирают золото", amount="Сумма золота")
+@app_commands.describe(member="Участник, ID, упоминание или all", amount="Сумма золота")
 async def admin_remove_gold_command(
-    interaction: discord.Interaction, member: discord.Member, amount: float
+    interaction: discord.Interaction, member: str, amount: float
 ):
     if not is_valid_amount(amount):
         await interaction.response.send_message(
-            "Enter an amount greater than zero.", ephemeral=True
+            "Введите сумму больше нуля.", ephemeral=True
         )
+        return
+
+    targets, is_all, error = await resolve_admin_targets(interaction, member)
+    if error:
+        await interaction.response.send_message(error, ephemeral=True)
         return
 
     async with economy_lock:
         update_gold_rate()
-        account = get_account(member.id)
-        accrue_deposit_interest(account)
-        taken = min(account["gold"], amount)
-        account["gold"] -= taken
+        total_taken = 0.0
+        for target in targets:
+            account = get_account(target.id)
+            accrue_deposit_interest(account)
+            taken = min(account["gold"], amount)
+            account["gold"] -= taken
+            total_taken += taken
         save_economy()
-        message = f"Снято **{format_gold(taken)}** с {member.mention}.\n{format_account(account)}"
+        if is_all:
+            message = (
+                f"{format_target_result(targets, is_all)}: снято по **{format_gold(amount)}**.\n"
+                f"Всего снято: **{format_gold(total_taken)}**."
+            )
+        else:
+            account = get_account(targets[0].id)
+            message = f"Снято **{format_gold(amount)}** с {targets[0].mention}.\n{format_account(account)}"
 
     await interaction.response.send_message(message, ephemeral=True)
 
@@ -3684,9 +5808,9 @@ async def admin_set_gold_command(
 @bot.tree.command(name="give-map", description="Админ: выдать карты сокровищ участнику")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(member="Участник, который получает карты", amount="Количество карт")
+@app_commands.describe(member="Участник, ID, упоминание или all", amount="Количество карт")
 async def admin_give_map_command(
-    interaction: discord.Interaction, member: discord.Member, amount: int = 1
+    interaction: discord.Interaction, member: str, amount: int = 1
 ):
     if amount <= 0:
         await interaction.response.send_message(
@@ -3700,16 +5824,31 @@ async def admin_give_map_command(
         )
         return
 
+    targets, is_all, error = await resolve_admin_targets(interaction, member)
+    if error:
+        await interaction.response.send_message(error, ephemeral=True)
+        return
+
     async with economy_lock:
         update_gold_rate()
-        account = get_account(member.id)
-        accrue_deposit_interest(account)
-        account["treasure_maps"] += amount
+        for target in targets:
+            account = get_account(target.id)
+            accrue_deposit_interest(account)
+            account["treasure_maps"] += amount
         save_economy()
-        message = (
-            f"{member.mention} получил(а) **{format_treasure_maps(amount)}**.\n"
-            f"{format_account(account)}"
-        )
+        if is_all:
+            total = amount * len(targets)
+            message = (
+                f"{format_target_result(targets, is_all)} получили по "
+                f"**{format_treasure_maps(amount)}**.\n"
+                f"Всего выдано: **{format_treasure_maps(total)}**."
+            )
+        else:
+            account = get_account(targets[0].id)
+            message = (
+                f"{targets[0].mention} получил(а) **{format_treasure_maps(amount)}**.\n"
+                f"{format_account(account)}"
+            )
 
     await interaction.response.send_message(message, ephemeral=True)
 
@@ -3847,15 +5986,16 @@ async def moonshine_ingredient_autocomplete(
     role="Название роли, например Натуралист или Торговец",
     emoji="Эмодзи, символ или серверное эмодзи",
 )
+@app_commands.autocomplete(role=role_name_autocomplete)
 async def admin_set_role_icon_command(
     interaction: discord.Interaction, role: str, emoji: str
 ):
     emoji = emoji.strip()
-    if not emoji or len(emoji) > 80:
-        await interaction.response.send_message(
-            "Эмодзи не должно быть пустым и не может превышать 80 символов.",
-            ephemeral=True,
-        )
+    if not emoji:
+        await interaction.response.send_message("Эмодзи не может быть пустым.", ephemeral=True)
+        return
+    if len(emoji) > 80:
+        await interaction.response.send_message("Эмодзи слишком длинное (максимум 80 символов).", ephemeral=True)
         return
 
     discord_role, role_definition = resolve_configurable_role(interaction.guild, role)
@@ -3884,6 +6024,7 @@ async def admin_set_role_icon_command(
     role="Название роли, например Натуралист или Торговец",
     price="Новая цена роли в золоте на 7 дней",
 )
+@app_commands.autocomplete(role=role_name_autocomplete)
 async def admin_set_role_discount_command(
     interaction: discord.Interaction, role: str, price: float
 ):
@@ -3913,7 +6054,7 @@ async def admin_set_role_discount_command(
     message = (
         f"Скидка для роли **{discord_role.name}** установлена на неделю:\n"
         f"~~{format_role_price(ROLE_BASE_PRICE)}~~ **{format_role_price(price)}**\n"
-        f"Действует до **{expires_at.strftime('%d.%m.%Y')}**."
+        f"Действует до **{expires_at.astimezone(MSK_TZ).strftime('%d.%m.%Y')}**."
     )
     if role_definition is None:
         message += "\nЭта роль не входит в список `/roles`, поэтому скидка в витрине не появится."
@@ -3925,6 +6066,7 @@ async def admin_set_role_discount_command(
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(role="Название роли, например Натуралист или Торговец")
+@app_commands.autocomplete(role=role_name_autocomplete)
 async def admin_clear_role_discount_command(
     interaction: discord.Interaction, role: str
 ):
@@ -4187,74 +6329,121 @@ async def admin_reset_moonshine_command(
     )
 
 
-@bot.tree.command(name="set-emoji", description="Админ: задать эмодзи валют и инвестиций")
+@bot.tree.command(name="set-emoji", description="Админ: задать эмодзи валют, кнопок и ролей")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
-    currency="Валюта для настройки",
+    currency="Что настроить: валюта, кнопка или иконка роли",
     emoji="Эмодзи, символ или серверное эмодзи, например <:gold:123456789>",
 )
-@app_commands.choices(
-    currency=[
-        app_commands.Choice(name="Деньги", value="cash"),
-        app_commands.Choice(name="Золото", value="gold"),
-        app_commands.Choice(name="Карта сокровищ", value="map"),
-        app_commands.Choice(name="Инвестиции", value="investment"),
-        app_commands.Choice(name="Статистика", value="stats"),
-        app_commands.Choice(name="Самогон: 1 звезда", value="moonshine_star_1"),
-        app_commands.Choice(name="Самогон: 2 звезды", value="moonshine_star_2"),
-        app_commands.Choice(name="Самогон: 3 звезды", value="moonshine_star_3"),
-        app_commands.Choice(name="Особый самогон", value="moonshine_special"),
-        app_commands.Choice(name="Кнопка: бражка", value="moonshine_button_mash"),
-        app_commands.Choice(name="Кнопка: особые ингредиенты", value="moonshine_button_special"),
-        app_commands.Choice(name="Кнопка: улучшения", value="moonshine_button_upgrades"),
-        app_commands.Choice(name="Кнопка: доставка", value="moonshine_button_delivery"),
-    ]
-)
+@app_commands.autocomplete(currency=emoji_target_autocomplete)
 async def admin_set_emoji_command(
-    interaction: discord.Interaction, currency: app_commands.Choice[str], emoji: str
+    interaction: discord.Interaction, currency: str, emoji: str
 ):
     emoji = emoji.strip()
-    if not emoji or len(emoji) > 80:
+    if not emoji:
+        await interaction.response.send_message("Эмодзи не может быть пустым.", ephemeral=True)
+        return
+    if len(emoji) > 80:
+        await interaction.response.send_message("Эмодзи слишком длинное (максимум 80 символов).", ephemeral=True)
+        return
+
+    currency = currency.strip()
+    if currency not in {value for _, value in EMOJI_TARGETS}:
         await interaction.response.send_message(
-            "Эмодзи не должно быть пустым и не может превышать 80 символов.",
+            "Не нашёл такую настройку эмодзи. Используйте подсказки команды.",
             ephemeral=True,
         )
         return
 
     async with economy_lock:
-        if currency.value == "cash":
+        if currency == "cash":
             economy_data["cash_emoji"] = emoji
-            message = f"Эмодзи для денег установлено: **{format_money(3)}**"
-        elif currency.value == "gold":
+            message = f"Эмодзи для денег установлено: {emoji} ({format_money_plain(3)})"
+        elif currency == "gold":
             economy_data["gold_emoji"] = emoji
-            message = f"Эмодзи для золота установлено: **{format_gold(3)}**"
-        elif currency.value == "map":
+            message = f"Эмодзи для золота установлено: {emoji} ({format_gold_plain(3)}). Пример: {emoji}"
+        elif currency == "map":
             economy_data["map_emoji"] = emoji
             message = f"Эмодзи для карты установлено: **{format_treasure_maps(3)}**"
-        elif currency.value == "investment":
+        elif currency == "investment":
             economy_data["investment_emoji"] = emoji
             message = (
                 f"Эмодзи для инвестиций установлено: "
                 f"**{get_investment_emoji()} Вклад: {format_money_plain(3)}**"
             )
-        elif currency.value == "stats":
+        elif currency == "stats":
             economy_data["stats_emoji"] = emoji
             message = f"Эмодзи для статистики установлено: **{get_stats_emoji()}Статистика**"
-        elif currency.value.startswith("moonshine_star_"):
-            level = currency.value.rsplit("_", 1)[-1]
+        elif currency.startswith("moonshine_star_"):
+            level = currency.rsplit("_", 1)[-1]
             economy_data["moonshine_star_emojis"][level] = emoji
             message = f"Эмодзи для самогона {level} уровня установлено: **{emoji}**"
-        elif currency.value == "moonshine_special":
+        elif currency == "moonshine_special":
             economy_data["moonshine_special_emoji"] = emoji
             message = f"Эмодзи для особого самогона установлено: **{emoji}**"
         else:
-            button_key = currency.value.replace("moonshine_button_", "", 1)
-            economy_data["moonshine_button_emojis"][button_key] = emoji
-            message = f"Эмодзи кнопки самогонщика установлено: **{emoji}**"
+            if currency.startswith("moonshine_button_"):
+                button_key = currency.replace("moonshine_button_", "", 1)
+                economy_data["moonshine_button_emojis"][button_key] = emoji
+                message = f"Эмодзи кнопки самогонщика установлено: **{emoji}**"
+            elif currency.startswith("naturalist_button_"):
+                button_key = currency.replace("naturalist_button_", "", 1)
+                economy_data["naturalist_button_emojis"][button_key] = emoji
+                message = f"Эмодзи кнопки натуралиста установлено: **{emoji}**"
+            elif currency.startswith("bounty_button_"):
+                button_key = currency.replace("bounty_button_", "", 1)
+                economy_data["bounty_button_emojis"][button_key] = emoji
+                message = f"Эмодзи кнопки охотника установлено: **{emoji}**"
+            elif currency.startswith("role_icon_"):
+                role_key = currency.replace("role_icon_", "", 1)
+                economy_data["role_key_icons"][role_key] = emoji
+                message = f"Эмодзи роли установлено: **{emoji}**"
+            else:
+                message = "Настройка эмодзи обновлена."
         save_economy()
 
     await interaction.response.send_message(message, ephemeral=True)
+
+
+@bot.tree.command(name="set-message", description="Админ: изменить текстовые сообщения бота")
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    message_key="Какое сообщение изменить",
+    text="Новый текст. Напишите default, чтобы вернуть стандартный текст.",
+)
+@app_commands.choices(
+    message_key=[
+        app_commands.Choice(name="Описание /roles", value="roles_description"),
+        app_commands.Choice(name="Футер /roles", value="roles_footer"),
+        app_commands.Choice(name="Сообщение /work", value="work_success"),
+        app_commands.Choice(name="Требование роли", value="role_required"),
+        app_commands.Choice(name="Подтверждение /reset-all", value="reset_prompt"),
+    ]
+)
+async def admin_set_message_command(
+    interaction: discord.Interaction, message_key: app_commands.Choice[str], text: str
+):
+    value = text.strip()
+    if not value:
+        await interaction.response.send_message("Текст не может быть пустым.", ephemeral=True)
+        return
+    if len(value) > 1800:
+        await interaction.response.send_message("Текст слишком длинный (максимум 1800 символов).", ephemeral=True)
+        return
+
+    key = message_key.value
+    if value.casefold() == "default":
+        value = DEFAULT_CUSTOM_MESSAGES[key]
+
+    async with economy_lock:
+        economy_data["custom_messages"][key] = value
+        save_economy()
+
+    await interaction.response.send_message(
+        f"Сообщение **{message_key.name}** обновлено.", ephemeral=True
+    )
 
 
 @bot.tree.command(name="reset-work", description="Админ: сбросить кулдаун /work у участника")
@@ -4272,6 +6461,8 @@ async def admin_reset_work_command(interaction: discord.Interaction, member: dis
     )
 
 
+@reset_all_command.error
+@delete_role_command.error
 @admin_balance_command.error
 @admin_give_cash_command.error
 @admin_remove_cash_command.error
@@ -4295,6 +6486,7 @@ async def admin_reset_work_command(interaction: discord.Interaction, member: dis
 @admin_finish_moonshine_command.error
 @admin_reset_moonshine_command.error
 @admin_set_emoji_command.error
+@admin_set_message_command.error
 @admin_reset_work_command.error
 async def admin_command_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.MissingPermissions):
@@ -4310,6 +6502,14 @@ async def admin_command_error(interaction: discord.Interaction, error):
 
 @bot.event
 async def on_guild_join(guild):
+    token = set_economy_guild_id(guild.id)
+    try:
+        async with economy_lock:
+            economy_data.guild_data(guild.id)
+            save_economy()
+    finally:
+        reset_economy_guild_id(token)
+
     try:
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
