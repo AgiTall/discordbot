@@ -431,9 +431,9 @@
       "role_discounts": {},
       "users": {
         "576432479200870430": {
-          "cash": 2078.96,
+          "cash": 111.96000000000004,
           "gold": 90.12,
-          "deposit": 47.46027156979184,
+          "deposit": 2048.875844004962,
           "treasure_maps": 2,
           "owned_roles": [],
           "dealer_wagon": 0.0,
@@ -464,7 +464,17 @@
               "Консервированные ананасы": 1,
               "Магония": 1
             },
-            "batch": null
+            "batch": {
+              "type": "mash",
+              "recipe_key": "weak_1",
+              "name": "Слабый самогон",
+              "stars": 1,
+              "cost": 50.0,
+              "payout": 82.5,
+              "started_at": "2026-06-13T21:06:32+00:00",
+              "ready_at": "2026-06-13T21:36:32+00:00",
+              "duration_seconds": 1800
+            }
           },
           "naturalist": {
             "level": 1,
@@ -477,8 +487,8 @@
             "legendary_cooldown_until": null
           },
           "collection_showcase": [],
-          "deposit_updated_at": "2026-06-13T20:17:41+00:00",
-          "last_work_at": null
+          "deposit_updated_at": "2026-06-13T21:37:17+00:00",
+          "last_work_at": "2026-06-13T21:37:17+00:00"
         },
         "446975090022678528": {
           "cash": 513.0,
@@ -523,8 +533,8 @@
         "710125939337723916": {
           "cash": 734.2,
           "gold": 424.38000000000005,
-          "deposit": 300.0153001026451,
-          "deposit_updated_at": "2026-06-13T19:42:42+00:00",
+          "deposit": 300.55154854918237,
+          "deposit_updated_at": "2026-06-13T21:09:41+00:00",
           "last_work_at": "2026-06-13T19:42:42+00:00",
           "treasure_maps": 0,
           "owned_roles": [
@@ -617,10 +627,10 @@
           }
         },
         "118410136980160516": {
-          "cash": 1192.0,
+          "cash": 792.0,
           "gold": 0.0,
-          "deposit": 0.0,
-          "deposit_updated_at": "2026-06-13T19:44:02+00:00",
+          "deposit": 400.0,
+          "deposit_updated_at": "2026-06-13T21:05:08+00:00",
           "last_work_at": "2026-06-13T19:42:48+00:00",
           "treasure_maps": 0,
           "owned_roles": [],
