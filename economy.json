@@ -383,16 +383,16 @@
       "investment_emoji": "📈",
       "stats_emoji": "👤",
       "moonshine_star_emojis": {
-        "1": "⭐",
-        "2": "⭐⭐",
-        "3": "⭐⭐⭐"
+        "1": "<:1stars:1514234004407324822>",
+        "2": "<:2stars:1514233883259047966>",
+        "3": "<:3stars:1514233946555023510>"
       },
-      "moonshine_special_emoji": "🌟🌟🌟",
+      "moonshine_special_emoji": "<:3goldenstars:1514234166311518230>",
       "moonshine_button_emojis": {
-        "mash": "🥣",
+        "mash": "🥃",
         "special": "🌿",
         "upgrades": "⚙️",
-        "delivery": "🛺",
+        "delivery": "<:wheel:1514246612568903881>",
         "refresh": "🔄"
       },
       "naturalist_button_emojis": {
@@ -412,11 +412,11 @@
         "negotiate": "🤝"
       },
       "role_key_icons": {
-        "bounty_hunter": "🎯",
-        "trader": "🛒",
-        "moonshiner": "🥃",
-        "naturalist": "🌿",
-        "collector": "💎"
+        "bounty_hunter": "<:hunter:1513992564682784788>",
+        "trader": "<:dealer:1513993188094775346>",
+        "moonshiner": "<:moonshiner:1513992724376846509>",
+        "naturalist": "<:naturalist:1513992627295359086>",
+        "collector": "<:collector:1513992804672602356>"
       },
       "custom_messages": {
         "roles_description": "Выберите профессию и купите доступную роль за золото.",
@@ -432,8 +432,8 @@
       "users": {
         "576432479200870430": {
           "cash": 2078.96,
-          "gold": 10.120000000000003,
-          "deposit": 47.41952701027815,
+          "gold": 90.12,
+          "deposit": 47.46027156979184,
           "treasure_maps": 2,
           "owned_roles": [],
           "dealer_wagon": 0.0,
@@ -477,7 +477,7 @@
             "legendary_cooldown_until": null
           },
           "collection_showcase": [],
-          "deposit_updated_at": "2026-06-13T19:35:53+00:00",
+          "deposit_updated_at": "2026-06-13T20:17:41+00:00",
           "last_work_at": null
         },
         "446975090022678528": {

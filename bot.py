@@ -2278,6 +2278,10 @@ async def emoji_target_autocomplete(interaction: discord.Interaction, current: s
 
 async def bind_economy_context(interaction: discord.Interaction):
     set_economy_guild_id(interaction.guild_id)
+    
+    if interaction.type == discord.InteractionType.autocomplete:
+        return True
+
     command_name = getattr(getattr(interaction, "command", None), "name", None)
     if command_name in ADMIN_COMMAND_NAMES and not is_admin_interaction(interaction):
         await ensure_admin_interaction(interaction)
@@ -2921,6 +2925,10 @@ class BlackjackView(discord.ui.View):
         await interaction.response.edit_message(
             embed=self.build_embed(result=result, reveal_dealer=True), view=self
         )
+        if outcome in ("blackjack", "win") and self.bet >= 100:
+            await interaction.channel.send(
+                f"🎉 {interaction.user.mention} только что выиграл в блэкджек! Выплата: **{format_money(self.bet * 2)}**!"
+            )
 
     async def on_timeout(self):
         if self.finished:
@@ -4804,8 +4812,13 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
     await interaction.response.send_message(
         f"🎲 {interaction.user.mention}: **{player_roll}**\n"
         f"🎲 Бот: **{bot_roll}**\n"
-        f"{result}"
+        f"{result}",
+        ephemeral=True
     )
+    if player_roll > bot_roll and bet >= 100:
+        await interaction.channel.send(
+            f"🎉 {interaction.user.mention} только что выиграл **{format_money(bet)}** в кости!"
+        )
 
 
 @bot.tree.command(name="poker", description="Сыграть 5-карточный покер с ботом")
@@ -4849,8 +4862,13 @@ async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
     await interaction.response.send_message(
         f"🃏 {interaction.user.mention}: **{format_cards(player_hand)}** — {player_name}\n"
         f"🃏 Бот: **{format_cards(bot_hand)}** — {bot_name}\n"
-        f"{result}"
+        f"{result}",
+        ephemeral=True
     )
+    if player_score > bot_score and bet >= 100:
+        await interaction.channel.send(
+            f"🎉 {interaction.user.mention} только что выиграл **{format_money(bet)}** в покер!"
+        )
 
 
 @bot.tree.command(name="blackjack", description="Сыграть blackjack с дилером")
@@ -4882,7 +4900,7 @@ async def blackjack_command(interaction: discord.Interaction, bet: float = 0.0):
     dealer_hand = [deck.pop(), deck.pop()]
     view = BlackjackView(interaction.user.id, bet, deck, player_hand, dealer_hand)
 
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     player_blackjack = blackjack_hand_value(player_hand) == 21
     dealer_blackjack = blackjack_hand_value(dealer_hand) == 21
 
@@ -4896,12 +4914,16 @@ async def blackjack_command(interaction: discord.Interaction, bet: float = 0.0):
 
         result = await view.settle(outcome)
         await interaction.followup.send(
-            embed=view.build_embed(result=result, reveal_dealer=True), view=view
+            embed=view.build_embed(result=result, reveal_dealer=True), view=view, ephemeral=True
         )
+        if outcome in ("blackjack", "win") and bet >= 100:
+            await interaction.channel.send(
+                f"🎉 {interaction.user.mention} только что сорвал куш в блэкджек! Выигрыш: **{format_money(bet * (2.5 if outcome == 'blackjack' else 2))}**!"
+            )
         return
 
     view.message = await interaction.followup.send(
-        embed=view.build_embed(), view=view, wait=True
+        embed=view.build_embed(), view=view, wait=True, ephemeral=True
     )
 
 
@@ -5282,6 +5304,8 @@ async def moonshine_command(interaction: discord.Interaction):
         )
         return
 
+    await interaction.response.defer(ephemeral=True)
+
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
@@ -5289,7 +5313,7 @@ async def moonshine_command(interaction: discord.Interaction):
 
         if not has_game_role(interaction.user, MOONSHINER_ROLE_KEY, account):
             save_economy()
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Команда доступна только роли **Самогонщик**. Купить её можно через `/roles`.",
                 ephemeral=True,
             )
@@ -5301,11 +5325,11 @@ async def moonshine_command(interaction: discord.Interaction):
     image = get_moonshine_image_file()
     view = MoonshineMainView(interaction.user.id)
     if image:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=embed, view=view, file=image, ephemeral=True
         )
     else:
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 @bot.tree.command(name="bounty", description="Охотник за головами: открыть контракты")
