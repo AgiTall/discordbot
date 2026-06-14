@@ -20,6 +20,7 @@ CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
 BOT_TOKEN = ""
+BOT_VERSION = "v0.4"
 ECONOMY_FILE = "economy.json"
 ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
@@ -6620,6 +6621,11 @@ async def admin_set_message_command(
     await interaction.response.send_message(
         f"Сообщение **{message_key.name}** обновлено.", ephemeral=True
     )
+
+
+@bot.tree.command(name="version", description="Показать текущую версию бота")
+async def version_command(interaction: discord.Interaction):
+    await interaction.response.send_message(f"Текущая версия бота: **{BOT_VERSION}**")
 
 
 @bot.tree.command(name="reset-work", description="Админ: сбросить кулдаун /work у участника")
