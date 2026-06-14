@@ -3,7 +3,7 @@
   "guilds": {
     "123": {
       "gold_rate": 543.45,
-      "gold_rate_date": "2026-06-13",
+      "gold_rate_date": "2026-06-14",
       "cash_emoji": "$",
       "gold_emoji": "🪙",
       "map_emoji": "🗺️",
@@ -58,8 +58,8 @@
       "role_discounts": {},
       "users": {
         "456": {
-          "cash": 1500.96,
-          "gold": 8.41,
+          "cash": 1416.96,
+          "gold": 5.7299999999999995,
           "deposit": 0.0,
           "treasure_maps": 2,
           "owned_roles": [],
@@ -79,9 +79,7 @@
             "skill": false,
             "bottles": 0,
             "ingredients": {
-              "Слива поручейная": 1,
-              "Пустынный мак": 1,
-              "Магония": 1
+              "Абсент": 1
             },
             "batch": null
           },
@@ -96,14 +94,14 @@
             "legendary_cooldown_until": null
           },
           "collection_showcase": [],
-          "deposit_updated_at": "2026-06-13T19:13:28+00:00",
+          "deposit_updated_at": "2026-06-14T07:42:13+00:00",
           "last_work_at": null
         }
       }
     },
     "global": {
       "gold_rate": 543.45,
-      "gold_rate_date": "2026-06-13",
+      "gold_rate_date": "2026-06-14",
       "cash_emoji": "$",
       "gold_emoji": "🪙",
       "map_emoji": "🗺️",

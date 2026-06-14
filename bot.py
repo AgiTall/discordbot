@@ -26,7 +26,8 @@ app = Flask("")
 
 @app.route("/")
 def _healthcheck():
-    return "OK", 200
+    print("Healthcheck request")
+    return "OK", 200    
 
 
 def run_web():
