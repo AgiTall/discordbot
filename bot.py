@@ -1,5 +1,9 @@
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 import json
+import sqlite3
 import random
 import math
 import asyncio
@@ -26,7 +30,7 @@ app = Flask("")
 
 @app.route("/")
 def _healthcheck():
-    print("Healthcheck request")
+    logging.info("Healthcheck request")
     return "OK", 200    
 
 
@@ -589,7 +593,7 @@ def load_economy():
         with open(ECONOMY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
     except json.JSONDecodeError:
-        print(f"{ECONOMY_FILE} поврежён; создаётся новая экономика.")
+        logging.info(f"{ECONOMY_FILE} поврежён; создаётся новая экономика.")
         return {"version": 2, "guilds": {ECONOMY_GLOBAL_KEY: default_economy()}}
 
     if not isinstance(data, dict):
@@ -632,66 +636,92 @@ def with_economy_context(func):
 
 
 class EconomyStore:
-    def __init__(self, root):
-        self.root = root if isinstance(root, dict) else {}
-        self.root.setdefault("version", 2)
-        if not isinstance(self.root.get("guilds"), dict):
-            self.root["guilds"] = {}
-        self.root["guilds"].setdefault(ECONOMY_GLOBAL_KEY, default_economy())
+    def __init__(self, db_path="economy.db"):
+        self.db_path = db_path
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
+        with self.conn:
+            self.conn.execute("CREATE TABLE IF NOT EXISTS guilds (guild_id TEXT PRIMARY KEY, data TEXT)")
+            self.conn.execute("CREATE TABLE IF NOT EXISTS users (guild_id TEXT, user_id TEXT, data TEXT, PRIMARY KEY(guild_id, user_id))")
+        self.guild_cache = {}
+
+    def _load_guild(self, guild_id):
+        cursor = self.conn.execute("SELECT data FROM guilds WHERE guild_id = ?", (str(guild_id),))
+        row = cursor.fetchone()
+        if row:
+            data = json.loads(row["data"])
+        else:
+            data = default_economy()
+        
+        # Load users
+        users_cursor = self.conn.execute("SELECT user_id, data FROM users WHERE guild_id = ?", (str(guild_id),))
+        users = {}
+        for u_row in users_cursor:
+            users[u_row["user_id"]] = json.loads(u_row["data"])
+        
+        data["users"] = users
+        return normalize_economy_data(data)
 
     def current(self):
         guild_id = get_current_economy_key()
-        if guild_id not in self.root["guilds"]:
-            self.root["guilds"][guild_id] = default_economy()
-        return normalize_economy_data(self.root["guilds"][guild_id])
+        if guild_id not in self.guild_cache:
+            self.guild_cache[guild_id] = self._load_guild(guild_id)
+        return self.guild_cache[guild_id]
 
     def guild_data(self, guild_id):
         guild_key = str(guild_id) if guild_id else ECONOMY_GLOBAL_KEY
-        if guild_key not in self.root["guilds"]:
-            self.root["guilds"][guild_key] = default_economy()
-        return normalize_economy_data(self.root["guilds"][guild_key])
+        if guild_key not in self.guild_cache:
+            self.guild_cache[guild_key] = self._load_guild(guild_key)
+        return self.guild_cache[guild_key]
 
     def reset_current(self):
-        self.root["guilds"][get_current_economy_key()] = default_economy()
+        guild_id = get_current_economy_key()
+        self.guild_cache[guild_id] = default_economy()
+        self.save_all()
 
     def reset_guild(self, guild_id):
         guild_key = str(guild_id) if guild_id else ECONOMY_GLOBAL_KEY
-        self.root["guilds"][guild_key] = default_economy()
+        self.guild_cache[guild_key] = default_economy()
+        self.save_all()
 
     def configured_treasure_guild_ids(self):
+        cursor = self.conn.execute("SELECT guild_id FROM guilds")
+        for row in cursor:
+            g_id = row["guild_id"]
+            if g_id not in self.guild_cache:
+                self.guild_cache[g_id] = self._load_guild(g_id)
         return [
-            guild_id
-            for guild_id, guild_data in self.root["guilds"].items()
-            if guild_id != ECONOMY_GLOBAL_KEY and guild_data.get("treasure_channel_id")
+            g_id for g_id, g_data in self.guild_cache.items()
+            if g_id != ECONOMY_GLOBAL_KEY and g_data.get("treasure_channel_id")
         ]
 
     def to_json(self):
-        for guild_id, guild_data in list(self.root["guilds"].items()):
-            self.root["guilds"][guild_id] = normalize_economy_data(guild_data)
-        return self.root
+        return {} # Deprecated
 
-    def get(self, key, default=None):
-        return self.current().get(key, default)
+    def get(self, key, default=None): return self.current().get(key, default)
+    def setdefault(self, key, default=None): return self.current().setdefault(key, default)
+    def pop(self, key, default=None): return self.current().pop(key, default)
+    def __getitem__(self, key): return self.current()[key]
+    def __setitem__(self, key, value): self.current()[key] = value
+    def __contains__(self, key): return key in self.current()
 
-    def setdefault(self, key, default=None):
-        return self.current().setdefault(key, default)
-
-    def pop(self, key, default=None):
-        return self.current().pop(key, default)
-
-    def __getitem__(self, key):
-        return self.current()[key]
-
-    def __setitem__(self, key, value):
-        self.current()[key] = value
-
-    def __contains__(self, key):
-        return key in self.current()
-
+    def save_all(self):
+        with self.conn:
+            for guild_id, data in self.guild_cache.items():
+                data_copy = dict(data)
+                users = data_copy.pop("users", {})
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO guilds (guild_id, data) VALUES (?, ?)", 
+                    (str(guild_id), json.dumps(data_copy, ensure_ascii=False))
+                )
+                for user_id, user_data in users.items():
+                    self.conn.execute(
+                        "INSERT OR REPLACE INTO users (guild_id, user_id, data) VALUES (?, ?, ?)",
+                        (str(guild_id), str(user_id), json.dumps(user_data, ensure_ascii=False))
+                    )
 
 def save_economy():
-    with open(ECONOMY_FILE, "w", encoding="utf-8") as f:
-        json.dump(economy_data.to_json(), f, ensure_ascii=False, indent=2)
+    economy_data.save_all()
 
 
 def parse_local_datetime(value):
@@ -724,7 +754,7 @@ def get_cash_emoji():
     emoji = economy_data.get("cash_emoji")
     if not emoji:
         return DEFAULT_CASH_EMOJI
-    return emoji
+    return str(emoji)
 
 
 def get_gold_emoji():
@@ -736,45 +766,45 @@ def get_gold_emoji():
 def get_map_emoji():
     emoji = economy_data.get("map_emoji")
     if not emoji:
-        return DEFAULT_MAP_EMOJI
-    return emoji
+        return str(DEFAULT_MAP_EMOJI)
+    return str(emoji)
 
 
 def get_investment_emoji():
     emoji = economy_data.get("investment_emoji")
     if not emoji:
-        return DEFAULT_INVESTMENT_EMOJI
-    return emoji
+        return str(DEFAULT_INVESTMENT_EMOJI)
+    return str(emoji)
 
 
 def get_stats_emoji():
     emoji = economy_data.get("stats_emoji")
     if not emoji:
-        return DEFAULT_STATS_EMOJI
-    return emoji
+        return str(DEFAULT_STATS_EMOJI)
+    return str(emoji)
 
 
 def get_moonshine_star_emoji(level):
     emojis = economy_data.get("moonshine_star_emojis", {})
     emoji = emojis.get(str(level))
     if not emoji:
-        return DEFAULT_MOONSHINE_STAR_EMOJIS[str(level)]
-    return emoji
+        return str(DEFAULT_MOONSHINE_STAR_EMOJIS[str(level)])
+    return str(emoji)
 
 
 def get_moonshine_special_emoji():
     emoji = economy_data.get("moonshine_special_emoji")
     if not emoji:
-        return DEFAULT_MOONSHINE_SPECIAL_EMOJI
-    return emoji
+        return str(DEFAULT_MOONSHINE_SPECIAL_EMOJI)
+    return str(emoji)
 
 
 def get_moonshine_button_emoji(button_key):
     emojis = economy_data.get("moonshine_button_emojis", {})
     emoji = emojis.get(button_key)
     if not emoji:
-        return DEFAULT_MOONSHINE_BUTTON_EMOJIS[button_key]
-    return emoji
+        return str(DEFAULT_MOONSHINE_BUTTON_EMOJIS[button_key])
+    return str(emoji)
 
 
 def debug_gold_info():
@@ -789,16 +819,16 @@ def get_naturalist_button_emoji(button_key):
     emojis = economy_data.get("naturalist_button_emojis", {})
     emoji = emojis.get(button_key)
     if not emoji:
-        return DEFAULT_NATURALIST_BUTTON_EMOJIS[button_key]
-    return emoji
+        return str(DEFAULT_NATURALIST_BUTTON_EMOJIS[button_key])
+    return str(emoji)
 
 
 def get_bounty_button_emoji(button_key):
     emojis = economy_data.get("bounty_button_emojis", {})
     emoji = emojis.get(button_key)
     if not emoji:
-        return DEFAULT_BOUNTY_BUTTON_EMOJIS[button_key]
-    return emoji
+        return str(DEFAULT_BOUNTY_BUTTON_EMOJIS[button_key])
+    return str(emoji)
 
 
 def get_custom_message(message_key):
@@ -2055,7 +2085,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 active_channels = load_channels()
-economy_data = EconomyStore(load_economy())
+economy_data = EconomyStore()
 economy_lock = asyncio.Lock()
 
 RESET_CONFIRMATION_PHRASES = ("Я знаю что я делаю", "I know what I'm doing")
@@ -4440,7 +4470,7 @@ async def daily_treasure_map_event():
                     scheduled=True, guild=guild
                 )
             except discord.HTTPException as e:
-                print(
+                logging.info(
                     "Ежедневная выдача карт сохранена, но объявление не отправилось "
                     f"для сервера {guild_id}: {e}"
                 )
@@ -4450,7 +4480,7 @@ async def daily_treasure_map_event():
                 continue
 
             if channel is None:
-                print(
+                logging.info(
                     "Ежедневная карта сокровищ выдана, но канал объявлений не настроен "
                     f"или недоступен. Сервер: {guild_id}; игроков: {granted_count}"
                 )
@@ -4481,28 +4511,28 @@ async def sync_commands():
     # Global sync is useful for production, but Discord can cache it for a while.
     try:
         global_commands = await bot.tree.sync()
-        print(f"Глобальные команды синхронизированы: {len(global_commands)}")
+        logging.info(f"Глобальные команды синхронизированы: {len(global_commands)}")
     except Exception as e:
-        print(f"Синхронизация глобальных команд не удалась: {e}")
+        logging.error(f"Синхронизация глобальных команд не удалась: {e}")
 
     # Guild sync appears in the Discord client almost immediately.
     for guild in guilds:
         try:
             bot.tree.copy_global_to(guild=guild)
             guild_commands = await bot.tree.sync(guild=guild)
-            print(
+            logging.info(
                 f"Команды синхронизированы для сервера '{guild.name}': "
                 f"{len(guild_commands)}"
             )
         except Exception as e:
-            print(f"Синхронизация команд не удалась для сервера '{guild.name}': {e}")
+            logging.error(f"Синхронизация команд не удалась для сервера '{guild.name}': {e}")
 
 
 @bot.event
 async def on_ready():
     global COMMANDS_SYNCED
 
-    print(f"Бот {bot.user.name} запущен!")
+    logging.info(f"Бот {bot.user.name} запущен!")
     if not daily_treasure_map_event.is_running():
         daily_treasure_map_event.start()
     if not periodic_economy_save.is_running():
@@ -4515,7 +4545,7 @@ async def on_ready():
         await sync_commands()
         COMMANDS_SYNCED = True
     except Exception as e:
-        print(f"Command sync failed: {e}")
+        logging.error(f"Command sync failed: {e}")
 
 
 @bot.tree.command(
@@ -6659,9 +6689,9 @@ async def on_guild_join(guild):
     try:
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
-        print(f"Команды синхронизированы для нового сервера '{guild.name}': {len(synced)}")
+        logging.info(f"Команды синхронизированы для нового сервера '{guild.name}': {len(synced)}")
     except Exception as e:
-        print(f"Синхронизация команд не удалась для нового сервера '{guild.name}': {e}")
+        logging.error(f"Синхронизация команд не удалась для нового сервера '{guild.name}': {e}")
 
 
 # Create a discussion thread for new posts in configured channels.
@@ -6693,9 +6723,9 @@ async def on_message(message):
                 )
                 await thread.send(embed=build_bot_embed("Обсуждение", "Делитесь мыслями."))
             except discord.Forbidden:
-                print(f"Нет прав для создания треда в канале {message.channel.id}")
+                logging.info(f"Нет прав для создания треда в канале {message.channel.id}")
             except discord.HTTPException as e:
-                print(f"Создание треда не удалось: {e}")
+                logging.info(f"Создание треда не удалось: {e}")
 
 
 def main():
