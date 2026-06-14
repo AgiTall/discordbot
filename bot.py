@@ -16,6 +16,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from discord import PartialEmoji
+import leveling
 CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
@@ -2107,6 +2108,14 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+async def setup_hook():
+    try:
+        await bot.add_cog(leveling.LevelingCog(bot))
+    except Exception as e:
+        logging.error(f"Failed to load LevelingCog: {e}")
+bot.setup_hook = setup_hook
+
 active_channels = load_channels()
 economy_data = EconomyStore()
 economy_lock = asyncio.Lock()
@@ -3927,6 +3936,7 @@ class BountyTacticButton(discord.ui.Button):
                 account["gold"] += gold_reward
                 bounty["captures"] += 1
                 levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
                 title = "Цель поймана"
                 result = (
                     f"Награда: **{format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
@@ -3938,6 +3948,7 @@ class BountyTacticButton(discord.ui.Button):
                 xp_reward = max(20, difficulty["xp"] // 5)
                 bounty["escaped"] += 1
                 levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
                 title = "Цель сбежала"
                 result = f"Вы получили **+{xp_reward}** опыта за попытку."
                 if levels:
@@ -4082,6 +4093,7 @@ class NaturalistMainView(NaturalistOwnerView):
             account["gold"] += gold_total
             naturalist["samples"] = {}
             levels = apply_role_xp(naturalist, xp_total, NATURALIST_MAX_LEVEL, 180)
+            interaction.client.dispatch("leveling_add_xp", interaction.user, xp_total, "jobs")
             save_economy()
 
             note = (
@@ -4250,6 +4262,7 @@ class NaturalistAnimalSelect(discord.ui.Select):
                 levels = apply_role_xp(
                     naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180
                 )
+                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
                 note = (
                     f"Образец **{animal['name']}** получен. "
                     f"Потрачено патронов: **{animal['shots']}**. "
@@ -4328,6 +4341,7 @@ class NaturalistCategoryButton(discord.ui.Button):
             account["cash"] += cash_reward
             account["gold"] += gold_reward
             levels = apply_role_xp(naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180)
+            interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
             save_economy()
             region = NATURALIST_REGIONS[self.region_key]
             note = (
@@ -4446,6 +4460,7 @@ class NaturalistLegendarySelect(discord.ui.Select):
                 levels = apply_role_xp(
                     naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180
                 )
+                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
                 note = (
                     f"Легендарный образец **{animal['name']}** получен. "
                     f"Опыт: **+{xp_reward}**."
