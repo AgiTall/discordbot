@@ -20,7 +20,7 @@ CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
 BOT_TOKEN = ""
-BOT_VERSION = "v0.4"
+BOT_VERSION = "v0.4.1"
 ECONOMY_FILE = "economy.json"
 ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
@@ -4694,6 +4694,87 @@ async def slash_error(interaction: discord.Interaction, error):
         await interaction.followup.send(message, ephemeral=True)
     else:
         await interaction.response.send_message(message, ephemeral=True)
+
+
+@bot.tree.command(name="news", description="Опубликовать новость через красивый Embed")
+@app_commands.describe(
+    title="Главный заголовок новости",
+    content="Основной текст новости (используйте \\n для переноса строк)",
+    color="Цвет (название: red, blue, green, yellow и т.д. или HEX-код: #FF8800)",
+    image="Изображение для новости"
+)
+async def news_command(
+    interaction: discord.Interaction, 
+    title: str, 
+    content: str, 
+    color: str = None, 
+    image: discord.Attachment = None
+):
+    color_map = {
+        "red": discord.Color.red(),
+        "blue": discord.Color.blue(),
+        "green": discord.Color.green(),
+        "yellow": discord.Color.from_rgb(255, 255, 0),
+        "purple": discord.Color.purple(),
+        "orange": discord.Color.orange(),
+        "pink": discord.Color.from_rgb(255, 192, 203),
+        "black": discord.Color.from_rgb(0, 0, 0),
+        "white": discord.Color.from_rgb(255, 255, 255),
+        "blurple": discord.Color.blurple(),
+        "grey": discord.Color.light_gray(),
+        "gray": discord.Color.light_gray()
+    }
+
+    embed_color = discord.Color.blurple()
+    if color:
+        c_lower = color.lower().strip()
+        if c_lower in color_map:
+            embed_color = color_map[c_lower]
+        elif c_lower.startswith("#"):
+            hex_color = c_lower.lstrip("#")
+            try:
+                if len(hex_color) != 6:
+                    raise ValueError
+                embed_color = discord.Color(int(hex_color, 16))
+            except ValueError:
+                await interaction.response.send_message(f"❌ Некорректный HEX-код: `{color}`. Используйте формат, например, `#FF8800`.", ephemeral=True)
+                return
+        else:
+            await interaction.response.send_message(f"❌ Неизвестный цвет: `{color}`. Укажите название цвета (например: red, blue) или HEX-код.", ephemeral=True)
+            return
+
+    actual_content = content.replace('\\n', '\n')
+    lines = actual_content.split('\n')
+    formatted_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('###'):
+            header_text = stripped[3:].strip()
+            formatted_lines.append(f"### {header_text}")
+        elif stripped.startswith('##'):
+            header_text = stripped[2:].strip()
+            formatted_lines.append(f"## {header_text}")
+        else:
+            formatted_lines.append(line)
+            
+    final_content = '\n'.join(formatted_lines)
+
+    embed = discord.Embed(title=title, description=final_content, color=embed_color)
+    
+    if image:
+        if image.content_type and image.content_type.startswith('image/'):
+            embed.set_image(url=image.url)
+        else:
+            await interaction.response.send_message("❌ Прикрепленный файл не является изображением.", ephemeral=True)
+            return
+
+    author_name = interaction.user.display_name
+    author_icon = interaction.user.display_avatar.url if interaction.user.display_avatar else None
+    embed.set_footer(text=f"Автор: {author_name}", icon_url=author_icon)
+    embed.timestamp = discord.utils.utcnow()
+
+    await interaction.response.send_message(embed=embed)
+
 
 
 @bot.tree.command(name="help", description="Показать возможности бота")
