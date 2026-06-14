@@ -424,10 +424,28 @@ class LevelingCog(commands.Cog):
         self.db.set_xp_rate(str(interaction.guild.id), source, multiplier)
         await interaction.response.send_message(f"Множитель опыта для источника **{source}** установлен на **{multiplier}**.", ephemeral=True)
 
-    @app_commands.command(name="restart-rank", description="Перепроверить и выдать ранговую роль пользователю по базе данных")
-    @app_commands.describe(member="Пользователь для проверки роли")
+    @app_commands.command(name="restart-rank", description="Перепроверить и выдать ранговую роль пользователю или всем (all)")
+    @app_commands.describe(member="Пользователь для проверки", target="Или впишите 'all' для проверки всех")
     @app_commands.default_permissions(administrator=True)
-    async def restart_rank_cmd(self, interaction: discord.Interaction, member: discord.Member):
+    async def restart_rank_cmd(self, interaction: discord.Interaction, member: discord.Member = None, target: str = None):
+        if target and target.lower() in {"all", "все", "everyone", "@everyone"}:
+            await interaction.response.defer(ephemeral=True)
+            guild_id = str(interaction.guild.id)
+            count = 0
+            import asyncio
+            for m in interaction.guild.members:
+                if m.bot: continue
+                data = self.db.get_user(guild_id, str(m.id))
+                await self.handle_level_up(m, data["level"], notify=False)
+                count += 1
+                await asyncio.sleep(0.1) # prevent rate limits
+            await interaction.followup.send(f"Ранговые роли успешно перепроверены и выданы для {count} пользователей.")
+            return
+
+        if not member:
+            await interaction.response.send_message("Укажите пользователя в параметре `member` или впишите 'all' в поле `target`.", ephemeral=True)
+            return
+
         if member.bot:
             await interaction.response.send_message("У ботов нет рангов.", ephemeral=True)
             return
