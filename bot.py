@@ -20,7 +20,7 @@ CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
 BOT_TOKEN = ""
-BOT_VERSION = "v0.4.1"
+BOT_VERSION = "v0.4.2"
 ECONOMY_FILE = "economy.json"
 ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
@@ -4750,10 +4750,10 @@ async def news_command(
         stripped = line.strip()
         if stripped.startswith('###'):
             header_text = stripped[3:].strip()
-            formatted_lines.append(f"### {header_text}")
+            formatted_lines.append(f"## {header_text}")
         elif stripped.startswith('##'):
             header_text = stripped[2:].strip()
-            formatted_lines.append(f"## {header_text}")
+            formatted_lines.append(f"### {header_text}")
         else:
             formatted_lines.append(line)
             
