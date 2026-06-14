@@ -1,5 +1,5 @@
 /**
- * js/app.js — Membot Dashboard
+ * js/app.js — Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 Dashboard
  * Общая логика: навигация, localStorage, dashboard, поиск команд
  */
 

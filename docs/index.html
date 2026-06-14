@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Membot — многофункциональный Discord-бот для вашего сервера. Экономика, уровни, профессии, игры и многое другое.">
-  <title>Membot — Discord-бот с экономикой и уровнями</title>
+  <meta name="description" content="Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — многофункциональный Discord-бот для вашего сервера. Экономика, уровни, профессии, игры и многое другое.">
+  <title>Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — Discord-бот с экономикой и уровнями</title>
   <link rel="stylesheet" href="css/style.css">
   <!-- Preconnect to Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +29,7 @@
         <path d="M13 22c1.3 1.3 3 2 5 2s3.7-.7 5-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
         <path d="M15 10V8M21 10V8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
-      Membot
+      Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺
       <span class="navbar__badge">v0.5.3</span>
     </a>
 
@@ -63,7 +63,7 @@
 
     <!-- Кнопка призыва (десктоп) -->
     <div class="navbar__cta">
-      <button class="btn btn--primary btn--sm" data-action="invite" id="navInviteBtn">
+      <button class="btn btn--special btn--sm" data-action="invite" id="navInviteBtn">
         <!-- SVG: Добавить -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Добавить бота
@@ -95,7 +95,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
     Уровни
   </a>
-  <button class="btn btn--primary" data-action="invite" style="margin-top:8px">
+  <button class="btn btn--special" data-action="invite" style="margin-top:8px">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Добавить бота
   </button>
@@ -105,76 +105,31 @@
      HERO
      ============================================= -->
 <main class="page-wrapper">
-<section class="section section--hero hero" id="hero" aria-labelledby="heroTitle">
-
-  <!-- Декоративный фон -->
-  <div class="hero__bg" aria-hidden="true"></div>
-
-  <div class="container hero__content">
-
-    <!-- Статус-бейдж -->
-    <div class="hero__badge" role="status">
-      <span class="dot" aria-hidden="true"></span>
-      Онлайн · Версия 0.5.3
-    </div>
-
-    <!-- Аватар бота -->
-    <div class="hero__avatar" aria-hidden="true">
-      <svg viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 22c0-6.6 5.4-12 12-12h16c6.6 0 12 5.4 12 12v16c0 6.6-5.4 12-12 12H22c-6.6 0-12-5.4-12-12V22z" fill="#5865f2" opacity=".3"/>
-        <circle cx="22" cy="29" r="4" fill="#c4c9ff"/>
-        <circle cx="38" cy="29" r="4" fill="#c4c9ff"/>
-        <path d="M20 38c2.7 2.7 7.3 4 10 4s7.3-1.3 10-4" stroke="#c4c9ff" stroke-width="2.5" stroke-linecap="round"/>
-        <path d="M25 10V6M35 10V6" stroke="#c4c9ff" stroke-width="2.5" stroke-linecap="round"/>
-        <circle cx="22" cy="27" r="1.5" fill="#5865f2"/>
-        <circle cx="38" cy="27" r="1.5" fill="#5865f2"/>
-      </svg>
-    </div>
-
-    <h1 class="heading-xl hero__title" id="heroTitle">
-      Discord-бот<br>
-      <span class="gradient-text">нового поколения</span>
+<section class="hero" id="hero" aria-labelledby="heroTitle">
+  <div class="hero__content">
+    <h1 class="hero__logo" id="heroTitle">
+      ПЧЕВ<br>
+      <span>WILDWEST RPG</span>
     </h1>
 
-    <p class="hero__desc">
-      Membot — мощный бот для вашего сервера. Экономика, система уровней, профессии, мини-игры,
-      ежедневные награды и многое другое в одном пакете.
-    </p>
-
     <div class="hero__cta">
-      <button class="btn btn--primary btn--lg" data-action="invite" id="heroInviteBtn">
-        <!-- SVG: Плюс / Добавить -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Добавить на сервер
+      <button class="btn btn--hero" data-action="invite" id="heroInviteBtn">
+        ДОБАВИТЬ ПЧЕВ WILDWEST RPG СЕЙЧАС
       </button>
-      <button class="btn btn--secondary btn--lg" data-action="support" id="heroSupportBtn">
-        <!-- SVG: Discord / Чат -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        Сервер поддержки
-      </button>
+      <a href="commands.html" class="btn btn--hero">
+        ПОДРОБНЕЕ О КОМАНДАХ
+      </a>
     </div>
-
-    <!-- Статистика -->
-    <div class="stats-row" role="list" aria-label="Статистика бота">
-      <div class="stat-item" role="listitem">
-        <div class="stat-item__value gradient-text">30+</div>
-        <div class="stat-item__label">Slash-команд</div>
-      </div>
-      <div class="stat-item" role="listitem">
-        <div class="stat-item__value gradient-text">5</div>
-        <div class="stat-item__label">Профессий</div>
-      </div>
-      <div class="stat-item" role="listitem">
-        <div class="stat-item__value gradient-text">∞</div>
-        <div class="stat-item__label">Уровней</div>
-      </div>
-      <div class="stat-item" role="listitem">
-        <div class="stat-item__value gradient-text">24/7</div>
-        <div class="stat-item__label">Онлайн</div>
-      </div>
-    </div>
-
   </div>
+</section>
+
+<!-- =============================================
+     RDO DESC SECTION
+     ============================================= -->
+<section class="hero-desc-section">
+  <h2>ОКУНИТЕСЬ В ЯРКИЙ, ПОСТОЯННО РАЗВИВАЮЩИЙСЯ МИР ПЧЕВ WILDWEST RPG И ПОЗНАКОМЬТЕСЬ С ЖИЗНЬЮ НА ДИКОМ ЗАПАДЕ.</h2>
+  <p>Прокладывайте свой путь, сражаясь с представителями закона, бандами преступников и свирепыми дикими животными, чтобы построить свою жизнь на Диком Западе. Разбейте лагерь, путешествуйте в одиночку или в составе отряда и исследуйте всё — от заснеженных гор на севере до болот на юге, от отдалённых аванпостов до оживлённых ферм и шумных городов.</p>
+  <p>Присоединяйтесь к миллионам игроков на американском Западе и окунитесь в мир, в котором появились множество новых функций, игровых механик и улучшений.</p>
 </section>
 
 <!-- =============================================
@@ -186,7 +141,7 @@
     <div class="section-header">
       <div class="section-header__eyebrow">Возможности</div>
       <h2 class="heading-lg" id="featuresTitle">Всё, что нужно вашему серверу</h2>
-      <p>Membot объединяет экономику, прокачку персонажей и развлечения в единую экосистему.</p>
+      <p>Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 объединяет экономику, прокачку персонажей и развлечения в единую экосистему.</p>
     </div>
 
     <div class="features-grid">
@@ -322,11 +277,11 @@
       Начните прямо сейчас
     </h2>
     <p style="color:var(--text-secondary);max-width:480px;margin:0 auto 36px;font-size:1.05rem">
-      Добавьте Membot на ваш сервер за несколько секунд — никакой регистрации,
+      Добавьте Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 на ваш сервер за несколько секунд — никакой регистрации,
       всё работает из коробки.
     </p>
     <div class="hero__cta">
-      <button class="btn btn--primary btn--lg" data-action="invite" id="ctaInviteBtn">
+      <button class="btn btn--special btn--lg" data-action="invite" id="ctaInviteBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Добавить на сервер
       </button>
@@ -354,7 +309,7 @@
             <circle cx="18" cy="14" r="2.5" fill="white"/>
             <path d="M9 19c1.5 1.5 5.5 2 5 2s3.5-.5 5-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
-          Membot
+          Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺
         </div>
         <p class="footer__desc">
           Многофункциональный Discord-бот для вашего сервера.
@@ -381,7 +336,7 @@
       </div>
     </div>
     <div class="footer__bottom">
-      <p class="footer__copy">© 2024 Membot. Все права защищены.</p>
+      <p class="footer__copy">© 2024 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺. Все права защищены.</p>
       <span class="footer__version">v0.5.3</span>
     </div>
   </div>
