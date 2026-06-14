@@ -84,6 +84,8 @@ DEFAULT_MOONSHINE_STAR_EMOJIS = {
     "3": "⭐⭐⭐",
 }
 DEFAULT_MOONSHINE_SPECIAL_EMOJI = "🌟🌟🌟"
+DEFAULT_MOONSHINE_CONDENSER_EMOJI = "🧊"
+DEFAULT_MOONSHINE_DISTILLER_EMOJI = "🟠"
 DEFAULT_MOONSHINE_BUTTON_EMOJIS = {
     "mash": "🥣",
     "special": "🌿",
@@ -537,6 +539,8 @@ def normalize_economy_data(data):
     data.setdefault("stats_emoji", DEFAULT_STATS_EMOJI)
     data.setdefault("moonshine_star_emojis", DEFAULT_MOONSHINE_STAR_EMOJIS.copy())
     data.setdefault("moonshine_special_emoji", DEFAULT_MOONSHINE_SPECIAL_EMOJI)
+    data.setdefault("moonshine_condenser_emoji", DEFAULT_MOONSHINE_CONDENSER_EMOJI)
+    data.setdefault("moonshine_distiller_emoji", DEFAULT_MOONSHINE_DISTILLER_EMOJI)
     data.setdefault("moonshine_button_emojis", DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy())
     data.setdefault("naturalist_button_emojis", DEFAULT_NATURALIST_BUTTON_EMOJIS.copy())
     data.setdefault("bounty_button_emojis", DEFAULT_BOUNTY_BUTTON_EMOJIS.copy())
@@ -569,6 +573,10 @@ def normalize_economy_data(data):
             data["moonshine_star_emojis"][level] = DEFAULT_MOONSHINE_STAR_EMOJIS[level]
     if not data.get("moonshine_special_emoji"):
         data["moonshine_special_emoji"] = DEFAULT_MOONSHINE_SPECIAL_EMOJI
+    if not data.get("moonshine_condenser_emoji"):
+        data["moonshine_condenser_emoji"] = DEFAULT_MOONSHINE_CONDENSER_EMOJI
+    if not data.get("moonshine_distiller_emoji"):
+        data["moonshine_distiller_emoji"] = DEFAULT_MOONSHINE_DISTILLER_EMOJI
     if not isinstance(data["moonshine_button_emojis"], dict):
         data["moonshine_button_emojis"] = DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy()
     for key, emoji in DEFAULT_MOONSHINE_BUTTON_EMOJIS.items():
@@ -797,6 +805,20 @@ def get_moonshine_special_emoji():
     emoji = economy_data.get("moonshine_special_emoji")
     if not emoji:
         return str(DEFAULT_MOONSHINE_SPECIAL_EMOJI)
+    return str(emoji)
+
+
+def get_moonshine_condenser_emoji():
+    emoji = economy_data.get("moonshine_condenser_emoji")
+    if not emoji:
+        return str(DEFAULT_MOONSHINE_CONDENSER_EMOJI)
+    return str(emoji)
+
+
+def get_moonshine_distiller_emoji():
+    emoji = economy_data.get("moonshine_distiller_emoji")
+    if not emoji:
+        return str(DEFAULT_MOONSHINE_DISTILLER_EMOJI)
     return str(emoji)
 
 
@@ -2273,6 +2295,8 @@ EMOJI_TARGETS = [
     ("Самогон: 2 звезды", "moonshine_star_2"),
     ("Самогон: 3 звезды", "moonshine_star_3"),
     ("Особый самогон", "moonshine_special"),
+    ("Самогон: Конденсатор", "moonshine_condenser"),
+    ("Самогон: Медный дистиллятор", "moonshine_distiller"),
     ("Кнопка: бражка", "moonshine_button_mash"),
     ("Кнопка: особые ингредиенты", "moonshine_button_special"),
     ("Кнопка: улучшения", "moonshine_button_upgrades"),
@@ -3098,6 +3122,48 @@ class BlackjackView(discord.ui.View):
                 pass
 
 
+MARCEL_GREETINGS = [
+    "Добрый день, босс. Какой самогон будем готовить на этот раз?",
+    "Аппараты начищены и ждут. Что варим сегодня?",
+    "Всегда готов к работе, босс. Жду ваших указаний.",
+    "Отличный день для новой партии, не так ли?",
+    "Босс, ингредиенты на месте. Запускаем котёл?",
+    "Тише едешь — крепче градус. Что сегодня на повестке?"
+]
+
+MARCEL_BUSY = [
+    "**Марсель:** Один котёл уже занят. Дождёмся готовности партии.",
+    "**Марсель:** Котёл пыхтит вовсю, босс. Придётся подождать.",
+    "**Марсель:** Места больше нет, перегонка уже идёт.",
+]
+
+MARCEL_MASH_START = [
+    "Ставлю партию, босс:",
+    "Запускаю котёл. Будет готово в лучшем виде:",
+    "Процесс пошёл. Отличный выбор для основы:",
+    "Зажёг огонь под котлом, босс. Начинаем варить:"
+]
+
+MARCEL_SPECIAL_SUCCESS = [
+    "Хороший выбор, босс. Это придаст напитку особый аромат.",
+    "Отличная идея. Клиенты оторвут с руками!",
+    "Добавил всё по рецепту. Запах уже изумительный.",
+    "Этот рецепт — настоящая бомба, босс. Отличный выбор."
+]
+
+MARCEL_EMPTY_WAGON = [
+    "**Марсель:** Повозка пока пустая, босс. Сначала поставим партию.",
+    "**Марсель:** Везти нечего, бутылки ещё не наполнились.",
+    "**Марсель:** Босс, лошади запряжены, но самогона нет."
+]
+
+MARCEL_NOT_READY = [
+    "**Марсель:** Самогон ещё доходит. Осталось **{duration}**.",
+    "**Марсель:** Ещё немного, босс. Придётся подождать **{duration}**.",
+    "**Марсель:** Капли падают медленно. Ждём ещё **{duration}**."
+]
+
+
 def build_moonshine_embed(guild, account):
     moonshine = get_moonshine_account(account)
     role_definition = get_role_definition(MOONSHINER_ROLE_KEY)
@@ -3133,14 +3199,14 @@ def build_moonshine_embed(guild, account):
     embed = discord.Embed(
         title=f"{icon} Предприятие самогонщика",
         description=(
-            "**Марсель:** Добрый день, босс. Какой самогон будем готовить на этот раз?\n\n"
+            f"**Марсель:** {random.choice(MARCEL_GREETINGS)}\n\n"
             "🥃 Производство\n"
             f"├─ 🏷️ Уровень аппарата: **{level}**\n"
             f"├─ ⭐ Доступ: **{get_moonshine_star_emoji(level)}**\n"
             f"{progress_line}\n\n"
             "⚙️ Оборудование\n"
-            f"├─ 🧊 Конденсатор: **{condenser}**\n"
-            f"├─ 🟠 Медный дистиллятор: **{distiller}**\n"
+            f"├─ {get_moonshine_condenser_emoji()} Конденсатор: **{condenser}**\n"
+            f"├─ {get_moonshine_distiller_emoji()} Медный дистиллятор: **{distiller}**\n"
             f"└─ ⏱️ Навык самогонщика: **{skill}**\n\n"
             f"{storage_icon} Склад ингредиентов\n"
             f"└─ {storage}\n\n"
@@ -3214,7 +3280,6 @@ def build_moonshine_special_embed(moonshine):
         line = (
             f"{special_emoji} **{recipe['name']}** {star_emoji}{lock}:\n"
             f"└ Основа: бражка {stars} ур. | "
-            f"Запуск: {cost_str} | "
             f"Выручка: {payout_str}\n"
             f"└ Ингредиенты: **{status}**"
         )
@@ -3262,7 +3327,7 @@ async def deliver_moonshine_batch(interaction):
             await send_embed_response(
                 interaction,
                 "Повозка пустая",
-                "Марсель: Повозка пока пустая, босс. Сначала поставим партию.",
+                random.choice(MARCEL_EMPTY_WAGON),
                 ephemeral=True,
             )
             return
@@ -3274,7 +3339,7 @@ async def deliver_moonshine_batch(interaction):
             await send_embed_response(
                 interaction,
                 "Самогон доходит",
-                f"Марсель: Самогон ещё доходит. Осталось **{format_duration(seconds_left)}**.",
+                random.choice(MARCEL_NOT_READY).format(duration=format_duration(seconds_left)),
                 ephemeral=True,
             )
             return
@@ -3353,7 +3418,7 @@ class MoonshineMashSelect(discord.ui.Select):
                 await send_embed_response(
                     interaction,
                     "Котёл занят",
-                    "Марсель: Один котёл уже занят. Дождёмся готовности партии.",
+                    random.choice(MARCEL_BUSY),
                     ephemeral=True,
                 )
                 return
@@ -3385,7 +3450,7 @@ class MoonshineMashSelect(discord.ui.Select):
 
         embed = build_bot_embed(
             "Партия запущена",
-            f"Марсель ставит партию: **{batch['name']}**.\n"
+            f"**Марсель:** {random.choice(MARCEL_MASH_START)} **{batch['name']}**.\n"
             f"Стоимость производства: **{format_money(MOONSHINE_BATCH_COST)}**.\n"
             f"Готовность через **{format_minutes(batch['duration_seconds'])}**. "
             f"Выручка: **{format_money(batch['payout'])}**.",
@@ -3418,8 +3483,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
                     label=recipe["name"],
                     value=recipe["key"],
                     description=(
-                        f"{recipe['stars']} ур. бражки · запуск "
-                        f"{format_number(MOONSHINE_BATCH_COST)} · "
+                        f"{recipe['stars']} ур. бражки · "
                         f"выручка {format_number(recipe['payout'])} · {status}"
                     ),
                 )
@@ -3446,7 +3510,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
             await send_embed_response(
                 interaction,
                 "Нет рецептов",
-                "Марсель: Пока нет доступных особых рецептов.",
+                "**Марсель:** Пока нет доступных особых рецептов.",
                 ephemeral=True,
             )
             return
@@ -3455,22 +3519,45 @@ class MoonshineSpecialSelect(discord.ui.Select):
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
-            if moonshine.get("batch"):
+            batch = moonshine.get("batch")
+
+            if not batch:
                 save_economy()
                 await send_embed_response(
                     interaction,
-                    "Котёл занят",
-                    "Марсель: Один котёл уже занят. Дождёмся готовности партии.",
+                    "Нет бражки",
+                    "**Марсель:** Котёл пуст. Сначала поставьте бражку, босс.",
                     ephemeral=True,
                 )
                 return
 
-            if recipe["stars"] > get_moonshine_level(moonshine):
+            if batch.get("type") == "special":
                 save_economy()
                 await send_embed_response(
                     interaction,
-                    "Нужен апгрейд",
-                    "Для этой основы нужна бражка такого же уровня. Улучшите оборудование.",
+                    "Уже особый",
+                    "**Марсель:** В этот котёл мы уже добавили особые ингредиенты.",
+                    ephemeral=True,
+                )
+                return
+
+            bottles = get_moonshine_bottles(moonshine)
+            if bottles >= 20:
+                save_economy()
+                await send_embed_response(
+                    interaction,
+                    "Самогон уже готов",
+                    "**Марсель:** Самогон уже готов к продаже, поздно добавлять ингредиенты.",
+                    ephemeral=True,
+                )
+                return
+
+            if recipe["stars"] != batch.get("stars", 1):
+                save_economy()
+                await send_embed_response(
+                    interaction,
+                    "Не подходит",
+                    f"**Марсель:** Для этого рецепта нужна бражка {recipe['stars']} ур., а в котле {batch.get('stars', 1)} ур.",
                     ephemeral=True,
                 )
                 return
@@ -3490,34 +3577,25 @@ class MoonshineSpecialSelect(discord.ui.Select):
                 )
                 return
 
-            if account["cash"] + 0.0001 < MOONSHINE_BATCH_COST:
-                save_economy()
-                await send_embed_response(
-                    interaction,
-                    "Не хватает денег",
-                    f"Запуск партии стоит **{format_money(MOONSHINE_BATCH_COST)}**, "
-                    f"у вас **{format_money(account['cash'])}**.",
-                    ephemeral=True,
-                )
-                return
-
-            account["cash"] -= MOONSHINE_BATCH_COST
             consume_moonshine_ingredients(moonshine, recipe)
-            batch = start_moonshine_batch(moonshine, recipe, "special")
+            
+            batch["type"] = "special"
+            batch["recipe_key"] = recipe["key"]
+            batch["name"] = get_moonshine_recipe_name(recipe)
+            batch["payout"] = float(recipe["payout"])
             save_economy()
 
         embed = build_bot_embed(
-            "Партия запущена",
-            f"Марсель добавил особые ингредиенты: **{batch['name']}**.\n"
-            f"Стоимость производства: **{format_money(MOONSHINE_BATCH_COST)}**.\n"
-            f"Основа: **бражка {recipe['stars']} уровня**. "
-            f"Готовность через **{format_minutes(batch['duration_seconds'])}**. "
-            f"Выручка: **{format_money(batch['payout'])}**.",
+            "Ингредиенты добавлены",
+            f"**Марсель:** {random.choice(MARCEL_SPECIAL_SUCCESS)}\n\n"
+            f"Основа: **бражка {recipe['stars']} уровня**.\n"
+            f"Новая выручка: **{format_money(batch['payout'])}**.\n"
+            f"Партия теперь называется: **{batch['name']}**.",
             color=discord.Color.dark_gold(),
         )
         await send_loading_then_edit(
             interaction,
-            "Перегонка идёт...",
+            "Марсель колдует над котлом...",
             embed,
             ephemeral=True,
         )
@@ -6603,6 +6681,12 @@ async def admin_set_emoji_command(
         elif currency == "moonshine_special":
             economy_data["moonshine_special_emoji"] = emoji
             message = f"Эмодзи для особого самогона установлено: **{emoji}**"
+        elif currency == "moonshine_condenser":
+            economy_data["moonshine_condenser_emoji"] = emoji
+            message = f"Эмодзи для конденсатора установлено: **{emoji}**"
+        elif currency == "moonshine_distiller":
+            economy_data["moonshine_distiller_emoji"] = emoji
+            message = f"Эмодзи для дистиллятора установлено: **{emoji}**"
         else:
             if currency.startswith("moonshine_button_"):
                 button_key = currency.replace("moonshine_button_", "", 1)
