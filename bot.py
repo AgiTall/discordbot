@@ -6030,6 +6030,50 @@ async def admin_give_map_command(
     await interaction.response.send_message(message, ephemeral=True)
 
 
+@bot.tree.command(name="remove-map", description="Админ: забрать карты сокровищ у участника")
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(member="Участник, ID, упоминание или all", amount="Количество карт")
+async def admin_remove_map_command(
+    interaction: discord.Interaction, member: str, amount: int = 1
+):
+    if amount <= 0:
+        await interaction.response.send_message(
+            "Введите количество карт больше нуля.", ephemeral=True
+        )
+        return
+
+    targets, is_all, error = await resolve_admin_targets(interaction, member)
+    if error:
+        await interaction.response.send_message(error, ephemeral=True)
+        return
+
+    async with economy_lock:
+        update_gold_rate()
+        total_taken = 0
+        for target in targets:
+            account = get_account(target.id)
+            accrue_deposit_interest(account)
+            normalize_treasure_maps(account)
+            taken = min(account["treasure_maps"], amount)
+            account["treasure_maps"] -= taken
+            total_taken += taken
+        save_economy()
+        if is_all:
+            message = (
+                f"{format_target_result(targets, is_all)}: забрано по **{format_treasure_maps(amount)}**.\n"
+                f"Всего забрано: **{format_treasure_maps(total_taken)}**."
+            )
+        else:
+            account = get_account(targets[0].id)
+            message = (
+                f"Забрано **{format_treasure_maps(total_taken)}** у {targets[0].mention}.\n"
+                f"{format_account(account)}"
+            )
+
+    await interaction.response.send_message(message, ephemeral=True)
+
+
 @bot.tree.command(name="set-deposit", description="Админ: установить вклад участника")
 @app_commands.default_permissions(administrator=True)
 @app_commands.checks.has_permissions(administrator=True)
