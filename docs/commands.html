@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Все команды Membot — поиск по категориям: экономика, уровни, профессии, игры, администрирование.">
+  <title>Команды — Membot</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+<body>
+
+<!-- ── НАВИГАЦИЯ ── -->
+<nav class="navbar" role="navigation" aria-label="Главная навигация">
+  <div class="navbar__inner">
+    <a href="index.html" class="navbar__logo">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="36" height="36" rx="10" fill="#5865f2"/>
+        <path d="M10 14c0-2.2 1.8-4 4-4h8c2.2 0 4 1.8 4 4v8c0 2.2-1.8 4-4 4h-8c-2.2 0-4-1.8-4-4v-8z" fill="white" opacity="0.2"/>
+        <circle cx="14" cy="17" r="2" fill="white"/>
+        <circle cx="22" cy="17" r="2" fill="white"/>
+        <path d="M13 22c1.3 1.3 3 2 5 2s3.7-.7 5-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M15 10V8M21 10V8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Membot
+      <span class="navbar__badge">v0.5.3</span>
+    </a>
+
+    <ul class="navbar__links" role="list">
+      <li><a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Главная</a></li>
+      <li><a href="commands.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Команды</a></li>
+      <li><a href="dashboard.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>Настройки</a></li>
+      <li><a href="levels.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Уровни</a></li>
+    </ul>
+
+    <div class="navbar__cta">
+      <button class="btn btn--primary btn--sm" data-action="invite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Добавить бота
+      </button>
+    </div>
+
+    <button class="hamburger" id="hamburgerBtn" aria-label="Меню"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<nav class="mobile-nav" id="mobileNav" aria-label="Мобильная навигация">
+  <a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Главная</a>
+  <a href="commands.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Команды</a>
+  <a href="dashboard.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Настройки</a>
+  <a href="levels.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Уровни</a>
+  <button class="btn btn--primary" data-action="invite" style="margin-top:8px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Добавить бота
+  </button>
+</nav>
+
+<!-- ── CONTENT ── -->
+<main class="page-wrapper">
+
+  <!-- Заголовок страницы -->
+  <div class="section section--sm" style="background: linear-gradient(to bottom, var(--bg-secondary), var(--bg-primary));">
+    <div class="container">
+      <div class="section-header" style="margin-bottom:0">
+        <div class="section-header__eyebrow">Справочник</div>
+        <h1 class="heading-lg" id="commandsTitle">Все команды Membot</h1>
+        <p>30+ slash-команд для экономики, уровней, профессий и развлечений.</p>
+      </div>
+    </div>
+  </div>
+
+  <section class="section section--sm" aria-labelledby="commandsTitle">
+    <div class="container">
+
+      <!-- Поиск -->
+      <div class="commands-search" role="search" aria-label="Поиск команд">
+        <!-- SVG: Лупа -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          type="search"
+          id="cmdSearch"
+          placeholder="Поиск по названию или описанию..."
+          autocomplete="off"
+          aria-label="Введите название команды"
+        >
+      </div>
+
+      <!-- Фильтры по категории -->
+      <div class="commands-filter" role="group" aria-label="Фильтры категорий">
+        <button class="filter-tab active" data-filter="all" id="filterAll">Все</button>
+        <button class="filter-tab" data-filter="econ" id="filterEcon">💰 Экономика</button>
+        <button class="filter-tab" data-filter="level" id="filterLevel">📈 Уровни</button>
+        <button class="filter-tab" data-filter="role" id="filterRole">🎭 Профессии</button>
+        <button class="filter-tab" data-filter="game" id="filterGame">🎲 Игры</button>
+        <button class="filter-tab" data-filter="admin" id="filterAdmin">⚙️ Админ</button>
+      </div>
+
+      <!-- Список команд (заполняется JS) -->
+      <div class="commands-list" id="commandsList" role="list" aria-label="Список команд"></div>
+
+      <!-- Нет результатов -->
+      <div class="no-results" id="noResults" role="status" aria-live="polite">
+        <!-- SVG: Пустота / поиск -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <line x1="8" y1="11" x2="14" y2="11"/>
+        </svg>
+        <p>По вашему запросу команд не найдено.</p>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- ── FOOTER ── -->
+<footer class="footer" role="contentinfo">
+  <div class="container">
+    <div class="footer__inner">
+      <div>
+        <div class="footer__brand">
+          <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#5865f2"/><circle cx="10" cy="14" r="2.5" fill="white"/><circle cx="18" cy="14" r="2.5" fill="white"/><path d="M9 19c1.5 1.5 5.5 2 5 2s3.5-.5 5-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Membot
+        </div>
+        <p class="footer__desc">Многофункциональный Discord-бот.</p>
+      </div>
+      <div class="footer__links">
+        <div class="footer__links-col">
+          <h4>Страницы</h4>
+          <ul role="list">
+            <li><a href="index.html">Главная</a></li>
+            <li><a href="commands.html">Команды</a></li>
+            <li><a href="dashboard.html">Настройки</a></li>
+            <li><a href="levels.html">Уровни</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2024 Membot.</p>
+      <span class="footer__version">v0.5.3</span>
+    </div>
+  </div>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>

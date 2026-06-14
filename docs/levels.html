@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Система уровней Membot — таблица XP, ранговые роли и награды за уровни.">
+  <title>Уровни — Membot</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+<body>
+
+<!-- ── НАВИГАЦИЯ ── -->
+<nav class="navbar" role="navigation" aria-label="Главная навигация">
+  <div class="navbar__inner">
+    <a href="index.html" class="navbar__logo">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="36" height="36" rx="10" fill="#5865f2"/>
+        <path d="M10 14c0-2.2 1.8-4 4-4h8c2.2 0 4 1.8 4 4v8c0 2.2-1.8 4-4 4h-8c-2.2 0-4-1.8-4-4v-8z" fill="white" opacity="0.2"/>
+        <circle cx="14" cy="17" r="2" fill="white"/>
+        <circle cx="22" cy="17" r="2" fill="white"/>
+        <path d="M13 22c1.3 1.3 3 2 5 2s3.7-.7 5-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M15 10V8M21 10V8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Membot
+      <span class="navbar__badge">v0.5.3</span>
+    </a>
+    <ul class="navbar__links" role="list">
+      <li><a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Главная</a></li>
+      <li><a href="commands.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Команды</a></li>
+      <li><a href="dashboard.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>Настройки</a></li>
+      <li><a href="levels.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Уровни</a></li>
+    </ul>
+    <div class="navbar__cta">
+      <button class="btn btn--primary btn--sm" data-action="invite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Добавить бота
+      </button>
+    </div>
+    <button class="hamburger" id="hamburgerBtn" aria-label="Меню"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<nav class="mobile-nav" id="mobileNav" aria-label="Мобильная навигация">
+  <a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Главная</a>
+  <a href="commands.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Команды</a>
+  <a href="dashboard.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Настройки</a>
+  <a href="levels.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Уровни</a>
+  <button class="btn btn--primary" data-action="invite" style="margin-top:8px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Добавить бота
+  </button>
+</nav>
+
+<!-- ── CONTENT ── -->
+<main class="page-wrapper">
+
+  <!-- Герой секции уровней -->
+  <section class="levels-hero" style="background: linear-gradient(to bottom, var(--bg-secondary), var(--bg-primary));" aria-labelledby="levelsPageTitle">
+    <div class="container">
+      <div class="section-header__eyebrow" style="justify-content:center;margin-bottom:14px">Прокачка</div>
+      <h1 class="heading-lg" id="levelsPageTitle" style="text-align:center;margin-bottom:12px">
+        Система уровней и рангов
+      </h1>
+      <p style="text-align:center;color:var(--text-secondary);max-width:520px;margin:0 auto;font-size:1rem">
+        Получайте XP за сообщения и голосовой чат. Повышайте уровень и получайте ранговые роли.
+      </p>
+
+      <!-- Формула -->
+      <div style="display:flex;justify-content:center;margin-top:24px">
+        <div class="xp-formula" aria-label="Формула опыта">
+          XP для уровня N = 100 × N<sup>1.5</sup>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Источники XP -->
+  <section class="section section--sm" id="xpSources" aria-labelledby="xpSourcesTitle">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-header__eyebrow">Источники</div>
+        <h2 class="heading-md" id="xpSourcesTitle">Как зарабатывать XP</h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">
+
+        <div class="card" id="xpCard1">
+          <div style="font-size:2rem;margin-bottom:12px">💬</div>
+          <h3 class="heading-sm" style="margin-bottom:6px">Сообщения</h3>
+          <p style="font-size:.88rem;color:var(--text-secondary)">
+            Базово <strong>15 XP</strong> за сообщение. Кулдаун 60 секунд, одинаковые сообщения не засчитываются.
+          </p>
+          <div class="divider"></div>
+          <span class="tag tag--blurple">Источник: messages</span>
+        </div>
+
+        <div class="card" id="xpCard2">
+          <div style="font-size:2rem;margin-bottom:12px">🔊</div>
+          <h3 class="heading-sm" style="margin-bottom:6px">Голосовые каналы</h3>
+          <p style="font-size:.88rem;color:var(--text-secondary)">
+            Базово <strong>10 XP</strong> в минуту. Работает только если в канале &gt;1 живого участника, без мьюта.
+          </p>
+          <div class="divider"></div>
+          <span class="tag tag--green">Источник: voice</span>
+        </div>
+
+        <div class="card" id="xpCard3">
+          <div style="font-size:2rem;margin-bottom:12px">⛏️</div>
+          <h3 class="heading-sm" style="margin-bottom:6px">Профессии</h3>
+          <p style="font-size:.88rem;color:var(--text-secondary)">
+            Контракты охотника, доставки торговца, образцы натуралиста — всё приносит XP с множителем.
+          </p>
+          <div class="divider"></div>
+          <span class="tag tag--gold">Источник: jobs</span>
+        </div>
+
+        <div class="card" id="xpCard4">
+          <div style="font-size:2rem;margin-bottom:12px">🎉</div>
+          <h3 class="heading-sm" style="margin-bottom:6px">Ивенты</h3>
+          <p style="font-size:.88rem;color:var(--text-secondary)">
+            Специальные события и турниры дают XP с повышенным множителем. Настраивается администраторами.
+          </p>
+          <div class="divider"></div>
+          <span class="tag tag--blurple">Источник: events</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Таблица уровней -->
+  <section class="section section--sm" id="levelsTable" aria-labelledby="levelsTableTitle">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-header__eyebrow">Таблица</div>
+        <h2 class="heading-md" id="levelsTableTitle">XP по уровням (1–30)</h2>
+        <p>Количество XP для перехода на следующий уровень и суммарный XP.</p>
+      </div>
+
+      <div class="levels-table-wrapper">
+        <table class="levels-table" aria-label="Таблица уровней" role="table">
+          <thead>
+            <tr>
+              <th scope="col">Уровень</th>
+              <th scope="col">XP для повышения</th>
+              <th scope="col">Суммарный XP</th>
+              <th scope="col">Награда</th>
+            </tr>
+          </thead>
+          <tbody id="levelsTableBody">
+            <!-- Заполняется через JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <p style="font-size:.82rem;color:var(--text-muted);margin-top:14px;text-align:center">
+        🏆 Золотой значок уровня — ключевые уровни с возможностью получить ранговую роль (настраивается администратором).
+      </p>
+    </div>
+  </section>
+
+  <!-- Награды за уровни (ранговые роли) -->
+  <section class="section section--sm" style="background:var(--bg-secondary);" id="levelRewards" aria-labelledby="rewardsTitle">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-header__eyebrow">Ранги</div>
+        <h2 class="heading-md" id="rewardsTitle">Ранговые роли</h2>
+        <p>Примеры ранговых ролей, которые можно настроить на вашем сервере.</p>
+      </div>
+
+      <div class="rewards-grid">
+
+        <div class="reward-card" id="rewardCard1">
+          <div class="reward-card__level">Уровень 1</div>
+          <div class="reward-card__emoji">🌱</div>
+          <div class="reward-card__name">Новичок</div>
+          <div class="reward-card__xp">0 XP</div>
+        </div>
+
+        <div class="reward-card" id="rewardCard5">
+          <div class="reward-card__level">Уровень 5</div>
+          <div class="reward-card__emoji">🌟</div>
+          <div class="reward-card__name">Путник</div>
+          <div class="reward-card__xp">559 XP</div>
+        </div>
+
+        <div class="reward-card" id="rewardCard10">
+          <div class="reward-card__level">Уровень 10</div>
+          <div class="reward-card__emoji">⚔️</div>
+          <div class="reward-card__name">Опытный</div>
+          <div class="reward-card__xp">3 162 XP</div>
+        </div>
+
+        <div class="reward-card" id="rewardCard15">
+          <div class="reward-card__level">Уровень 15</div>
+          <div class="reward-card__emoji">🛡️</div>
+          <div class="reward-card__name">Ветеран</div>
+          <div class="reward-card__xp">7 319 XP</div>
+        </div>
+
+        <div class="reward-card" id="rewardCard20">
+          <div class="reward-card__level">Уровень 20</div>
+          <div class="reward-card__emoji">👑</div>
+          <div class="reward-card__name">Элита</div>
+          <div class="reward-card__xp">14 142 XP</div>
+        </div>
+
+        <div class="reward-card" id="rewardCard25">
+          <div class="reward-card__level">Уровень 25</div>
+          <div class="reward-card__emoji">💎</div>
+          <div class="reward-card__name">Легенда</div>
+          <div class="reward-card__xp">23 394 XP</div>
+        </div>
+
+        <div class="reward-card" id="rewardCard30">
+          <div class="reward-card__level">Уровень 30</div>
+          <div class="reward-card__emoji">🔱</div>
+          <div class="reward-card__name">Гроза</div>
+          <div class="reward-card__xp">35 051 XP</div>
+        </div>
+
+        <!-- Кастомная -->
+        <div class="reward-card" id="rewardCardCustom" style="border-style:dashed;opacity:.6">
+          <div class="reward-card__level">Любой уровень</div>
+          <div class="reward-card__emoji">✨</div>
+          <div class="reward-card__name">Ваша роль</div>
+          <div class="reward-card__xp">Настраивается</div>
+        </div>
+
+      </div>
+
+      <!-- Как настроить -->
+      <div class="card mt-32" style="display:flex;gap:16px;align-items:flex-start" id="howToSetupRoles">
+        <!-- SVG: Terminal -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="1.5" style="width:28px;height:28px;flex-shrink:0;margin-top:2px" aria-hidden="true">
+          <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        <div>
+          <h3 class="heading-sm" style="margin-bottom:8px">Как настроить ранговые роли</h3>
+          <ol style="font-size:.88rem;color:var(--text-secondary);padding-left:18px;display:flex;flex-direction:column;gap:6px">
+            <li>Создайте роль в настройках Discord-сервера.</li>
+            <li>Убедитесь, что роль бота находится <strong>выше</strong> всех ранговых ролей.</li>
+            <li>Привяжите роль к уровню: <code style="background:var(--bg-primary);padding:1px 6px;border-radius:4px;color:var(--accent-gold)">/set-rank-role &lt;уровень&gt; &lt;@роль&gt;</code></li>
+            <li>Проверьте привязки: <code style="background:var(--bg-primary);padding:1px 6px;border-radius:4px;color:var(--accent-gold)">/rank-roles</code></li>
+            <li>При необходимости выдайте роли ретроспективно: <code style="background:var(--bg-primary);padding:1px 6px;border-radius:4px;color:var(--accent-gold)">/restart-rank all</code></li>
+          </ol>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Команды уровней -->
+  <section class="section section--sm" id="levelCommands" aria-labelledby="levelCmdsTitle">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-header__eyebrow">Справочник</div>
+        <h2 class="heading-md" id="levelCmdsTitle">Команды системы уровней</h2>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+
+        <div class="card" id="cmdRank">
+          <div style="font-size:1.3rem;margin-bottom:10px">🏅 <code style="font-size:.85rem;background:rgba(88,101,242,.15);padding:2px 8px;border-radius:4px;color:#a5b4fc">/rank</code></div>
+          <p style="font-size:.88rem;color:var(--text-secondary)">Показать ваш уровень, XP, прогресс и позицию в рейтинге. Можно указать другого участника.</p>
+        </div>
+
+        <div class="card" id="cmdLeaderboard">
+          <div style="font-size:1.3rem;margin-bottom:10px">🏆 <code style="font-size:.85rem;background:rgba(88,101,242,.15);padding:2px 8px;border-radius:4px;color:#a5b4fc">/leaderboard</code></div>
+          <p style="font-size:.88rem;color:var(--text-secondary)">Топ-10 игроков сервера по суммарному XP с медалями и отображением уровня.</p>
+        </div>
+
+        <div class="card" id="cmdSetRankRole">
+          <div style="font-size:1.3rem;margin-bottom:10px">🎖️ <code style="font-size:.85rem;background:rgba(237,66,69,.15);padding:2px 8px;border-radius:4px;color:var(--accent-red)">/set-rank-role</code></div>
+          <p style="font-size:.88rem;color:var(--text-secondary)">Привязать роль Discord к уровню. При достижении уровня роль выдаётся автоматически.</p>
+        </div>
+
+        <div class="card" id="cmdSetXpRate">
+          <div style="font-size:1.3rem;margin-bottom:10px">⚡ <code style="font-size:.85rem;background:rgba(237,66,69,.15);padding:2px 8px;border-radius:4px;color:var(--accent-red)">/set-xp-rate</code></div>
+          <p style="font-size:.88rem;color:var(--text-secondary)">Настроить множитель XP для источников: messages, voice, jobs, events.</p>
+        </div>
+
+        <div class="card" id="cmdSetLevelup">
+          <div style="font-size:1.3rem;margin-bottom:10px">📢 <code style="font-size:.85rem;background:rgba(237,66,69,.15);padding:2px 8px;border-radius:4px;color:var(--accent-red)">/set-levelup-channel</code></div>
+          <p style="font-size:.88rem;color:var(--text-secondary)">Установить канал для уведомлений о повышении уровня (красивый embed с аватаром).</p>
+        </div>
+
+        <div class="card" id="cmdRestartRank">
+          <div style="font-size:1.3rem;margin-bottom:10px">🔄 <code style="font-size:.85rem;background:rgba(237,66,69,.15);padding:2px 8px;border-radius:4px;color:var(--accent-red)">/restart-rank</code></div>
+          <p style="font-size:.88rem;color:var(--text-secondary)">Перепроверить и выдать ранговую роль одному участнику или всем сразу (параметр all).</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── FOOTER ── -->
+<footer class="footer" role="contentinfo">
+  <div class="container">
+    <div class="footer__inner">
+      <div>
+        <div class="footer__brand">
+          <svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#5865f2"/><circle cx="10" cy="14" r="2.5" fill="white"/><circle cx="18" cy="14" r="2.5" fill="white"/><path d="M9 19c1.5 1.5 5.5 2 5 2s3.5-.5 5-2" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Membot
+        </div>
+        <p class="footer__desc">Многофункциональный Discord-бот.</p>
+      </div>
+      <div class="footer__links">
+        <div class="footer__links-col">
+          <h4>Страницы</h4>
+          <ul role="list">
+            <li><a href="index.html">Главная</a></li>
+            <li><a href="commands.html">Команды</a></li>
+            <li><a href="dashboard.html">Настройки</a></li>
+            <li><a href="levels.html">Уровни</a></li>
+          </ul>
+        </div>
+        <div class="footer__links-col">
+          <h4>Ссылки</h4>
+          <ul role="list">
+            <li><a href="#" data-action="invite">Добавить бота</a></li>
+            <li><a href="#" data-action="support">Поддержка</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <p class="footer__copy">© 2024 Membot.</p>
+      <span class="footer__version">v0.5.3</span>
+    </div>
+  </div>
+</footer>
+
+<script src="js/app.js"></script>
+</body>
+</html>

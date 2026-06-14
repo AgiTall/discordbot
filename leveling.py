@@ -212,6 +212,8 @@ class LevelingCog(commands.Cog):
     async def handle_level_up(self, user: discord.Member, new_level: int, notify: bool = True):
         guild = user.guild
         guild_id = str(guild.id)
+        error_msg = None
+        target_role_assigned = None
 
         # 1. Manage Roles
         rank_roles = self.db.get_rank_roles(guild_id)
@@ -228,10 +230,11 @@ class LevelingCog(commands.Cog):
             if target_role_id:
                 target_role = guild.get_role(int(target_role_id))
                 if target_role:
+                    target_role_assigned = target_role
                     # Remove all other rank roles
                     roles_to_remove = []
                     for r_id in rank_roles.values():
-                        if str(r_id) != target_role_id:
+                        if str(r_id) != str(target_role_id):
                             r = guild.get_role(int(r_id))
                             if r and r in user.roles:
                                 roles_to_remove.append(r)
@@ -242,7 +245,10 @@ class LevelingCog(commands.Cog):
                         if target_role not in user.roles:
                             await user.add_roles(target_role, reason="Leveling: adding new rank role")
                     except Exception as e:
+                        error_msg = str(e)
                         logging.error(f"Failed to update rank roles for {user}: {e}")
+                else:
+                    error_msg = f"Роль с ID {target_role_id} не найдена."
 
         # 2. Notify
         if not notify:
@@ -262,6 +268,8 @@ class LevelingCog(commands.Cog):
                     await channel.send(embed=embed)
                 except Exception as e:
                     logging.error(f"Failed to send level up message: {e}")
+                
+        return target_role_assigned, error_msg
 
 
     @commands.Cog.listener()
@@ -456,8 +464,12 @@ class LevelingCog(commands.Cog):
         data = self.db.get_user(guild_id, user_id)
         current_level = data["level"]
         
-        await self.handle_level_up(member, current_level, notify=False)
-        await interaction.response.send_message(f"Ранговая роль для {member.mention} (уровень {current_level}) была проверена и обновлена.", ephemeral=True)
+        role_assigned, error_msg = await self.handle_level_up(member, current_level, notify=False)
+        if error_msg:
+            await interaction.response.send_message(f"❌ Ошибка при выдаче роли: `{error_msg}`\n**Совет:** Проверьте, что у бота есть права на выдачу ролей, и что его роль находится **выше** ранговых ролей в иерархии сервера.", ephemeral=True)
+        else:
+            role_ment = role_assigned.mention if role_assigned else "Нет подходящей роли"
+            await interaction.response.send_message(f"✅ Ранговая роль для {member.mention} (уровень {current_level}) была проверена и обновлена. Назначена: {role_ment}", ephemeral=True)
 
     @app_commands.command(name="command-chat", description="Выбрать чаты для команд (админ/игрок)")
     @app_commands.describe(channel="Чат, где разрешены команды. Если не указан - текущий.", 
