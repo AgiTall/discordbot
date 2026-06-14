@@ -26,11 +26,20 @@ ECONOMY_FILE = "economy.json"
 ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
 
-# Minimal web server for uptime probe (keeps previous behavior)
-app = Flask("")
-
+# Web server for uptime probe and static dashboard
+app = Flask(__name__, static_folder="docs", static_url_path="")
 
 @app.route("/")
+def index():
+    # Отдаем главную страницу сайта по умолчанию
+    return app.send_static_file("index.html")
+
+@app.route("/<path:path>")
+def serve_static(path):
+    # Отдаем остальные файлы (команды, стили, картинки)
+    return app.send_static_file(path)
+
+@app.route("/health")
 def _healthcheck():
     logging.info("Healthcheck request")
     return "OK", 200    
@@ -38,8 +47,9 @@ def _healthcheck():
 
 def run_web():
     try:
-        # Run Flask in a separate thread as before; use a non-privileged port.
-        app.run(host="0.0.0.0", port=8080)
+        # Render задает порт через переменную окружения PORT, по умолчанию используем 8080
+        port = int(os.environ.get("PORT", 8080))
+        app.run(host="0.0.0.0", port=port)
     except Exception:
         # Keep bot running even if the web thread fails to start.
         return
