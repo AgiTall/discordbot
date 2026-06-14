@@ -1,4 +1,4 @@
-﻿import discord
+import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import sqlite3
@@ -209,7 +209,7 @@ class LevelingCog(commands.Cog):
         if leveled_up:
             await self.handle_level_up(user, current_level)
 
-    async def handle_level_up(self, user: discord.Member, new_level: int):
+    async def handle_level_up(self, user: discord.Member, new_level: int, notify: bool = True):
         guild = user.guild
         guild_id = str(guild.id)
 
@@ -245,6 +245,9 @@ class LevelingCog(commands.Cog):
                         logging.error(f"Failed to update rank roles for {user}: {e}")
 
         # 2. Notify
+        if not notify:
+            return
+            
         channel_id = self.db.get_setting(guild_id, "levelup_channel")
         if channel_id:
             channel = guild.get_channel(int(channel_id))
@@ -420,4 +423,52 @@ class LevelingCog(commands.Cog):
             
         self.db.set_xp_rate(str(interaction.guild.id), source, multiplier)
         await interaction.response.send_message(f"Множитель опыта для источника **{source}** установлен на **{multiplier}**.", ephemeral=True)
+
+    @app_commands.command(name="restart-rank", description="Перепроверить и выдать ранговую роль пользователю по базе данных")
+    @app_commands.describe(member="Пользователь для проверки роли")
+    @app_commands.default_permissions(administrator=True)
+    async def restart_rank_cmd(self, interaction: discord.Interaction, member: discord.Member):
+        if member.bot:
+            await interaction.response.send_message("У ботов нет рангов.", ephemeral=True)
+            return
+            
+        guild_id = str(interaction.guild.id)
+        user_id = str(member.id)
+        
+        data = self.db.get_user(guild_id, user_id)
+        current_level = data["level"]
+        
+        await self.handle_level_up(member, current_level, notify=False)
+        await interaction.response.send_message(f"Ранговая роль для {member.mention} (уровень {current_level}) была проверена и обновлена.", ephemeral=True)
+
+    @app_commands.command(name="command-chat", description="Выбрать чаты для команд (админ/игрок)")
+    @app_commands.describe(channel="Чат, где разрешены команды. Если не указан - текущий.", 
+                           remove="Удалить чат из списка разрешённых? (True/False)")
+    @app_commands.default_permissions(administrator=True)
+    async def command_chat_cmd(self, interaction: discord.Interaction, channel: discord.TextChannel = None, remove: bool = False):
+        target = channel or interaction.channel
+        guild_id = str(interaction.guild.id)
+        current_raw = self.db.get_setting(guild_id, "command_channels", "[]")
+        
+        import json
+        try:
+            current = json.loads(current_raw)
+        except:
+            current = []
+            
+        target_id = target.id
+        if remove:
+            if target_id in current:
+                current.remove(target_id)
+                self.db.set_setting(guild_id, "command_channels", json.dumps(current))
+                await interaction.response.send_message(f"Канал {target.mention} удалён из списка командных.", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Канал {target.mention} не был в списке командных.", ephemeral=True)
+        else:
+            if target_id not in current:
+                current.append(target_id)
+                self.db.set_setting(guild_id, "command_channels", json.dumps(current))
+                await interaction.response.send_message(f"Канал {target.mention} добавлен в список командных.", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"Канал {target.mention} уже находится в списке командных.", ephemeral=True)
 

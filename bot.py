@@ -21,7 +21,7 @@ CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
 BOT_TOKEN = ""
-BOT_VERSION = "v0.5"
+BOT_VERSION = "v0.5.1"
 ECONOMY_FILE = "economy.json"
 ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
@@ -2351,6 +2351,22 @@ async def bind_economy_context(interaction: discord.Interaction):
     if command_name in ADMIN_COMMAND_NAMES and not is_admin_interaction(interaction):
         await ensure_admin_interaction(interaction)
         return False
+        
+    if interaction.guild and interaction.type == discord.InteractionType.application_command:
+        if command_name != "command-chat":
+            cog = bot.get_cog("LevelingCog")
+            if cog:
+                import json
+                raw = cog.db.get_setting(str(interaction.guild.id), "command_channels", "[]")
+                try:
+                    allowed = json.loads(raw)
+                except:
+                    allowed = []
+                if allowed and interaction.channel.id not in allowed:
+                    channels_str = ", ".join(f"<#{c}>" for c in allowed)
+                    await interaction.response.send_message(f"Команды можно использовать только в этих каналах: {channels_str}", ephemeral=True)
+                    return False
+
     return True
 
 bot.tree.interaction_check = bind_economy_context
