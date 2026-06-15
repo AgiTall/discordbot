@@ -1,258 +1,265 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Пчев WildWest RPG — многофункциональный Discord-бот с экономикой, уровнями, профессиями и мини-играми в стиле Дикого Запада.">
+  <meta name="description"
+    content="Пчев WildWest RPG — многофункциональный Discord-бот с экономикой, уровнями, профессиями и мини-играми в стиле Дикого Запада.">
   <title>Пчев WildWest RPG — Discord-бот</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
+
 <body>
 
-<!-- =============================================
+  <!-- =============================================
      НАВИГАЦИЯ
      ============================================= -->
-<nav class="navbar" role="navigation" aria-label="Главная навигация">
-  <div class="navbar__inner">
+  <nav class="navbar" role="navigation" aria-label="Главная навигация">
+    <div class="navbar__inner">
 
-    <!-- Логотип -->
-    <a href="index.html" class="navbar__logo" id="navLogo">
-      <img src="img/avatar.png" alt="Пчев WildWest RPG">
-      Пчев WildWest RPG
-      <span class="navbar__badge">v0.5.3</span>
-    </a>
+      <!-- Логотип -->
+      <a href="index.html" class="navbar__logo" id="navLogo">
+        <img src="img/avatar.png" alt="Пчев WildWest RPG">
+        Пчев WildWest RPG
+        <span class="navbar__badge">v0.5.4</span>
+      </a>
 
-    <!-- Ссылки (десктоп) -->
-    <ul class="navbar__links" role="list">
-      <li><a href="index.html" class="active">Главная</a></li>
-      <li><a href="commands.html">Команды</a></li>
-      <li><a href="dashboard.html">Настройки</a></li>
-      <li><a href="levels.html">Уровни</a></li>
-    </ul>
+      <!-- Ссылки (десктоп) -->
+      <ul class="navbar__links" role="list">
+        <li><a href="index.html" class="active">Главная</a></li>
+        <li><a href="commands.html">Команды</a></li>
+        <li><a href="dashboard.html">Настройки</a></li>
+        <li><a href="levels.html">Уровни</a></li>
+      </ul>
 
-    <!-- Кнопка (десктоп) -->
-    <div class="navbar__cta">
-      <button class="btn btn--sm" data-action="invite" id="navInviteBtn">
-        Добавить бота
+      <!-- Кнопка (десктоп) -->
+      <div class="navbar__cta">
+        <button class="btn btn--sm" data-action="invite" id="navInviteBtn">
+          Добавить бота
+        </button>
+      </div>
+
+      <!-- Гамбургер (мобильный) -->
+      <button class="hamburger" id="hamburgerBtn" aria-label="Меню" aria-expanded="false">
+        <span></span><span></span><span></span>
       </button>
     </div>
+  </nav>
 
-    <!-- Гамбургер (мобильный) -->
-    <button class="hamburger" id="hamburgerBtn" aria-label="Меню" aria-expanded="false">
-      <span></span><span></span><span></span>
+  <!-- Мобильное меню -->
+  <nav class="mobile-nav" id="mobileNav" aria-label="Мобильная навигация">
+    <a href="index.html">Главная</a>
+    <a href="commands.html">Команды</a>
+    <a href="dashboard.html">Настройки</a>
+    <a href="levels.html">Уровни</a>
+    <button class="btn btn--sm" data-action="invite" style="margin-top:8px;align-self:flex-start">
+      Добавить бота
     </button>
-  </div>
-</nav>
+  </nav>
 
-<!-- Мобильное меню -->
-<nav class="mobile-nav" id="mobileNav" aria-label="Мобильная навигация">
-  <a href="index.html">Главная</a>
-  <a href="commands.html">Команды</a>
-  <a href="dashboard.html">Настройки</a>
-  <a href="levels.html">Уровни</a>
-  <button class="btn btn--sm" data-action="invite" style="margin-top:8px;align-self:flex-start">
-    Добавить бота
-  </button>
-</nav>
-
-<!-- =============================================
+  <!-- =============================================
      HERO
      ============================================= -->
-<main class="page-wrapper">
-<section class="hero" id="hero" aria-labelledby="heroTitle">
-  <div class="hero__content">
-    <h1 class="hero__logo" id="heroTitle">
-      ПЧЕВ<br>
-      <span>WILDWEST RPG</span>
-    </h1>
-    <div class="hero__cta">
-      <button class="btn btn--hero" data-action="invite" id="heroInviteBtn">
-        ДОБАВИТЬ БОТА НА СЕРВЕР
-      </button>
-      <a href="commands.html" class="btn btn--hero">
-        СПИСОК КОМАНД
-      </a>
-    </div>
-  </div>
-</section>
+  <main class="page-wrapper">
+    <section class="hero" id="hero" aria-labelledby="heroTitle">
+      <div class="hero__content">
+        <h1 class="hero__logo" id="heroTitle">
+          ПЧЕВ<br>
+          <span>WILDWEST RPG</span>
+        </h1>
+        <div class="hero__cta">
+          <button class="btn btn--hero" data-action="invite" id="heroInviteBtn">
+            ДОБАВИТЬ БОТА НА СЕРВЕР
+          </button>
+          <a href="commands.html" class="btn btn--hero">
+            СПИСОК КОМАНД
+          </a>
+        </div>
+      </div>
+    </section>
 
-<!-- =============================================
+    <!-- =============================================
      ОПИСАНИЕ
      ============================================= -->
-<section class="hero-desc-section">
-  <h2>ОКУНИТЕСЬ В МИР ДИКОГО ЗАПАДА ПРЯМО В DISCORD</h2>
-  <p>Пчев WildWest RPG — бот с полноценной экономикой, системой прокачки, профессиями, картами сокровищ и азартными играми. Выбирай путь, зарабатывай, рискуй.</p>
-  <p>Присоединяйтесь к серверу, выберите профессию и начните свой путь на Диком Западе прямо сейчас.</p>
-</section>
+    <section class="hero-desc-section">
+      <h2>ОКУНИТЕСЬ В МИР ДИКОГО ЗАПАДА ПРЯМО В DISCORD</h2>
+      <p>Пчев WildWest RPG — бот с полноценной экономикой, системой прокачки, профессиями, картами сокровищ и азартными
+        играми. Выбирай путь, зарабатывай, рискуй.</p>
+      <p>Присоединяйтесь к серверу, выберите профессию и начните свой путь на Диком Западе прямо сейчас.</p>
+    </section>
 
-<!-- =============================================
+    <!-- =============================================
      ВОЗМОЖНОСТИ
      ============================================= -->
-<section class="section section--dark" id="features" aria-labelledby="featuresTitle">
-  <div class="container">
-    <div class="section-header">
-      <div class="section-header__eyebrow">Возможности</div>
-      <h2 class="heading-lg" id="featuresTitle">Всё для вашего сервера</h2>
-      <p>Экономика, уровни, профессии и развлечения — в одном боте.</p>
-    </div>
+    <section class="section section--dark" id="features" aria-labelledby="featuresTitle">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-header__eyebrow">Возможности</div>
+          <h2 class="heading-lg" id="featuresTitle">Всё для вашего сервера</h2>
+          <p>Экономика, уровни, профессии и развлечения — в одном боте.</p>
+        </div>
 
-    <div class="features-grid">
+        <div class="features-grid">
 
-      <div class="card feature-card" id="featureEconomy">
-        <span class="feature-card__icon">🪙</span>
-        <h3>Экономика</h3>
-        <p>Наличные, золото с плавающим курсом, банковский вклад 3% в сутки и ежедневные карты сокровищ.</p>
+          <div class="card feature-card" id="featureEconomy">
+            <span class="feature-card__icon">🪙</span>
+            <h3>Экономика</h3>
+            <p>Наличные, золото с плавающим курсом, банковский вклад 3% в сутки и ежедневные карты сокровищ.</p>
+          </div>
+
+          <div class="card feature-card" id="featureLevels">
+            <span class="feature-card__icon">📈</span>
+            <h3>Система уровней</h3>
+            <p>XP за сообщения и голосовой чат, антифарм-защита, ранговые роли и таблица лидеров.</p>
+          </div>
+
+          <div class="card feature-card" id="featureProfessions">
+            <span class="feature-card__icon">🎭</span>
+            <h3>Профессии</h3>
+            <p>4 уникальных пути: Охотник за головами, Торговец, Самогонщик и Натуралист — каждый со своей механикой.
+            </p>
+          </div>
+
+          <div class="card feature-card" id="featureGames">
+            <span class="feature-card__icon">🎲</span>
+            <h3>Мини-игры</h3>
+            <p>Покер и Блэкджек со ставками, интерактивные кнопки и объявления о крупных выигрышах.</p>
+          </div>
+
+          <div class="card feature-card" id="featureTreasure">
+            <span class="feature-card__icon">🗺️</span>
+            <h3>Карты сокровищ</h3>
+            <p>Ежедневная раздача карт, раскопки с двумя попытками, шанс найти редкие ингредиенты.</p>
+          </div>
+
+          <div class="card feature-card" id="featureAdmin">
+            <span class="feature-card__icon">⚙️</span>
+            <h3>Администрирование</h3>
+            <p>Полный набор admin-команд: управление балансами, золотом, вкладами и курсом. Массовые операции.</p>
+          </div>
+
+        </div>
       </div>
+    </section>
 
-      <div class="card feature-card" id="featureLevels">
-        <span class="feature-card__icon">📈</span>
-        <h3>Система уровней</h3>
-        <p>XP за сообщения и голосовой чат, антифарм-защита, ранговые роли и таблица лидеров.</p>
-      </div>
-
-      <div class="card feature-card" id="featureProfessions">
-        <span class="feature-card__icon">🎭</span>
-        <h3>Профессии</h3>
-        <p>4 уникальных пути: Охотник за головами, Торговец, Самогонщик и Натуралист — каждый со своей механикой.</p>
-      </div>
-
-      <div class="card feature-card" id="featureGames">
-        <span class="feature-card__icon">🎲</span>
-        <h3>Мини-игры</h3>
-        <p>Покер и Блэкджек со ставками, интерактивные кнопки и объявления о крупных выигрышах.</p>
-      </div>
-
-      <div class="card feature-card" id="featureTreasure">
-        <span class="feature-card__icon">🗺️</span>
-        <h3>Карты сокровищ</h3>
-        <p>Ежедневная раздача карт, раскопки с двумя попытками, шанс найти редкие ингредиенты.</p>
-      </div>
-
-      <div class="card feature-card" id="featureAdmin">
-        <span class="feature-card__icon">⚙️</span>
-        <h3>Администрирование</h3>
-        <p>Полный набор admin-команд: управление балансами, золотом, вкладами и курсом. Массовые операции.</p>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-<!-- =============================================
+    <!-- =============================================
      ПРОФЕССИИ
      ============================================= -->
-<section class="section" id="professions" aria-labelledby="professionsTitle">
-  <div class="container">
-    <div class="section-header">
-      <div class="section-header__eyebrow">Профессии</div>
-      <h2 class="heading-lg" id="professionsTitle">Выберите свой путь</h2>
-      <p>Каждая профессия — уникальные команды и механики заработка.</p>
-    </div>
+    <section class="section" id="professions" aria-labelledby="professionsTitle">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-header__eyebrow">Профессии</div>
+          <h2 class="heading-lg" id="professionsTitle">Выберите свой путь</h2>
+          <p>Каждая профессия — уникальные команды и механики заработка.</p>
+        </div>
 
-    <div class="features-grid">
+        <div class="features-grid">
 
-      <div class="card feature-card" id="profBounty">
-        <span class="feature-card__icon">🎯</span>
-        <h3>Охотник за головами</h3>
-        <p>Контракты трёх уровней сложности, тактика засады или переговоров, деньги и золото за поимку.</p>
-        <div class="divider"></div>
-        <span class="tag tag--red">Команда: /bounty</span>
+          <div class="card feature-card" id="profBounty">
+            <span class="feature-card__icon">🎯</span>
+            <h3>Охотник за головами</h3>
+            <p>Контракты трёх уровней сложности, тактика засады или переговоров, деньги и золото за поимку.</p>
+            <div class="divider"></div>
+            <span class="tag tag--red">Команда: /bounty</span>
+          </div>
+
+          <div class="card feature-card" id="profTrader">
+            <span class="feature-card__icon">🛒</span>
+            <h3>Торговец</h3>
+            <p>Раз в час загружайте повозку, при заполнении 100% — доставка и доход 500–625 долларов.</p>
+            <div class="divider"></div>
+            <span class="tag tag--gold">Команды: /dealer, /dealer-delivery</span>
+          </div>
+
+          <div class="card feature-card" id="profMoonshiner">
+            <span class="feature-card__icon">🥃</span>
+            <h3>Самогонщик</h3>
+            <p>Варите бражку, добавляйте особые ингредиенты из раскопок, улучшайте аппарат и продавайте самогон.</p>
+            <div class="divider"></div>
+            <span class="tag tag--blurple">Команда: /moonshine</span>
+          </div>
+
+          <div class="card feature-card" id="profNaturalist">
+            <span class="feature-card__icon">🌿</span>
+            <h3>Натуралист</h3>
+            <p>4 региона, образцы 16 видов животных, охота на легендарных зверей, пополнение коллекции.</p>
+            <div class="divider"></div>
+            <span class="tag tag--green">Команда: /naturalist</span>
+          </div>
+
+        </div>
       </div>
+    </section>
 
-      <div class="card feature-card" id="profTrader">
-        <span class="feature-card__icon">🛒</span>
-        <h3>Торговец</h3>
-        <p>Раз в час загружайте повозку, при заполнении 100% — доставка и доход 500–625 долларов.</p>
-        <div class="divider"></div>
-        <span class="tag tag--gold">Команды: /dealer, /dealer-delivery</span>
-      </div>
-
-      <div class="card feature-card" id="profMoonshiner">
-        <span class="feature-card__icon">🥃</span>
-        <h3>Самогонщик</h3>
-        <p>Варите бражку, добавляйте особые ингредиенты из раскопок, улучшайте аппарат и продавайте самогон.</p>
-        <div class="divider"></div>
-        <span class="tag tag--blurple">Команда: /moonshine</span>
-      </div>
-
-      <div class="card feature-card" id="profNaturalist">
-        <span class="feature-card__icon">🌿</span>
-        <h3>Натуралист</h3>
-        <p>4 региона, образцы 16 видов животных, охота на легендарных зверей, пополнение коллекции.</p>
-        <div class="divider"></div>
-        <span class="tag tag--green">Команда: /naturalist</span>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-<!-- =============================================
+    <!-- =============================================
      CTA
      ============================================= -->
-<section class="section section--dark" id="cta" aria-labelledby="ctaTitle">
-  <div class="container text-center">
-    <h2 class="heading-lg" id="ctaTitle">Начните прямо сейчас</h2>
-    <p style="color:var(--text-grey);max-width:480px;margin:16px auto 40px;font-family:'Libre Baskerville',serif;font-size:0.97rem;line-height:1.8">
-      Добавьте Пчев WildWest RPG на ваш сервер за несколько секунд — никакой регистрации, всё работает сразу.
-    </p>
-    <div class="hero__cta">
-      <button class="btn btn--primary btn--lg" data-action="invite" id="ctaInviteBtn">
-        Добавить на сервер
-      </button>
-      <a href="commands.html" class="btn btn--secondary btn--lg" id="ctaCommandsBtn">
-        Список команд
-      </a>
-    </div>
-  </div>
-</section>
+    <section class="section section--dark" id="cta" aria-labelledby="ctaTitle">
+      <div class="container text-center">
+        <h2 class="heading-lg" id="ctaTitle">Начните прямо сейчас</h2>
+        <p
+          style="color:var(--text-grey);max-width:480px;margin:16px auto 40px;font-family:'Libre Baskerville',serif;font-size:0.97rem;line-height:1.8">
+          Добавьте Пчев WildWest RPG на ваш сервер за несколько секунд — никакой регистрации, всё работает сразу.
+        </p>
+        <div class="hero__cta">
+          <button class="btn btn--primary btn--lg" data-action="invite" id="ctaInviteBtn">
+            Добавить на сервер
+          </button>
+          <a href="commands.html" class="btn btn--secondary btn--lg" id="ctaCommandsBtn">
+            Список команд
+          </a>
+        </div>
+      </div>
+    </section>
 
-</main>
+  </main>
 
-<!-- =============================================
+  <!-- =============================================
      FOOTER
      ============================================= -->
-<footer class="footer" role="contentinfo">
-  <div class="container">
-    <div class="footer__inner">
-      <div>
-        <div class="footer__brand">
-          <img src="img/avatar.png" alt="Пчев WildWest RPG">
-          Пчев WildWest RPG
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer__inner">
+        <div>
+          <div class="footer__brand">
+            <img src="img/avatar.png" alt="Пчев WildWest RPG">
+            Пчев WildWest RPG
+          </div>
+          <p class="footer__desc">
+            Многофункциональный Discord-бот для вашего сервера.
+            Экономика, уровни, профессии и развлечения в стиле Дикого Запада.
+          </p>
         </div>
-        <p class="footer__desc">
-          Многофункциональный Discord-бот для вашего сервера.
-          Экономика, уровни, профессии и развлечения в стиле Дикого Запада.
-        </p>
+        <div class="footer__links">
+          <div class="footer__links-col">
+            <h4>Страницы</h4>
+            <ul role="list">
+              <li><a href="index.html">Главная</a></li>
+              <li><a href="commands.html">Команды</a></li>
+              <li><a href="dashboard.html">Настройки</a></li>
+              <li><a href="levels.html">Уровни</a></li>
+            </ul>
+          </div>
+          <div class="footer__links-col">
+            <h4>Ссылки</h4>
+            <ul role="list">
+              <li><a href="#" data-action="invite">Добавить бота</a></li>
+              <li><a href="#" data-action="support">Поддержка</a></li>
+            </ul>
+          </div>
+        </div>
       </div>
-      <div class="footer__links">
-        <div class="footer__links-col">
-          <h4>Страницы</h4>
-          <ul role="list">
-            <li><a href="index.html">Главная</a></li>
-            <li><a href="commands.html">Команды</a></li>
-            <li><a href="dashboard.html">Настройки</a></li>
-            <li><a href="levels.html">Уровни</a></li>
-          </ul>
-        </div>
-        <div class="footer__links-col">
-          <h4>Ссылки</h4>
-          <ul role="list">
-            <li><a href="#" data-action="invite">Добавить бота</a></li>
-            <li><a href="#" data-action="support">Поддержка</a></li>
-          </ul>
-        </div>
+      <div class="footer__bottom">
+        <p class="footer__copy">© 2024 Пчев WildWest RPG. Все права защищены.</p>
+        <span class="footer__version">v0.5.3</span>
       </div>
     </div>
-    <div class="footer__bottom">
-      <p class="footer__copy">© 2024 Пчев WildWest RPG. Все права защищены.</p>
-      <span class="footer__version">v0.5.3</span>
-    </div>
-  </div>
-</footer>
+  </footer>
 
-<script src="js/app.js"></script>
+  <script src="js/app.js"></script>
 </body>
+
 </html>
