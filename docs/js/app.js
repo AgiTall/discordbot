@@ -8,7 +8,7 @@
 // =============================================
 const CONFIG = {
   botVersion: 'v0.5.3',
-  inviteUrl:  'https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot%20applications.commands',
+  inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377',
   supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
   storageKey: 'membot_settings',
 };
@@ -132,30 +132,55 @@ function initHamburger() {
 // =============================================
 // ЛОКАЛЬНОЕ ХРАНИЛИЩЕ
 // =============================================
-function loadSettings() {
+async function loadSettings() {
   try {
-    const raw = localStorage.getItem(CONFIG.storageKey);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
+    const res = await fetch('/api/config');
+    if (!res.ok) throw new Error('API error');
+    return await res.json();
+  } catch (err) {
+    console.warn('Failed to load settings from API, falling back to local', err);
+    try {
+      const raw = localStorage.getItem(CONFIG.storageKey);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
   }
 }
 
-function saveSettings(data) {
+async function saveSettings(data) {
   try {
-    const existing = loadSettings();
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('API error');
+    
+    // Also save locally just in case
+    const existing = await loadSettings();
     const merged = { ...existing, ...data };
     localStorage.setItem(CONFIG.storageKey, JSON.stringify(merged));
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    console.error('Failed to save via API, saving locally', err);
+    try {
+      // Synchronous fallback read for merging
+      const raw = localStorage.getItem(CONFIG.storageKey);
+      const existing = raw ? JSON.parse(raw) : {};
+      const merged = { ...existing, ...data };
+      localStorage.setItem(CONFIG.storageKey, JSON.stringify(merged));
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
 // =============================================
 // DASHBOARD
 // =============================================
-function initDashboard() {
+async function initDashboard() {
   const navLinks   = document.querySelectorAll('.sidebar-nav__item a[data-section]');
   const sections   = document.querySelectorAll('.dash-section');
   const saveBtn    = document.getElementById('saveSettingsBtn');
@@ -164,7 +189,7 @@ function initDashboard() {
   if (!navLinks.length) return;
 
   // Восстановить сохранённые значения
-  const settings = loadSettings();
+  const settings = await loadSettings();
   applySettingsToForm(settings);
 
   // Навигация по секциям
@@ -186,16 +211,18 @@ function initDashboard() {
 
   // Кнопка сохранения
   if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
       const data = collectFormData();
-      if (saveSettings(data)) {
+      if (await saveSettings(data)) {
         showToast(toast);
       }
+      saveBtn.disabled = false;
     });
   }
 
   // Динамические строки ролей за уровни
-  initRankRoleEditor();
+  initRankRoleEditor(settings);
 }
 
 /** Собрать все данные форм */
@@ -243,13 +270,13 @@ function showToast(toast) {
 }
 
 /** Редактор ранговых ролей */
-function initRankRoleEditor() {
+function initRankRoleEditor(settings) {
   const list    = document.getElementById('rankRolesList');
   const addBtn  = document.getElementById('addRankRoleBtn');
   if (!list || !addBtn) return;
 
   // Восстановить сохранённые роли
-  const saved = loadSettings().rankRoles || [];
+  const saved = settings.rankRoles || [];
   saved.forEach(entry => addRankRoleRow(list, entry.level, entry.role));
   if (!saved.length) addRankRoleRow(list);
 

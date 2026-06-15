@@ -9,7 +9,7 @@ import math
 import asyncio
 import re
 from contextvars import ContextVar
-from flask import Flask
+from flask import Flask, request, jsonify
 from threading import Thread
 from datetime import date, datetime, time, timedelta, timezone
 import discord
@@ -42,8 +42,22 @@ def serve_static(path):
 @app.route("/health")
 def _healthcheck():
     logging.info("Healthcheck request")
-    return "OK", 200    
+    return "OK", 200
 
+@app.route("/api/config", methods=["GET"])
+def get_config():
+    data = economy_data.guild_data(ECONOMY_GLOBAL_KEY)
+    return jsonify(data)
+
+@app.route("/api/config", methods=["POST"])
+def post_config():
+    new_data = request.json
+    if not new_data:
+        return jsonify({"error": "No data"}), 400
+    data = economy_data.guild_data(ECONOMY_GLOBAL_KEY)
+    data.update(new_data)
+    save_economy()
+    return jsonify({"status": "ok"})
 
 def run_web():
     try:
