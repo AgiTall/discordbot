@@ -17,6 +17,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from discord import PartialEmoji
 import leveling
+import web_routes
 CHANNELS_FILE = "channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
@@ -44,28 +45,18 @@ def _healthcheck():
     logging.info("Healthcheck request")
     return "OK", 200
 
-@app.route("/api/config", methods=["GET"])
-def get_config():
-    data = economy_data.guild_data(ECONOMY_GLOBAL_KEY)
-    return jsonify(data)
 
-@app.route("/api/config", methods=["POST"])
-def post_config():
-    new_data = request.json
-    if not new_data:
-        return jsonify({"error": "No data"}), 400
-    data = economy_data.guild_data(ECONOMY_GLOBAL_KEY)
-    data.update(new_data)
-    save_economy()
-    return jsonify({"status": "ok"})
+def get_leveling_db():
+    cog = bot.get_cog("LevelingCog")
+    return cog.db if cog else None
+
 
 def run_web():
     try:
-        # Render задает порт через переменную окружения PORT, по умолчанию используем 8080
+        web_routes.register_web_routes(app, lambda: bot, economy_data, get_leveling_db)
         port = int(os.environ.get("PORT", 8080))
         app.run(host="0.0.0.0", port=port)
     except Exception:
-        # Keep bot running even if the web thread fails to start.
         return
 MIN_GOLD_RATE = 50.0
 DEPOSIT_DAILY_RATE = 0.03
@@ -485,6 +476,80 @@ def save_channels(channels_set):
             f.write(f"{channel_id}\n")
 
 
+def get_guild_thread_channel_ids(guild_id):
+    data = economy_data.guild_data(guild_id)
+    channel_ids = set()
+    for raw_id in data.get("thread_channel_ids") or []:
+        try:
+            channel_ids.add(int(raw_id))
+        except (TypeError, ValueError):
+            continue
+    return channel_ids
+
+
+def set_guild_thread_channel_ids(guild_id, channel_ids):
+    data = economy_data.guild_data(guild_id)
+    data["thread_channel_ids"] = sorted({int(c) for c in channel_ids})
+    save_economy()
+
+
+def format_welcome_message(template, member):
+    text = template or "Добро пожаловать, {mention}!"
+    return (
+        text.replace("{mention}", member.mention)
+        .replace("{user}", member.display_name)
+        .replace("{server}", member.guild.name)
+        .replace("{count}", str(member.guild.member_count or "?"))
+    )
+
+
+async def send_guild_log(guild, event_key, description, color=discord.Color.dark_grey()):
+    token = set_economy_guild_id(guild.id)
+    try:
+        data = economy_data.current()
+        if not data.get("logs_channel_id"):
+            return
+        log_flags = {
+            "join": "log_join",
+            "leave": "log_leave",
+            "ban": "log_ban",
+            "unban": "log_ban",
+            "delete": "log_delete",
+            "edit": "log_edit",
+            "voice_join": "log_voice",
+            "voice_leave": "log_voice",
+            "command": "log_commands",
+        }
+        flag = log_flags.get(event_key)
+        if flag and not data.get(flag):
+            return
+        channel = guild.get_channel(int(data["logs_channel_id"]))
+        if not channel:
+            return
+        titles = {
+            "join": "Участник присоединился",
+            "leave": "Участник вышел",
+            "ban": "Участник забанен",
+            "unban": "Участник разбанен",
+            "delete": "Сообщение удалено",
+            "edit": "Сообщение изменено",
+            "voice_join": "Вход в голосовой канал",
+            "voice_leave": "Выход из голосового канала",
+            "command": "Команда использована",
+        }
+        embed = discord.Embed(
+            title=titles.get(event_key, "Событие"),
+            description=description,
+            color=color,
+            timestamp=now_local(),
+        )
+        await channel.send(embed=embed)
+    except Exception as e:
+        logging.error(f"Failed to send guild log: {e}")
+    finally:
+        reset_economy_guild_id(token)
+
+
 def load_env_file():
     if not os.path.exists(ENV_FILE):
         return
@@ -530,6 +595,22 @@ def default_economy():
         "role_key_icons": DEFAULT_ROLE_EMOJIS.copy(),
         "custom_messages": DEFAULT_CUSTOM_MESSAGES.copy(),
         "treasure_channel_id": None,
+        "news_channel_id": None,
+        "thread_channel_ids": [],
+        "welcome_enabled": False,
+        "welcome_channel_id": None,
+        "welcome_role_id": None,
+        "welcome_message": "Добро пожаловать на сервер, {mention}! 🎉",
+        "farewell_enabled": False,
+        "farewell_message": "{user} покинул сервер. До свидания!",
+        "logs_channel_id": None,
+        "log_join": True,
+        "log_leave": True,
+        "log_ban": True,
+        "log_delete": False,
+        "log_edit": False,
+        "log_voice": False,
+        "log_commands": False,
         "last_treasure_map_drop_date": None,
         "role_icons": {},
         "role_discounts": {},
@@ -572,6 +653,22 @@ def normalize_economy_data(data):
     data.setdefault("role_key_icons", DEFAULT_ROLE_EMOJIS.copy())
     data.setdefault("custom_messages", DEFAULT_CUSTOM_MESSAGES.copy())
     data.setdefault("treasure_channel_id", None)
+    data.setdefault("news_channel_id", None)
+    data.setdefault("thread_channel_ids", [])
+    data.setdefault("welcome_enabled", False)
+    data.setdefault("welcome_channel_id", None)
+    data.setdefault("welcome_role_id", None)
+    data.setdefault("welcome_message", "Добро пожаловать на сервер, {mention}! 🎉")
+    data.setdefault("farewell_enabled", False)
+    data.setdefault("farewell_message", "{user} покинул сервер. До свидания!")
+    data.setdefault("logs_channel_id", None)
+    data.setdefault("log_join", True)
+    data.setdefault("log_leave", True)
+    data.setdefault("log_ban", True)
+    data.setdefault("log_delete", False)
+    data.setdefault("log_edit", False)
+    data.setdefault("log_voice", False)
+    data.setdefault("log_commands", False)
     data.setdefault("last_treasure_map_drop_date", None)
     data.setdefault("role_icons", {})
     data.setdefault("role_discounts", {})
@@ -616,6 +713,8 @@ def normalize_economy_data(data):
         data["bounty_button_emojis"].setdefault(key, emoji)
     if not isinstance(data["users"], dict):
         data["users"] = {}
+    if not isinstance(data.get("thread_channel_ids"), list):
+        data["thread_channel_ids"] = []
 
     return data
 
@@ -2381,15 +2480,28 @@ async def bind_economy_context(interaction: discord.Interaction):
             cog = bot.get_cog("LevelingCog")
             if cog:
                 import json
-                raw = cog.db.get_setting(str(interaction.guild.id), "command_channels", "[]")
-                try:
-                    allowed = json.loads(raw)
-                except:
-                    allowed = []
-                if allowed and interaction.channel.id not in allowed:
-                    channels_str = ", ".join(f"<#{c}>" for c in allowed)
-                    await interaction.response.send_message(f"Команды можно использовать только в этих каналах: {channels_str}", ephemeral=True)
-                    return False
+                guild_id = str(interaction.guild.id)
+                allow_all = cog.db.get_setting(guild_id, "allow_all_channels", "false") == "true"
+                if not allow_all:
+                    raw = cog.db.get_setting(guild_id, "command_channels", "[]")
+                    try:
+                        allowed = json.loads(raw)
+                    except Exception:
+                        allowed = []
+                    if allowed and interaction.channel.id not in allowed:
+                        channels_str = ", ".join(f"<#{c}>" for c in allowed)
+                        await interaction.response.send_message(f"Команды можно использовать только в этих каналах: {channels_str}", ephemeral=True)
+                        return False
+
+    if interaction.guild and interaction.type == discord.InteractionType.application_command and command_name:
+        asyncio.create_task(
+            send_guild_log(
+                interaction.guild,
+                "command",
+                f"{interaction.user.mention} использовал `/{command_name}` в {interaction.channel.mention}",
+                color=discord.Color.blurple(),
+            )
+        )
 
     return True
 
@@ -4693,13 +4805,16 @@ async def attach_channel(
     interaction: discord.Interaction, channel: discord.TextChannel
 ):
     channel_id = channel.id
+    guild_channels = get_guild_thread_channel_ids(interaction.guild.id)
 
-    if channel_id in active_channels:
+    if channel_id in guild_channels:
         await interaction.response.send_message(
             f"Автоматические треды уже включены в {channel.mention}.",
             ephemeral=True,
         )
     else:
+        guild_channels.add(channel_id)
+        set_guild_thread_channel_ids(interaction.guild.id, guild_channels)
         active_channels.add(channel_id)
         save_channels(active_channels)
         await interaction.response.send_message(
@@ -4718,10 +4833,14 @@ async def detach_channel(
     interaction: discord.Interaction, channel: discord.TextChannel
 ):
     channel_id = channel.id
+    guild_channels = get_guild_thread_channel_ids(interaction.guild.id)
 
-    if channel_id in active_channels:
-        active_channels.remove(channel_id)
-        save_channels(active_channels)
+    if channel_id in guild_channels:
+        guild_channels.discard(channel_id)
+        set_guild_thread_channel_ids(interaction.guild.id, guild_channels)
+        if channel_id in active_channels:
+            active_channels.discard(channel_id)
+            save_channels(active_channels)
         await interaction.response.send_message(
             f"Автоматические треды **выключены** в {channel.mention}.",
             ephemeral=True,
@@ -6964,6 +7083,134 @@ async def on_guild_join(guild):
         logging.error(f"Синхронизация команд не удалась для нового сервера '{guild.name}': {e}")
 
 
+@bot.event
+async def on_member_join(member):
+    token = set_economy_guild_id(member.guild.id)
+    try:
+        data = economy_data.current()
+        if data.get("welcome_role_id"):
+            role = member.guild.get_role(int(data["welcome_role_id"]))
+            if role:
+                try:
+                    await member.add_roles(role, reason="Welcome role")
+                except discord.Forbidden:
+                    logging.info(f"No permission to assign welcome role in {member.guild.id}")
+
+        if data.get("welcome_enabled") and data.get("welcome_channel_id"):
+            channel = member.guild.get_channel(int(data["welcome_channel_id"]))
+            if channel:
+                try:
+                    await channel.send(format_welcome_message(data.get("welcome_message"), member))
+                except discord.HTTPException as e:
+                    logging.error(f"Failed to send welcome message: {e}")
+
+        await send_guild_log(
+            member.guild,
+            "join",
+            f"{member.mention} (`{member}`) присоединился к серверу.",
+            color=discord.Color.green(),
+        )
+    finally:
+        reset_economy_guild_id(token)
+
+
+@bot.event
+async def on_member_remove(member):
+    token = set_economy_guild_id(member.guild.id)
+    try:
+        data = economy_data.current()
+        if data.get("farewell_enabled") and data.get("welcome_channel_id"):
+            channel = member.guild.get_channel(int(data["welcome_channel_id"]))
+            if channel:
+                template = data.get("farewell_message") or "{user} покинул сервер."
+                text = template.replace("{user}", member.display_name).replace("{mention}", member.mention)
+                try:
+                    await channel.send(text)
+                except discord.HTTPException as e:
+                    logging.error(f"Failed to send farewell message: {e}")
+
+        await send_guild_log(
+            member.guild,
+            "leave",
+            f"**{member.display_name}** (`{member.id}`) покинул сервер.",
+            color=discord.Color.orange(),
+        )
+    finally:
+        reset_economy_guild_id(token)
+
+
+@bot.event
+async def on_member_ban(guild, user):
+    await send_guild_log(
+        guild,
+        "ban",
+        f"**{user}** (`{user.id}`) был забанен.",
+        color=discord.Color.red(),
+    )
+
+
+@bot.event
+async def on_member_unban(guild, user):
+    await send_guild_log(
+        guild,
+        "unban",
+        f"**{user}** (`{user.id}`) был разбанен.",
+        color=discord.Color.green(),
+    )
+
+
+@bot.event
+async def on_message_delete(message):
+    if message.author.bot or not message.guild:
+        return
+    content = (message.content or "")[:900]
+    if not content and message.attachments:
+        content = f"[вложение: {message.attachments[0].filename}]"
+    await send_guild_log(
+        message.guild,
+        "delete",
+        f"Удалено сообщение {message.author.mention} в {message.channel.mention}:\n>>> {content or '(пусто)'}",
+        color=discord.Color.red(),
+    )
+
+
+@bot.event
+async def on_message_edit(before, after):
+    if before.author.bot or not before.guild or before.content == after.content:
+        return
+    await send_guild_log(
+        before.guild,
+        "edit",
+        (
+            f"{before.author.mention} отредактировал сообщение в {before.channel.mention}\n"
+            f"**Было:** {before.content[:400]}\n**Стало:** {after.content[:400]}"
+        ),
+        color=discord.Color.gold(),
+    )
+
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if member.bot or not member.guild:
+        return
+    if before.channel == after.channel:
+        return
+    if after.channel and not before.channel:
+        await send_guild_log(
+            member.guild,
+            "voice_join",
+            f"{member.mention} вошёл в {after.channel.mention}",
+            color=discord.Color.green(),
+        )
+    elif before.channel and not after.channel:
+        await send_guild_log(
+            member.guild,
+            "voice_leave",
+            f"{member.mention} вышел из {before.channel.mention}",
+            color=discord.Color.orange(),
+        )
+
+
 # Create a discussion thread for new posts in configured channels.
 @bot.event
 async def on_message(message):
@@ -6972,7 +7219,11 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-    if message.channel.id in active_channels:
+    guild_thread_channels = set()
+    if message.guild:
+        guild_thread_channels = get_guild_thread_channel_ids(message.guild.id)
+
+    if message.channel.id in guild_thread_channels or message.channel.id in active_channels:
         if not isinstance(message.channel, discord.Thread):
             try:
                 if message.thread:

@@ -8,9 +8,17 @@
 // =============================================
 const CONFIG = {
   botVersion: 'v0.5.3',
-  inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377',
+  inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377&scope=bot%20applications.commands&permissions=8',
   supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
   storageKey: 'membot_settings',
+  selectedGuildKey: 'membot_selected_guild',
+};
+
+let authState = {
+  user: null,
+  guilds: [],
+  selectedGuildId: null,
+  inviteUrl: CONFIG.inviteUrl,
 };
 
 // =============================================
@@ -130,57 +138,163 @@ function initHamburger() {
 }
 
 // =============================================
-// ЛОКАЛЬНОЕ ХРАНИЛИЩЕ
+// AUTH & GUILD API
 // =============================================
-async function loadSettings() {
-  try {
-    const res = await fetch('/api/config');
-    if (!res.ok) throw new Error('API error');
-    return await res.json();
-  } catch (err) {
-    console.warn('Failed to load settings from API, falling back to local', err);
-    try {
-      const raw = localStorage.getItem(CONFIG.storageKey);
-      return raw ? JSON.parse(raw) : {};
-    } catch {
-      return {};
-    }
+
+const AUTH_ERRORS = {
+  oauth_denied: 'Авторизация отменена.',
+  oauth_state: 'Ошибка безопасности OAuth. Попробуйте снова.',
+  oauth_code: 'Не получен код авторизации.',
+  oauth_not_configured: 'OAuth не настроен. Добавьте DISCORD_CLIENT_SECRET в .env.',
+  oauth_token: 'Не удалось получить токен Discord.',
+  oauth_user: 'Не удалось загрузить профиль Discord.',
+};
+
+async function fetchMe() {
+  const res = await fetch('/api/me', { credentials: 'same-origin' });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error('API error');
+  return res.json();
+}
+
+async function loadGuildSettings(guildId) {
+  const res = await fetch(`/api/guilds/${guildId}/settings`, { credentials: 'same-origin' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to load settings');
+  }
+  return res.json();
+}
+
+async function saveGuildSettings(guildId, data) {
+  const res = await fetch(`/api/guilds/${guildId}/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to save settings');
+  }
+  return res.json();
+}
+
+async function logout() {
+  await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
+  authState = { user: null, guilds: [], selectedGuildId: null, inviteUrl: CONFIG.inviteUrl };
+  localStorage.removeItem(CONFIG.selectedGuildKey);
+  showAuthGate();
+}
+
+function getSelectedGuildId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('guild') || localStorage.getItem(CONFIG.selectedGuildKey);
+}
+
+function setSelectedGuildId(guildId) {
+  authState.selectedGuildId = guildId;
+  if (guildId) {
+    localStorage.setItem(CONFIG.selectedGuildKey, guildId);
+    const url = new URL(window.location.href);
+    url.searchParams.set('guild', guildId);
+    window.history.replaceState({}, '', url);
+  } else {
+    localStorage.removeItem(CONFIG.selectedGuildKey);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('guild');
+    window.history.replaceState({}, '', url);
   }
 }
 
-async function saveSettings(data) {
-  try {
-    const res = await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error('API error');
-    
-    // Also save locally just in case
-    const existing = await loadSettings();
-    const merged = { ...existing, ...data };
-    localStorage.setItem(CONFIG.storageKey, JSON.stringify(merged));
-    return true;
-  } catch (err) {
-    console.error('Failed to save via API, saving locally', err);
-    try {
-      // Synchronous fallback read for merging
-      const raw = localStorage.getItem(CONFIG.storageKey);
-      const existing = raw ? JSON.parse(raw) : {};
-      const merged = { ...existing, ...data };
-      localStorage.setItem(CONFIG.storageKey, JSON.stringify(merged));
-      return true;
-    } catch {
-      return false;
-    }
+function showAuthGate() {
+  document.getElementById('authGate')?.removeAttribute('hidden');
+  document.getElementById('guildPicker')?.setAttribute('hidden', '');
+  document.getElementById('dashboardMain')?.setAttribute('hidden', '');
+}
+
+function showGuildPicker() {
+  document.getElementById('authGate')?.setAttribute('hidden', '');
+  document.getElementById('guildPicker')?.removeAttribute('hidden');
+  document.getElementById('dashboardMain')?.setAttribute('hidden', '');
+  renderGuildPicker();
+}
+
+function showDashboard() {
+  document.getElementById('authGate')?.setAttribute('hidden', '');
+  document.getElementById('guildPicker')?.setAttribute('hidden', '');
+  document.getElementById('dashboardMain')?.removeAttribute('hidden');
+  renderCurrentGuildBadge();
+}
+
+function renderUserBadge(container) {
+  if (!container || !authState.user) return;
+  const avatar = authState.user.avatar_url
+    ? `<img src="${authState.user.avatar_url}" alt="" class="user-badge__avatar">`
+    : '<span class="user-badge__avatar user-badge__avatar--placeholder"></span>';
+  container.innerHTML = `
+    ${avatar}
+    <span class="user-badge__name">${authState.user.global_name || authState.user.username}</span>
+  `;
+}
+
+function renderGuildPicker() {
+  const grid = document.getElementById('guildGrid');
+  const empty = document.getElementById('guildPickerEmpty');
+  if (!grid) return;
+
+  renderUserBadge(document.getElementById('userBadge'));
+
+  const available = authState.guilds.filter(g => g.botPresent);
+  const unavailable = authState.guilds.filter(g => !g.botPresent);
+
+  grid.innerHTML = '';
+
+  available.forEach(guild => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'guild-card';
+    card.setAttribute('role', 'listitem');
+    const icon = guild.icon
+      ? `<img src="${guild.icon}" alt="" class="guild-card__icon">`
+      : '<div class="guild-card__icon guild-card__icon--placeholder"></div>';
+    card.innerHTML = `${icon}<span class="guild-card__name">${guild.name}</span>`;
+    card.addEventListener('click', () => selectGuild(guild.id));
+    grid.appendChild(card);
+  });
+
+  unavailable.forEach(guild => {
+    const card = document.createElement('a');
+    card.className = 'guild-card guild-card--invite';
+    card.href = authState.inviteUrl;
+    card.target = '_blank';
+    card.rel = 'noopener';
+    card.setAttribute('role', 'listitem');
+    const icon = guild.icon
+      ? `<img src="${guild.icon}" alt="" class="guild-card__icon">`
+      : '<div class="guild-card__icon guild-card__icon--placeholder"></div>';
+    card.innerHTML = `${icon}<span class="guild-card__name">${guild.name}</span><span class="guild-card__badge">Добавить бота</span>`;
+    grid.appendChild(card);
+  });
+
+  if (empty) {
+    empty.hidden = authState.guilds.length > 0;
   }
 }
 
-// =============================================
-// DASHBOARD
-// =============================================
-async function initDashboard() {
+function renderCurrentGuildBadge() {
+  const badge = document.getElementById('currentGuildBadge');
+  const guild = authState.guilds.find(g => String(g.id) === String(authState.selectedGuildId));
+  if (!badge || !guild) return;
+  const icon = guild.icon
+    ? `<img src="${guild.icon}" alt="" class="guild-card__icon">`
+    : '<div class="guild-card__icon guild-card__icon--placeholder"></div>';
+  badge.innerHTML = `${icon}<span>${guild.name}</span>`;
+}
+
+let dashboardUiReady = false;
+
+function setupDashboardUi(settings) {
   const navLinks   = document.querySelectorAll('.sidebar-nav__item a[data-section]');
   const sections   = document.querySelectorAll('.dash-section');
   const saveBtn    = document.getElementById('saveSettingsBtn');
@@ -188,41 +302,145 @@ async function initDashboard() {
 
   if (!navLinks.length) return;
 
-  // Восстановить сохранённые значения
-  const settings = await loadSettings();
   applySettingsToForm(settings);
 
-  // Навигация по секциям
   function activateSection(target) {
     sections.forEach(s => s.classList.toggle('active', s.id === target));
     navLinks.forEach(a => a.classList.toggle('active', a.dataset.section === target));
   }
 
-  navLinks.forEach(link => {
-    link.addEventListener('click', e => {
-      e.preventDefault();
-      activateSection(link.dataset.section);
+  if (!dashboardUiReady) {
+    navLinks.forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        activateSection(link.dataset.section);
+      });
     });
-  });
 
-  // По умолчанию — первая секция
-  const firstSection = navLinks[0]?.dataset.section;
-  if (firstSection) activateSection(firstSection);
+    const firstSection = navLinks[0]?.dataset.section;
+    if (firstSection) activateSection(firstSection);
 
-  // Кнопка сохранения
-  if (saveBtn) {
-    saveBtn.addEventListener('click', async () => {
-      saveBtn.disabled = true;
-      const data = collectFormData();
-      if (await saveSettings(data)) {
-        showToast(toast);
-      }
-      saveBtn.disabled = false;
-    });
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        if (!authState.selectedGuildId) {
+          alert('Сначала выберите сервер.');
+          return;
+        }
+        saveBtn.disabled = true;
+        const data = collectFormData();
+        try {
+          if (await saveSettings(data)) {
+            showToast(toast);
+          }
+        } catch (err) {
+          alert('Ошибка сохранения: ' + err.message);
+        }
+        saveBtn.disabled = false;
+      });
+    }
+    dashboardUiReady = true;
   }
 
-  // Динамические строки ролей за уровни
   initRankRoleEditor(settings);
+}
+
+async function selectGuild(guildId) {
+  setSelectedGuildId(guildId);
+  showDashboard();
+  try {
+    const settings = await loadGuildSettings(guildId);
+    setupDashboardUi(settings);
+  } catch (err) {
+    console.error(err);
+    alert('Не удалось загрузить настройки сервера: ' + err.message);
+    setSelectedGuildId(null);
+    showGuildPicker();
+  }
+}
+
+async function initDashboardAuth() {
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get('error');
+  const authError = document.getElementById('authError');
+  if (error && authError) {
+    authError.textContent = AUTH_ERRORS[error] || 'Ошибка авторизации.';
+    authError.hidden = false;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('error');
+    window.history.replaceState({}, '', url);
+  }
+
+  document.getElementById('logoutBtn')?.addEventListener('click', logout);
+  document.getElementById('changeGuildBtn')?.addEventListener('click', () => {
+    setSelectedGuildId(null);
+    showGuildPicker();
+  });
+
+  try {
+    const me = await fetchMe();
+    if (!me?.authenticated) {
+      showAuthGate();
+      return;
+    }
+    authState.user = me.user;
+    authState.guilds = me.guilds || [];
+    authState.inviteUrl = me.inviteUrl || CONFIG.inviteUrl;
+
+    const navbarAuth = document.getElementById('navbarAuth');
+    if (navbarAuth) {
+      navbarAuth.innerHTML = `
+        <span class="navbar__user">${me.user.global_name || me.user.username}</span>
+        <button class="btn btn--sm btn--ghost" id="navbarLogoutBtn">Выйти</button>
+      `;
+      document.getElementById('navbarLogoutBtn')?.addEventListener('click', logout);
+    }
+
+    const savedGuild = getSelectedGuildId();
+    if (savedGuild && authState.guilds.some(g => String(g.id) === String(savedGuild) && g.botPresent)) {
+      await selectGuild(savedGuild);
+    } else {
+      showGuildPicker();
+    }
+  } catch (err) {
+    console.warn('Auth check failed', err);
+    showAuthGate();
+  }
+}
+
+// =============================================
+// ЛОКАЛЬНОЕ ХРАНИЛИЩЕ (legacy fallback)
+// =============================================
+async function loadSettings() {
+  if (authState.selectedGuildId) {
+    return loadGuildSettings(authState.selectedGuildId);
+  }
+  try {
+    const raw = localStorage.getItem(CONFIG.storageKey);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveSettings(data) {
+  if (!authState.selectedGuildId) {
+    throw new Error('Сервер не выбран');
+  }
+  const result = await saveGuildSettings(authState.selectedGuildId, data);
+  return result.status === 'ok';
+}
+
+// =============================================
+// DASHBOARD
+// =============================================
+async function initDashboard() {
+  if (!document.querySelector('.sidebar-nav__item a[data-section]')) return;
+
+  await initDashboardAuth();
+  if (!authState.selectedGuildId) return;
+
+  const settings = await loadSettings();
+  setupDashboardUi(settings);
 }
 
 /** Собрать все данные форм */
@@ -275,12 +493,14 @@ function initRankRoleEditor(settings) {
   const addBtn  = document.getElementById('addRankRoleBtn');
   if (!list || !addBtn) return;
 
-  // Восстановить сохранённые роли
-  const saved = settings.rankRoles || [];
+  list.innerHTML = '';
+  const saved = settings?.rankRoles || [];
   saved.forEach(entry => addRankRoleRow(list, entry.level, entry.role));
   if (!saved.length) addRankRoleRow(list);
 
-  addBtn.addEventListener('click', () => addRankRoleRow(list));
+  const newAddBtn = addBtn.cloneNode(true);
+  addBtn.parentNode.replaceChild(newAddBtn, addBtn);
+  newAddBtn.addEventListener('click', () => addRankRoleRow(list));
 }
 
 function addRankRoleRow(list, level = '', role = '') {

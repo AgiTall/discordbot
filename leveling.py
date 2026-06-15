@@ -132,23 +132,22 @@ class LevelingDB:
 
 class AntiFarm:
     def __init__(self):
-        self.last_message_time = {} # user_id -> timestamp
-        self.last_message_content = {} # user_id -> content
+        self.last_message_time = {}  # user_id -> timestamp
+        self.last_message_content = {}  # user_id -> content
 
-    def check_message(self, user_id: int, content: str) -> bool:
+    def check_message(self, user_id: int, content: str, cooldown: int = 60) -> bool:
         """Returns True if user should receive XP."""
         now = time.time()
-        
-        # 1. Check time cooldown (60s)
+        cooldown = max(10, int(cooldown or 60))
+
         last_time = self.last_message_time.get(user_id, 0)
-        if now - last_time < 60:
+        if now - last_time < cooldown:
             return False
-            
-        # 2. Check identical message
+
         last_content = self.last_message_content.get(user_id, "")
         if content == last_content:
             return False
-            
+
         self.last_message_time[user_id] = now
         self.last_message_content[user_id] = content
         return True
@@ -168,11 +167,19 @@ class LevelingCog(commands.Cog):
         self.db = LevelingDB()
         self.anti_farm = AntiFarm()
         
-        # Default XP settings
-        self.BASE_MESSAGE_XP = 15
-        self.BASE_VOICE_XP = 10
-        
         self.voice_xp_task.start()
+
+    def get_base_message_xp(self, guild_id: str) -> int:
+        return max(0, int(self.db.get_setting(guild_id, "base_message_xp", "15") or 15))
+
+    def get_base_voice_xp(self, guild_id: str) -> int:
+        return max(0, int(self.db.get_setting(guild_id, "base_voice_xp", "10") or 10))
+
+    def get_antifarm_cooldown(self, guild_id: str) -> int:
+        return max(10, int(self.db.get_setting(guild_id, "antifarm_cooldown", "60") or 60))
+
+    def get_min_msg_length(self, guild_id: str) -> int:
+        return max(0, int(self.db.get_setting(guild_id, "min_msg_length", "0") or 0))
 
     def cog_unload(self):
         self.voice_xp_task.cancel()
@@ -253,22 +260,29 @@ class LevelingCog(commands.Cog):
         # 2. Notify
         if not notify:
             return
-            
+
+        embed = discord.Embed(
+            title="🎉 Повышение уровня!",
+            description=f"Поздравляем, {user.mention}! Вы достигли **{new_level} уровня**!",
+            color=discord.Color.brand_green()
+        )
+        embed.set_thumbnail(url=user.display_avatar.url)
+
         channel_id = self.db.get_setting(guild_id, "levelup_channel")
         if channel_id:
             channel = guild.get_channel(int(channel_id))
             if channel:
-                embed = discord.Embed(
-                    title="🎉 Повышение уровня!",
-                    description=f"Поздравляем, {user.mention}! Вы достигли **{new_level} уровня**!",
-                    color=discord.Color.brand_green()
-                )
-                embed.set_thumbnail(url=user.display_avatar.url)
                 try:
                     await channel.send(embed=embed)
                 except Exception as e:
                     logging.error(f"Failed to send level up message: {e}")
-                
+
+        if self.db.get_setting(guild_id, "levelup_dm", "false") == "true":
+            try:
+                await user.send(embed=embed)
+            except Exception as e:
+                logging.error(f"Failed to send level up DM: {e}")
+
         return target_role_assigned, error_msg
 
 
@@ -277,8 +291,15 @@ class LevelingCog(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        if self.anti_farm.check_message(message.author.id, message.content):
-            await self.add_xp(message.author, self.BASE_MESSAGE_XP, source="messages")
+        guild_id = str(message.guild.id)
+        content = message.content.strip()
+        min_len = self.get_min_msg_length(guild_id)
+        if min_len and len(content) < min_len:
+            return
+
+        cooldown = self.get_antifarm_cooldown(guild_id)
+        if self.anti_farm.check_message(message.author.id, message.content, cooldown=cooldown):
+            await self.add_xp(message.author, self.get_base_message_xp(guild_id), source="messages")
 
     @tasks.loop(seconds=60)
     async def voice_xp_task(self):
@@ -296,8 +317,10 @@ class LevelingCog(commands.Cog):
                 ]
 
                 if len(valid_members) > 1:
+                    guild_id = str(guild.id)
+                    base_voice_xp = self.get_base_voice_xp(guild_id)
                     for member in valid_members:
-                        await self.add_xp(member, self.BASE_VOICE_XP, source="voice")
+                        await self.add_xp(member, base_voice_xp, source="voice")
 
     @voice_xp_task.before_loop
     async def before_voice_xp_task(self):
@@ -376,7 +399,7 @@ class LevelingCog(commands.Cog):
         embed.description = description
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="set-rank-role", description="Привязать роль к уровню")
+    @app_commands.command(name="set-rank-role", description="Привязать роль к уровню и выдать подходящим игрокам")
     @app_commands.describe(level="Уровень для получения роли", role="Выдаваемая роль")
     @app_commands.default_permissions(administrator=True)
     async def set_rank_role_cmd(self, interaction: discord.Interaction, level: int, role: discord.Role):
@@ -384,8 +407,21 @@ class LevelingCog(commands.Cog):
             await interaction.response.send_message("Уровень должен быть больше 0.", ephemeral=True)
             return
             
+        await interaction.response.defer(ephemeral=True)
         self.db.set_rank_role(str(interaction.guild.id), level, str(role.id))
-        await interaction.response.send_message(f"Роль {role.mention} привязана к уровню **{level}**.", ephemeral=True)
+        
+        guild_id = str(interaction.guild.id)
+        count = 0
+        import asyncio
+        for m in interaction.guild.members:
+            if m.bot: continue
+            data = self.db.get_user(guild_id, str(m.id))
+            if data["level"] >= level:
+                await self.handle_level_up(m, data["level"], notify=False)
+                count += 1
+                await asyncio.sleep(0.1) # prevent rate limits
+                
+        await interaction.followup.send(f"✅ Роль {role.mention} привязана к уровню **{level}**.\nБаза обновлена, роль проверена и выдана {count} подходящим пользователям (чей уровень {level} или выше)!", ephemeral=True)
 
     @app_commands.command(name="remove-rank-role", description="Удалить привязку роли к уровню")
     @app_commands.describe(level="Уровень, у которого нужно удалить привязку")

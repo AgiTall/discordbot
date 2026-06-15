@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Панель настройки Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — каналы, уровни, XP, приветствия, логи. Настройки сохраняются локально.">
+  <meta name="description" content="Панель настройки Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — войдите через Discord, выберите сервер и настройте бота.">
   <title>Настройки — Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,7 +25,7 @@
       <li><a href="dashboard.html" class="active">Настройки</a></li>
       <li><a href="levels.html">Уровни</a></li>
     </ul>
-    <div class="navbar__cta">
+    <div class="navbar__cta" id="navbarAuth">
       <button class="btn btn--sm" data-action="invite">Добавить бота</button>
     </div>
     <button class="hamburger" id="hamburgerBtn" aria-label="Меню"><span></span><span></span><span></span></button>
@@ -47,14 +47,47 @@
     <div class="container">
       <div class="section-header__eyebrow">Конфигурация</div>
       <h1 id="dashboardTitle">Панель настройки</h1>
-      <p>Настройте Пчев WildWest RPG под свой сервер. Настройки применяются к боту сразу.</p>
+      <p id="dashboardSubtitle">Войдите через Discord, выберите сервер и настройте бота под своё сообщество.</p>
     </div>
   </div>
 
   <section class="section section--sm" aria-labelledby="dashboardTitle">
     <div class="container">
 
+      <!-- Экран входа -->
+      <div id="authGate" class="auth-gate card">
+        <div class="auth-gate__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M13.8 12H3"/></svg>
+        </div>
+        <h2>Войдите через Discord</h2>
+        <p>Авторизуйтесь, чтобы увидеть серверы, где у вас есть права администратора, и настроить бота.</p>
+        <a href="/auth/discord" class="btn btn--discord" id="discordLoginBtn">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.1.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+          Войти через Discord
+        </a>
+        <p class="hint auth-gate__hint">Требуются права «Управление сервером». Секрет OAuth настраивается в <code>.env</code>.</p>
+        <p id="authError" class="auth-error" hidden></p>
+      </div>
 
+      <!-- Выбор сервера -->
+      <div id="guildPicker" class="guild-picker" hidden>
+        <div class="guild-picker__header">
+          <div>
+            <h2>Выберите сервер</h2>
+            <p id="guildPickerSubtitle">Серверы, где вы администратор и установлен бот</p>
+          </div>
+          <div class="guild-picker__user" id="userBadge"></div>
+        </div>
+        <div class="guild-grid" id="guildGrid" role="list"></div>
+        <p id="guildPickerEmpty" class="guild-picker__empty" hidden>Нет доступных серверов. Добавьте бота на сервер, где у вас есть права администратора.</p>
+      </div>
+
+      <div id="dashboardMain" hidden>
+      <div class="dashboard-toolbar">
+        <button class="btn btn--ghost btn--sm" id="changeGuildBtn">← Сменить сервер</button>
+        <div class="dashboard-toolbar__guild" id="currentGuildBadge"></div>
+        <button class="btn btn--ghost btn--sm" id="logoutBtn">Выйти</button>
+      </div>
 
       <div class="dashboard-layout">
 
@@ -142,6 +175,18 @@
                   <input class="form-control" type="text" id="treasureChannelId" data-setting="treasureChannelId"
                     placeholder="Например: 123456789012345679">
                   <p class="hint">Канал для ежедневной раздачи карт сокровищ в 12:00 МСК.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-bottom:20px">
+              <h3 class="heading-sm" style="margin-bottom:20px">Автоматические треды</h3>
+              <div class="form-grid form-grid--single">
+                <div class="form-group">
+                  <label for="threadChannelIds">ID каналов для автотредов (через запятую)</label>
+                  <input class="form-control" type="text" id="threadChannelIds" data-setting="threadChannelIds"
+                    placeholder="111..., 222...">
+                  <p class="hint">Каналы, где бот автоматически создаёт треды к новым сообщениям. Команды: <code>/threads-on</code> и <code>/threads-off</code>.</p>
                 </div>
               </div>
             </div>
@@ -267,6 +312,22 @@
                   <input class="form-control" type="number" id="xpEvents" data-setting="xpEvents"
                     placeholder="1.0" value="1.0" min="0" step="0.1">
                   <p class="hint">Источник: <code>events</code>. Специальные мероприятия.</p>
+                </div>
+                <div class="form-group">
+                  <label for="xpRateMessages">
+                    <span style="margin-right:6px">✖️</span>Множитель сообщений
+                  </label>
+                  <input class="form-control" type="number" id="xpRateMessages" data-setting="xpRateMessages"
+                    placeholder="1.0" value="1.0" min="0" step="0.1">
+                  <p class="hint">Дополнительный множитель к базовому XP за сообщения.</p>
+                </div>
+                <div class="form-group">
+                  <label for="xpRateVoice">
+                    <span style="margin-right:6px">✖️</span>Множитель голосового чата
+                  </label>
+                  <input class="form-control" type="number" id="xpRateVoice" data-setting="xpRateVoice"
+                    placeholder="1.0" value="1.0" min="0" step="0.1">
+                  <p class="hint">Дополнительный множитель к базовому XP в голосовых каналах.</p>
                 </div>
               </div>
             </div>
@@ -443,6 +504,7 @@
 
         </div><!-- /dashboard-content -->
       </div><!-- /dashboard-layout -->
+      </div><!-- /dashboardMain -->
 
     </div>
   </section>
@@ -465,7 +527,7 @@
           <img src="img/avatar.png" alt="Пчев WildWest RPG">
           Пчев WildWest RPG
         </div>
-        <p class="footer__desc">Настройки применяются напрямую к вашему боту.</p>
+        <p class="footer__desc">Настройки применяются к боту на выбранном сервере после сохранения.</p>
       </div>
       <div class="footer__links">
         <div class="footer__links-col">

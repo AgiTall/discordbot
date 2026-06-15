@@ -895,6 +895,157 @@ input, select, textarea { font-family: inherit; }
   letter-spacing: 0.1em;
 }
 
+.sidebar-save-btn { width: 100%; }
+
+/* Auth & guild picker */
+.auth-gate {
+  max-width: 520px;
+  margin: 0 auto 40px;
+  text-align: center;
+  padding: 48px 32px;
+}
+.auth-gate__icon svg {
+  width: 48px;
+  height: 48px;
+  stroke: var(--accent-gold);
+  margin: 0 auto 20px;
+}
+.auth-gate h2 { margin-bottom: 10px; }
+.auth-gate p { color: var(--text-muted); margin-bottom: 24px; }
+.auth-gate__hint { margin-top: 16px; }
+.auth-error {
+  color: #e07070;
+  margin-top: 16px;
+  font-size: 0.9rem;
+}
+
+.btn--discord {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #5865F2;
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  font-size: 1rem;
+  text-decoration: none;
+}
+.btn--discord:hover { background: #4752c4; color: #fff; }
+.btn--discord svg { width: 22px; height: 22px; }
+
+.guild-picker { margin-bottom: 32px; }
+.guild-picker__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.guild-picker__header h2 { margin-bottom: 6px; }
+.guild-picker__header p { color: var(--text-muted); font-size: 0.9rem; }
+.guild-picker__empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 32px;
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+}
+.user-badge__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.user-badge__avatar--placeholder {
+  background: #333;
+  display: inline-block;
+}
+.user-badge__name { font-size: 0.9rem; }
+
+.guild-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.guild-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 16px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-white);
+  transition: border-color var(--transition), background var(--transition);
+  text-decoration: none;
+}
+.guild-card:hover {
+  border-color: var(--red);
+  background: var(--bg-elevated);
+}
+.guild-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.guild-card__icon--placeholder {
+  background: #2a2a2a;
+}
+.guild-card__name {
+  font-size: 0.95rem;
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guild-card__badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-gold);
+}
+.guild-card--invite { border-style: dashed; }
+
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.dashboard-toolbar__guild {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 0.95rem;
+}
+.dashboard-toolbar__guild .guild-card__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.navbar__user {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-right: 10px;
+}
+
+.dash-section { display: none; }
+.dash-section.active { display: block; }
+
 /* =============================================
    RESPONSIVE
    ============================================= */
