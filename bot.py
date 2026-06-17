@@ -33,11 +33,12 @@ from discord.ext import commands, tasks
 from discord import PartialEmoji
 import src.leveling as leveling
 import src.web_routes as web_routes
+from src.config import config
 CHANNELS_FILE = "data/channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
-BOT_TOKEN = ""
-BOT_VERSION = "v0.5.8"
+BOT_TOKEN = config.get("token", "") or ""
+BOT_VERSION = config.get("version", "v0.0.0")
 ECONOMY_FILE = "data/economy.json"
 ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
@@ -7023,7 +7024,36 @@ async def admin_set_message_command(
 
 @bot.tree.command(name="version", description="Показать текущую версию бота")
 async def version_command(interaction: discord.Interaction):
-    await interaction.response.send_message(f"Текущая версия бота: **{BOT_VERSION}**")
+    # Read version from config if available, fallback to BOT_VERSION
+    try:
+        cfg_version = config.get("version")
+    except Exception:
+        cfg_version = None
+    version_text = cfg_version or BOT_VERSION or "v0.0.0"
+    await interaction.response.send_message(f"Текущая версия бота: **{version_text}**")
+
+
+@bot.tree.command(name="status", description="Показать статус бота: версия, серверы, пинг")
+async def status_command(interaction: discord.Interaction):
+    try:
+        cfg_version = config.get("version") or BOT_VERSION or "v0.0.0"
+    except Exception:
+        cfg_version = BOT_VERSION or "v0.0.0"
+
+    guild_count = len(bot.guilds) if hasattr(bot, "guilds") else "?"
+    latency_ms = round(bot.latency * 1000) if getattr(bot, "latency", None) is not None else "?"
+
+    settings = config.get("settings", {}) or {}
+    save_on_change = settings.get("save_on_change", True)
+
+    text = (
+        f"Версия: **{cfg_version}**\n"
+        f"Серверов: **{guild_count}**\n"
+        f"Пинг: **{latency_ms} ms**\n"
+        f"Автосохранение настроек: **{save_on_change}**"
+    )
+
+    await interaction.response.send_message(text)
 
 
 @bot.tree.command(name="reset-work", description="Админ: сбросить кулдаун /work у участника")
@@ -7266,11 +7296,11 @@ async def on_message(message):
 
 def main():
     load_env_file()
-    token = os.getenv("DISCORD_TOKEN") or os.getenv("BOT_TOKEN") or BOT_TOKEN.strip()
+    # Resolve token: environment variables override config.json
+    token = os.getenv("DISCORD_TOKEN") or os.getenv("BOT_TOKEN") or config.get("token", "")
+    token = (token or "").strip()
     if not token:
-        raise RuntimeError(
-            "Token not found. Set DISCORD_TOKEN in .env or in the environment."
-        )
+        raise RuntimeError("Token not found. Set DISCORD_TOKEN in .env, in the environment, or in config.json")
 
     Thread(target=run_web, daemon=True).start()
     bot.run(token)

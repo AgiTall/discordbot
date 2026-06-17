@@ -1,0 +1,11 @@
+{
+  "version": "v0.5.8",
+  "token": "",
+  "connection": {
+    "intents": {}
+  },
+  "settings": {
+    "default_prefix": "/",
+    "save_on_change": true
+  }
+}
