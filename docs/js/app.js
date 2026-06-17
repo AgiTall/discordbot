@@ -7,7 +7,7 @@
 // КОНФИГУРАЦИЯ
 // =============================================
 const CONFIG = {
-  botVersion: 'v0.5.5',
+  botVersion: 'v0.5.6',
   inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377&scope=bot%20applications.commands&permissions=8',
   supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
   storageKey: 'membot_settings',
