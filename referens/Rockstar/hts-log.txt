@@ -1,0 +1,12 @@
+HTTrack3.49-2+htsswf+htsjava launched on Wed, 17 Jun 2026 21:22:33 at https://www.rockstargames.com/reddeadonline +*.css +*.js -ad.doubleclick.net/* -mime:application/foobar +*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp
+(winhttrack -qir3C2%Ps2u1%s%uN0%I0p3DaK0H0%kf2A25000%f#f -F "Mozilla/4.78 [en] (Windows NT 5.0; U)" -%F "<!-- Mirrored by HTTrack Website Copier/3.x [XR/YP'2000] -->" -%l "ru, *" https://www.rockstargames.com/reddeadonline -O1 "C:\Users\AgiTall\pchevbot\referens\Rockstar" +*.css +*.js -ad.doubleclick.net/* -mime:application/foobar +*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp )
+
+Information, Warnings and Errors reported for this mirror:
+note:	the hts-log.txt file, and hts-cache folder, may contain sensitive information,
+	such as username/password authentication for websites mirrored in this project
+	do not share these files/folders if you want these information to remain private
+
+21:22:44	Error: 	"Not Found" (404) at link https://www.rockstargames.com/e (from https://media-rockstargames-com.akamaized.net/mfe6/prod/@rockstargames/mfe/9.1.0/71e83a4c321ebad493c7bd832857536931d9961fb592501d6a01a3a62200bb1c/systemjs-module-federation.js)
+
+HTTrack Website Copier/3.49-2 mirror complete in 11 seconds : 44 links scanned, 42 files written (412184 bytes overall), 43 files updated [156009 bytes received at 14182 bytes/sec], 406417 bytes transferred using HTTP compression in 42 files, ratio 30%, 14.6 requests per connection
+(1 errors, 0 warnings, 0 messages)

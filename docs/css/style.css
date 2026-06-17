@@ -17,24 +17,24 @@
 /* ── CSS Variables ── */
 :root {
   --bg-black:      #000000;
-  --bg-dark:       #0a0a0a;
-  --bg-elevated:   #141414;
-  --bg-card:       #111111;
+  --bg-dark:       #0b0b0b;
+  --bg-elevated:   #1a1a1a;
+  --bg-card:       #161616;
 
-  --text-white:    #ffffff;
+  --text-white:    #f5f5f0;
   --text-light:    #e0e0e0;
-  --text-grey:     #999999;
-  --text-muted:    #555555;
+  --text-grey:     #acacac;
+  --text-muted:    #7f7f7f;
 
-  --red:           #cc0000;
-  --red-dark:      #8b0000;
-  --red-glow:      rgba(204, 0, 0, 0.25);
+  --red:           #e22227;
+  --red-dark:      #b31b1f;
+  --red-glow:      rgba(226, 34, 39, 0.25);
   --gold:          #F0E68B;
 
-  --border:        #1f1f1f;
-  --border-light:  #2e2e2e;
+  --border:        #2a2a2a;
+  --border-light:  #3a3a3a;
 
-  --nav-height:    62px;
+  --nav-height:    70px;
   --transition:    0.2s ease;
 }
 
@@ -43,10 +43,10 @@
 html { scroll-behavior: smooth; background: var(--bg-black); }
 
 body {
-  font-family: 'Oswald', sans-serif;
-  background-color: var(--bg-black);
-  color: var(--text-light);
-  line-height: 1.6;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-white);
+  line-height: 1.5;
   overflow-x: hidden;
   min-height: 100vh;
 }
@@ -304,7 +304,7 @@ input, select, textarea { font-family: inherit; }
   color: var(--text-white);
 }
 .hero-desc-section p {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.97rem;
   color: var(--text-grey);
   max-width: 680px;
@@ -333,7 +333,7 @@ input, select, textarea { font-family: inherit; }
 .section-header h1,
 .section-header h2 { font-size: clamp(2rem, 5vw, 3rem); margin-bottom: 12px; }
 .section-header p {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   color: var(--text-grey);
   max-width: 540px;
   margin: 0 auto;
@@ -354,9 +354,12 @@ input, select, textarea { font-family: inherit; }
 .card {
   background: var(--bg-card);
   padding: 36px 28px;
-  transition: background var(--transition);
+  transition: transform var(--transition), background var(--transition);
 }
-.card:hover { background: var(--bg-elevated); }
+.card:hover { 
+  transform: scale(1.02);
+  background: var(--bg-elevated); 
+}
 
 .feature-card { text-align: center; }
 .feature-card__icon {
@@ -369,7 +372,7 @@ input, select, textarea { font-family: inherit; }
   margin-bottom: 12px;
 }
 .feature-card p {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.92rem;
   color: var(--text-grey);
   line-height: 1.75;
@@ -405,7 +408,7 @@ input, select, textarea { font-family: inherit; }
 }
 .page-hero h1 { font-size: clamp(2rem, 5vw, 3rem); margin-bottom: 10px; }
 .page-hero p {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   color: var(--text-grey);
   font-size: 0.95rem;
 }
@@ -459,9 +462,12 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   gap: 18px;
   align-items: flex-start;
-  transition: background var(--transition);
+  transition: transform var(--transition), background var(--transition);
 }
-.cmd-card:hover { background: var(--bg-elevated); }
+.cmd-card:hover { 
+  transform: scale(1.01);
+  background: var(--bg-elevated); 
+}
 .cmd-card__icon { font-size: 1.6rem; width: 44px; text-align: center; flex-shrink: 0; }
 .cmd-card__body { flex: 1; }
 .cmd-card__name { display: flex; align-items: center; gap: 12px; margin-bottom: 7px; flex-wrap: wrap; }
@@ -476,7 +482,7 @@ input, select, textarea { font-family: inherit; }
   color: var(--text-muted);
 }
 .cmd-card__desc {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.9rem;
   color: var(--text-grey);
   line-height: 1.65;
@@ -549,7 +555,7 @@ input, select, textarea { font-family: inherit; }
 }
 .dash-section__title h2 { font-size: 2rem; margin-bottom: 4px; }
 .dash-section__title p {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.87rem;
   color: var(--text-muted);
 }
@@ -566,7 +572,7 @@ input, select, textarea { font-family: inherit; }
   margin-bottom: 8px;
 }
 .form-group .hint {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 6px;
@@ -614,7 +620,7 @@ input, select, textarea { font-family: inherit; }
   text-transform: uppercase;
 }
 .toggle-label small {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.8rem;
   color: var(--text-muted);
 }
@@ -708,7 +714,7 @@ input, select, textarea { font-family: inherit; }
 .leaderboard-table td {
   padding: 14px 20px;
   border-bottom: 1px solid var(--border);
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.9rem;
   color: var(--text-light);
 }
@@ -746,11 +752,11 @@ input, select, textarea { font-family: inherit; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-family: 'Oswald', sans-serif;
-  font-weight: 500;
+  font-family: 'ChineseRocks', 'Oswald', sans-serif;
+  font-weight: normal;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   padding: 12px 30px;
   transition: all var(--transition);
   cursor: pointer;
@@ -760,18 +766,24 @@ input, select, textarea { font-family: inherit; }
 .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 
 .btn--primary {
-  background: var(--text-white);
-  color: var(--bg-black);
-  border-color: var(--text-white);
+  background: var(--red);
+  color: var(--text-white);
+  border-color: var(--red);
 }
-.btn--primary:hover { background: #ddd; border-color: #ddd; }
+.btn--primary:hover { 
+  background: #ff3338; 
+  border-color: #ff3338; 
+}
 
 .btn--secondary {
   background: transparent;
   color: var(--text-white);
-  border-color: var(--border-light);
+  border: 1px solid var(--text-white);
 }
-.btn--secondary:hover { border-color: #555; color: var(--text-white); }
+.btn--secondary:hover { 
+  background: var(--text-white); 
+  color: var(--bg-black); 
+}
 
 /* Special: gold accent — used sparingly */
 .btn--special {
@@ -781,8 +793,8 @@ input, select, textarea { font-family: inherit; }
 }
 .btn--special:hover { background: rgba(240,230,139,0.08); border-color: var(--gold); }
 
-.btn--lg { padding: 14px 44px; font-size: 0.9rem; }
-.btn--sm { padding: 7px 18px; font-size: 0.72rem; }
+.btn--lg { padding: 14px 44px; font-size: 1.1rem; }
+.btn--sm { padding: 7px 18px; font-size: 0.85rem; }
 
 /* =============================================
    TOAST NOTIFICATIONS
@@ -849,7 +861,7 @@ input, select, textarea { font-family: inherit; }
 }
 .footer__brand svg { display: none; }
 .footer__desc {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.87rem;
   color: var(--text-muted);
   max-width: 320px;
@@ -1143,7 +1155,7 @@ input.rank-role-card__level-badge:focus {
 .rank-role-card__error {
   font-size: 0.7rem;
   color: #e07070;
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   margin-top: 2px;
   display: none;
 }
@@ -1175,7 +1187,7 @@ input.rank-role-card__level-badge:focus {
   padding: 32px;
   text-align: center;
   color: var(--text-muted);
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   font-size: 0.9rem;
   line-height: 1.7;
 }

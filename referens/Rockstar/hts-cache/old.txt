@@ -1,0 +1,3 @@
+date	size'/'remotesize	flags(request:Update,Range state:File response:Modified,Chunked,gZipped)	statuscode	status ('servermsg')	MIME	Etag|Date	URL	localfile	(from URL)
+21:20:36	388/388	---M--	403	error ('Forbidden')	text/html	date:Wed,%2017%20Jun%202026%2016:20:38%20GMT	https://www.rockstargames.com/reddeadonline	C:/Users/AgiTall/pchevbot/referens/Rockstar/www.rockstargames.com/reddeadonline.0.delayed	(from )
+21:20:36	389/389	---M--	403	error ('Forbidden')	text/html	date:Wed,%2017%20Jun%202026%2016:20:39%20GMT	https://www.rockstargames.com/robots.txt		(from )
