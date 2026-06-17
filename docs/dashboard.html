@@ -103,7 +103,14 @@
 
             <!-- ── САЙДБАР ── -->
             <aside class="dashboard-sidebar" aria-label="Разделы настроек">
-              <nav class="sidebar-nav">
+
+              <!-- Мобильный toggle -->
+              <button class="sidebar-mobile-toggle" id="sidebarToggleBtn" aria-expanded="false">
+                <span>⚙ Разделы настроек</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+
+              <nav class="sidebar-nav" id="sidebarNav">
                 <div class="sidebar-nav__header">
                   <p class="sidebar-nav__title">Разделы</p>
                 </div>
@@ -163,23 +170,51 @@
                       Логи
                     </a>
                   </li>
+                  <li class="sidebar-nav__item">
+                    <a href="#" data-section="economy" id="sidebarEconomy">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                      </svg>
+                      Экономика
+                    </a>
+                  </li>
                 </ul>
               </nav>
 
               <!-- Кнопка сохранить -->
-              <button class="btn btn--special sidebar-save-btn" id="saveSettingsBtn" style="margin-top:16px">
-                <!-- SVG: Сохранить -->
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                  <polyline points="7 3 7 8 15 8" />
-                </svg>
-                Сохранить
-              </button>
+              <div class="sidebar-save-wrap" id="sidebarSaveWrap">
+                <div class="unsaved-indicator" id="unsavedIndicator">
+                  <span class="unsaved-dot"></span>
+                  Несохранённые изменения
+                </div>
+                <button class="btn btn--special sidebar-save-btn" id="saveSettingsBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Сохранить
+                </button>
+              </div>
             </aside>
 
             <!-- ── КОНТЕНТ ── -->
             <div class="dashboard-content" role="main" aria-label="Настройки бота">
+
+              <!-- SKELETON LOADER -->
+              <div class="skeleton-wrap" id="skeletonLoader">
+                <div class="skeleton-card">
+                  <div class="skeleton-row skeleton-row--short" style="margin-bottom:20px"></div>
+                  <div class="skeleton-row skeleton-row--tall"></div>
+                  <div class="skeleton-row skeleton-row--tall"></div>
+                  <div class="skeleton-row skeleton-row--med" style="margin-top:16px"></div>
+                </div>
+                <div class="skeleton-card">
+                  <div class="skeleton-row skeleton-row--short" style="margin-bottom:20px"></div>
+                  <div class="skeleton-row skeleton-row--tall"></div>
+                </div>
+              </div>
 
               <!-- ════════════ СЕКЦИЯ: КАНАЛЫ ════════════ -->
               <div class="dash-section" id="channels" aria-labelledby="channelsHeading">
@@ -367,16 +402,24 @@
                 </div>
 
                 <div class="card">
-                  <h3 class="heading-sm" style="margin-bottom:20px">Формула опыта</h3>
+                  <h3 class="heading-sm" style="margin-bottom:16px">Формула опыта</h3>
                   <div
-                    style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 20px;font-family:monospace;font-size:.9rem;color:var(--accent-gold)">
+                    style="background:var(--bg-secondary);border:1px solid var(--border);padding:16px 20px;font-family:monospace;font-size:.9rem;color:var(--gold)">
                     XP для уровня N = 100 × N<sup>1.5</sup>
                   </div>
                   <p style="font-size:.83rem;color:var(--text-muted);margin-top:10px">
                     Пример: уровень 5 требует 559 XP, уровень 10 — 3162 XP, уровень 20 — 8944 XP.
                     Смотрите полную таблицу на странице <a href="levels.html"
-                      style="color:var(--accent-blurple)">Уровни</a>.
+                      style="color:var(--red)">Уровни</a>.
                   </p>
+                  <!-- XP Калькулятор -->
+                  <div class="xp-calc-box">
+                    <label for="xpCalcLevel">Калькулятор:</label>
+                    <input type="number" class="xp-calc-input" id="xpCalcLevel" min="1" max="100" placeholder="Ур." value="10">
+                    <div class="xp-calc-result" id="xpCalcResult">
+                      Уровень <strong id="xpCalcLvlOut">10</strong>: нужно <strong id="xpCalcXpOut">3 162</strong> XP
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -386,16 +429,33 @@
                   <div class="dash-section__icon" aria-hidden="true">🎖️</div>
                   <div class="dash-section__title">
                     <h2 id="rankrolesHeading">Роли за уровни</h2>
-                    <p>Привязка Discord-ролей к уровням прокачки</p>
+                    <p>Привязка Discord-ролей к уровням прокачки — бот автоматически выдаёт роль при повышении</p>
                   </div>
                 </div>
 
                 <div class="card">
-                  <div
-                    style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+                  <!-- Шаблоны быстрого заполнения -->
+                  <div class="rank-role-templates">
+                    <span>Шаблоны:</span>
+                    <button class="template-btn" id="tplStandard" title="Добавить уровни 5, 10, 15, 20, 25, 30">
+                      ★ Стандартные (5–30)
+                    </button>
+                    <button class="template-btn" id="tplEvery5" title="Добавить каждый 5-й уровень до 50">
+                      Каждые 5 уровней
+                    </button>
+                    <button class="template-btn" id="tplEvery10" title="Добавить каждый 10-й уровень до 50">
+                      Каждые 10 уровней
+                    </button>
+                    <button class="template-btn template-btn--gold" id="tplClear" title="Очистить все строки">
+                      🗑 Очистить всё
+                    </button>
+                  </div>
+
+                  <!-- Заголовок списка -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:12px">
                     <div>
                       <h3 class="heading-sm">Ранговые роли</h3>
-                      <p style="font-size:.83rem;color:var(--text-muted);margin-top:3px">
+                      <p style="font-size:.78rem;color:var(--text-muted);margin-top:3px">
                         Команды: <code>/set-rank-role &lt;уровень&gt; &lt;@роль&gt;</code> ·
                         <code>/remove-rank-role &lt;уровень&gt;</code>
                       </p>
@@ -409,12 +469,25 @@
                     </button>
                   </div>
 
+                  <!-- Заголовки колонок -->
+                  <div style="display:grid;grid-template-columns:90px 1fr 34px;gap:12px;padding:0 16px 8px;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);font-family:'Oswald',sans-serif">
+                    <span>Уровень</span>
+                    <span>ID роли Discord</span>
+                    <span></span>
+                  </div>
+
                   <!-- Строки добавляются через JS -->
                   <div class="rank-roles-list" id="rankRolesList" aria-label="Список ранговых ролей"></div>
 
-                  <p style="font-size:.78rem;color:var(--text-muted);margin-top:16px">
-                    ⚠️ Роль бота должна быть <strong>выше</strong> всех ранговых ролей в иерархии сервера.
-                  </p>
+                  <!-- Footer редактора -->
+                  <div class="rank-roles-footer">
+                    <p class="rank-roles-count" id="rankRolesCount">
+                      Настроено: <strong>0</strong> ролей
+                    </p>
+                    <p style="font-size:.73rem;color:var(--text-muted);font-family:'Libre Baskerville',serif">
+                      ⚠️ Роль бота должна быть <strong>выше</strong> всех ранговых ролей в иерархии сервера.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -558,6 +631,75 @@
                 </div>
               </div>
 
+              <!-- ════════════ СЕКЦИЯ: ЭКОНОМИКА ════════════ -->
+              <div class="dash-section" id="economy" aria-labelledby="economyHeading">
+                <div class="dash-section__header">
+                  <div class="dash-section__icon" aria-hidden="true">💰</div>
+                  <div class="dash-section__title">
+                    <h2 id="economyHeading">Экономика</h2>
+                    <p>Обзор экономической системы сервера</p>
+                  </div>
+                </div>
+
+                <div class="card" style="margin-bottom:20px">
+                  <h3 class="heading-sm" style="margin-bottom:16px">Курс золота</h3>
+                  <div class="gold-rate-display">
+                    <span class="gold-rate-value" id="goldRateValue">—</span>
+                    <span class="gold-rate-unit">$ / 🪙</span>
+                  </div>
+                  <p style="font-size:.82rem;color:var(--text-muted);font-family:'Libre Baskerville',serif;margin-top:8px">
+                    Текущий курс обмена денег на золото. Изменяется командой <code>/set-rate &lt;курс&gt;</code> или обновляется автоматически.
+                  </p>
+                  <div class="economy-grid">
+                    <div class="economy-stat">
+                      <div class="economy-stat__value" id="econ_xpJobs">—</div>
+                      <div class="economy-stat__label">XP × Профессии</div>
+                    </div>
+                    <div class="economy-stat">
+                      <div class="economy-stat__value" id="econ_xpEvents">—</div>
+                      <div class="economy-stat__label">XP × Ивенты</div>
+                    </div>
+                    <div class="economy-stat">
+                      <div class="economy-stat__value" id="econ_xpMsg">—</div>
+                      <div class="economy-stat__label">XP/сообщение</div>
+                    </div>
+                    <div class="economy-stat">
+                      <div class="economy-stat__value" id="econ_xpVoice">—</div>
+                      <div class="economy-stat__label">XP/голос (мин)</div>
+                    </div>
+                    <div class="economy-stat">
+                      <div class="economy-stat__value" id="econ_roles">—</div>
+                      <div class="economy-stat__label">Ролей за уровни</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <h3 class="heading-sm" style="margin-bottom:12px">Профессиональные ставки</h3>
+                  <p style="font-size:.82rem;color:var(--text-muted);font-family:'Libre Baskerville',serif;margin-bottom:16px">
+                    Для изменения ставок используйте команды боta или раздел <a href="#" data-section-link="xp" style="color:var(--red)">Настройки XP</a>.
+                  </p>
+                  <div style="display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border)">
+                    <div style="display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--bg-card);padding:14px 20px">
+                      <div><strong style="font-size:.9rem;letter-spacing:.04em">⛏️ Работа и профессии</strong><p class="hint" style="margin:0">Охотник, Торговец, Самогонщик, Натуралист</p></div>
+                      <span style="font-family:'ChineseRocks','Oswald',sans-serif;font-size:1.3rem;color:var(--gold)" id="econJobsRate">×1.0</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--bg-card);padding:14px 20px">
+                      <div><strong style="font-size:.9rem;letter-spacing:.04em">🎉 Ивенты и события</strong><p class="hint" style="margin:0">Специальные мероприятия сервера</p></div>
+                      <span style="font-family:'ChineseRocks','Oswald',sans-serif;font-size:1.3rem;color:var(--gold)" id="econEventsRate">×1.0</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--bg-card);padding:14px 20px">
+                      <div><strong style="font-size:.9rem;letter-spacing:.04em">💬 Сообщения</strong><p class="hint" style="margin:0">Множитель базового XP за сообщения</p></div>
+                      <span style="font-family:'ChineseRocks','Oswald',sans-serif;font-size:1.3rem;color:var(--gold)" id="econMsgRate">×1.0</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--bg-card);padding:14px 20px">
+                      <div><strong style="font-size:.9rem;letter-spacing:.04em">🔊 Голосовой чат</strong><p class="hint" style="margin:0">Множитель базового XP за голос</p></div>
+                      <span style="font-family:'ChineseRocks','Oswald',sans-serif;font-size:1.3rem;color:var(--gold)" id="econVoiceRate">×1.0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div><!-- /dashboard-content -->
           </div><!-- /dashboard-layout -->
         </div><!-- /dashboardMain -->
@@ -599,7 +741,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2024 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.5.3</span>
+        <span class="footer__version">v0.5.4</span>
       </div>
     </div>
   </footer>

@@ -7,7 +7,7 @@
 // КОНФИГУРАЦИЯ
 // =============================================
 const CONFIG = {
-  botVersion: 'v0.5.3',
+  botVersion: 'v0.5.4',
   inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377&scope=bot%20applications.commands&permissions=8',
   supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
   storageKey: 'membot_settings',
@@ -76,6 +76,24 @@ const COMMANDS = [
 ];
 
 // =============================================
+// XP УТИЛИТЫ
+// =============================================
+function xpForLevel(level) {
+  if (level <= 1) return 0;
+  return Math.round(100 * Math.pow(level, 1.5));
+}
+
+function totalXpForLevel(level) {
+  let total = 0;
+  for (let i = 2; i <= level; i++) total += xpForLevel(i);
+  return total;
+}
+
+function fmtXp(n) {
+  return n.toLocaleString('ru-RU');
+}
+
+// =============================================
 // ТАБЛИЦА УРОВНЕЙ (первые 30)
 // =============================================
 function buildLevelsTable() {
@@ -84,7 +102,6 @@ function buildLevelsTable() {
   for (let lvl = 1; lvl <= 30; lvl++) {
     const xpNeeded = lvl <= 1 ? 0 : Math.round(100 * Math.pow(lvl, 1.5));
     totalXp += xpNeeded;
-    const prev = lvl <= 1 ? 0 : Math.round(100 * Math.pow(lvl - 1, 1.5));
     rows.push({ level: lvl, xpNeeded, totalXp });
   }
   return rows;
@@ -128,7 +145,6 @@ function initHamburger() {
     mobileNav.classList.toggle('open', open);
   });
 
-  // Закрыть при клике вне
   document.addEventListener('click', e => {
     if (!btn.contains(e.target) && !mobileNav.contains(e.target)) {
       btn.classList.remove('open');
@@ -211,12 +227,14 @@ function showAuthGate() {
   document.getElementById('authGate')?.removeAttribute('hidden');
   document.getElementById('guildPicker')?.setAttribute('hidden', '');
   document.getElementById('dashboardMain')?.setAttribute('hidden', '');
+  hideSkeletonLoader();
 }
 
 function showGuildPicker() {
   document.getElementById('authGate')?.setAttribute('hidden', '');
   document.getElementById('guildPicker')?.removeAttribute('hidden');
   document.getElementById('dashboardMain')?.setAttribute('hidden', '');
+  hideSkeletonLoader();
   renderGuildPicker();
 }
 
@@ -225,6 +243,20 @@ function showDashboard() {
   document.getElementById('guildPicker')?.setAttribute('hidden', '');
   document.getElementById('dashboardMain')?.removeAttribute('hidden');
   renderCurrentGuildBadge();
+}
+
+// ── Skeleton loader ──
+function showSkeletonLoader() {
+  const sk = document.getElementById('skeletonLoader');
+  if (sk) sk.classList.add('active');
+  // Скрываем секции пока грузим
+  document.querySelectorAll('.dash-section').forEach(s => s.style.visibility = 'hidden');
+}
+
+function hideSkeletonLoader() {
+  const sk = document.getElementById('skeletonLoader');
+  if (sk) sk.classList.remove('active');
+  document.querySelectorAll('.dash-section').forEach(s => s.style.visibility = '');
 }
 
 function renderUserBadge(container) {
@@ -292,6 +324,28 @@ function renderCurrentGuildBadge() {
   badge.innerHTML = `${icon}<span>${guild.name}</span>`;
 }
 
+// =============================================
+// ТРЕКИНГ НЕСОХРАНЁННЫХ ИЗМЕНЕНИЙ
+// =============================================
+let _hasUnsavedChanges = false;
+
+function setUnsaved(val) {
+  _hasUnsavedChanges = val;
+  const indicator = document.getElementById('unsavedIndicator');
+  if (indicator) indicator.classList.toggle('visible', val);
+}
+
+function trackChanges() {
+  // Слушаем все поля формы
+  document.querySelectorAll('[data-setting]').forEach(el => {
+    el.addEventListener('change', () => setUnsaved(true));
+    el.addEventListener('input', () => setUnsaved(true));
+  });
+}
+
+// =============================================
+// DASHBOARD UI
+// =============================================
 let dashboardUiReady = false;
 
 function setupDashboardUi(settings) {
@@ -302,11 +356,18 @@ function setupDashboardUi(settings) {
 
   if (!navLinks.length) return;
 
+  hideSkeletonLoader();
   applySettingsToForm(settings);
 
   function activateSection(target) {
     sections.forEach(s => s.classList.toggle('active', s.id === target));
     navLinks.forEach(a => a.classList.toggle('active', a.dataset.section === target));
+    // На мобильных закрываем сайдбар после выбора
+    if (window.innerWidth <= 900) {
+      document.getElementById('sidebarNav')?.classList.remove('mobile-open');
+      document.getElementById('sidebarSaveWrap')?.classList.remove('mobile-open');
+      document.getElementById('sidebarToggleBtn')?.classList.remove('open');
+    }
   }
 
   if (!dashboardUiReady) {
@@ -314,6 +375,14 @@ function setupDashboardUi(settings) {
       link.addEventListener('click', e => {
         e.preventDefault();
         activateSection(link.dataset.section);
+      });
+    });
+
+    // Ссылки внутри контента (например, "Настройки XP" в секции Экономика)
+    document.querySelectorAll('[data-section-link]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        activateSection(a.dataset.sectionLink);
       });
     });
 
@@ -327,31 +396,86 @@ function setupDashboardUi(settings) {
           return;
         }
         saveBtn.disabled = true;
+        saveBtn.textContent = 'Сохраняем...';
         const data = collectFormData();
         try {
-          if (await saveSettings(data)) {
-            showToast(toast);
+          const result = await saveSettings(data);
+          if (result) {
+            setUnsaved(false);
+            showToast(toast, 'Настройки сохранены! ✓');
+            // Обновляем экономику после сохранения
+            updateEconomySection(data);
           }
         } catch (err) {
-          alert('Ошибка сохранения: ' + err.message);
+          showToast(toast, 'Ошибка: ' + err.message, true);
         }
         saveBtn.disabled = false;
+        saveBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Сохранить`;
       });
     }
+
+    // Мобильный toggle сайдбара
+    initSidebarMobileToggle();
+
+    // XP калькулятор
+    initXpCalculator();
+
     dashboardUiReady = true;
   }
 
+  // Трекинг изменений запускаем после применения настроек
+  setTimeout(trackChanges, 100);
+
   initRankRoleEditor(settings);
+  updateEconomySection(settings);
+}
+
+function initSidebarMobileToggle() {
+  const toggleBtn  = document.getElementById('sidebarToggleBtn');
+  const sidebarNav = document.getElementById('sidebarNav');
+  const saveWrap   = document.getElementById('sidebarSaveWrap');
+  if (!toggleBtn || !sidebarNav) return;
+
+  toggleBtn.addEventListener('click', () => {
+    const open = toggleBtn.classList.toggle('open');
+    toggleBtn.setAttribute('aria-expanded', open);
+    sidebarNav.classList.toggle('mobile-open', open);
+    if (saveWrap) saveWrap.classList.toggle('mobile-open', open);
+  });
+}
+
+function initXpCalculator() {
+  const input   = document.getElementById('xpCalcLevel');
+  const lvlOut  = document.getElementById('xpCalcLvlOut');
+  const xpOut   = document.getElementById('xpCalcXpOut');
+  if (!input || !lvlOut || !xpOut) return;
+
+  function update() {
+    const lvl = Math.max(1, Math.min(100, parseInt(input.value) || 1));
+    const xp  = xpForLevel(lvl);
+    lvlOut.textContent = lvl;
+    xpOut.textContent  = fmtXp(xp);
+  }
+  input.addEventListener('input', update);
+  update();
 }
 
 async function selectGuild(guildId) {
   setSelectedGuildId(guildId);
   showDashboard();
+  showSkeletonLoader();
   try {
     const settings = await loadGuildSettings(guildId);
     setupDashboardUi(settings);
   } catch (err) {
     console.error(err);
+    hideSkeletonLoader();
     alert('Не удалось загрузить настройки сервера: ' + err.message);
     setSelectedGuildId(null);
     showGuildPicker();
@@ -373,6 +497,7 @@ async function initDashboardAuth() {
   document.getElementById('logoutBtn')?.addEventListener('click', logout);
   document.getElementById('changeGuildBtn')?.addEventListener('click', () => {
     setSelectedGuildId(null);
+    setUnsaved(false);
     showGuildPicker();
   });
 
@@ -408,7 +533,7 @@ async function initDashboardAuth() {
 }
 
 // =============================================
-// ЛОКАЛЬНОЕ ХРАНИЛИЩЕ (legacy fallback)
+// ЗАГРУЗКА / СОХРАНЕНИЕ НАСТРОЕК
 // =============================================
 async function loadSettings() {
   if (authState.selectedGuildId) {
@@ -431,7 +556,7 @@ async function saveSettings(data) {
 }
 
 // =============================================
-// DASHBOARD
+// DASHBOARD — main init
 // =============================================
 async function initDashboard() {
   if (!document.querySelector('.sidebar-nav__item a[data-section]')) return;
@@ -455,11 +580,11 @@ function collectFormData() {
     }
   });
 
-  // Ранговые роли
+  // Ранговые роли — собираем из карточек
   const roles = [];
-  document.querySelectorAll('.rank-role-entry').forEach(row => {
-    const lvl  = row.querySelector('[data-field="level"]')?.value;
-    const role = row.querySelector('[data-field="role"]')?.value;
+  document.querySelectorAll('.rank-role-card').forEach(card => {
+    const lvl  = card.querySelector('[data-field="level"]')?.value?.trim();
+    const role = card.querySelector('[data-field="role"]')?.value?.trim();
     if (lvl && role) roles.push({ level: lvl, role });
   });
   data.rankRoles = roles;
@@ -470,51 +595,249 @@ function collectFormData() {
 /** Применить сохранённые настройки к форме */
 function applySettingsToForm(settings) {
   Object.entries(settings).forEach(([key, val]) => {
+    if (key === 'rankRoles') return; // обрабатывается отдельно
     const el = document.querySelector(`[data-setting="${key}"]`);
     if (!el) return;
     if (el.type === 'checkbox') {
       el.checked = Boolean(val);
     } else {
-      el.value = val;
+      el.value = val ?? '';
     }
   });
 }
 
-/** Показать toast-уведомление */
-function showToast(toast) {
+/** Toast-уведомление */
+function showToast(toast, message = 'Настройки сохранены!', isError = false) {
   if (!toast) return;
+  toast.textContent = message;
+  toast.style.display = 'block';
+  toast.style.borderLeftColor = isError ? 'var(--red)' : '#3a7a3a';
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => { toast.style.display = 'none'; }, 300);
+  }, 3000);
 }
 
-/** Редактор ранговых ролей */
+// =============================================
+// СЕКЦИЯ ЭКОНОМИКИ — отображение данных
+// =============================================
+function updateEconomySection(settings) {
+  if (!settings) return;
+
+  const goldRateEl = document.getElementById('goldRateValue');
+  if (goldRateEl && settings.goldRate != null) {
+    goldRateEl.textContent = parseFloat(settings.goldRate).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  }
+
+  const xpMsg   = parseFloat(settings.xpMessages || 15) * parseFloat(settings.xpRateMessages || 1);
+  const xpVoice = parseFloat(settings.xpVoice || 10)    * parseFloat(settings.xpRateVoice || 1);
+
+  const map = {
+    econ_xpJobs:   `×${parseFloat(settings.xpJobs || 1).toFixed(1)}`,
+    econ_xpEvents: `×${parseFloat(settings.xpEvents || 1).toFixed(1)}`,
+    econ_xpMsg:    Math.round(xpMsg) + ' XP',
+    econ_xpVoice:  Math.round(xpVoice) + ' XP',
+    econ_roles:    (settings.rankRoles?.length ?? 0) + ' шт.',
+    econJobsRate:  `×${parseFloat(settings.xpJobs || 1).toFixed(1)}`,
+    econEventsRate:`×${parseFloat(settings.xpEvents || 1).toFixed(1)}`,
+    econMsgRate:   `×${parseFloat(settings.xpRateMessages || 1).toFixed(1)}`,
+    econVoiceRate: `×${parseFloat(settings.xpRateVoice || 1).toFixed(1)}`,
+  };
+  Object.entries(map).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  });
+}
+
+// =============================================
+// РЕДАКТОР РАНГОВЫХ РОЛЕЙ
+// =============================================
+
+function xpHintHtml(level) {
+  const lvl = parseInt(level);
+  if (!lvl || lvl < 1) return '<span style="color:var(--text-muted)">Введите уровень</span>';
+  const xp = xpForLevel(lvl);
+  return `<span style="color:var(--text-muted)">Нужно XP</span><strong>${fmtXp(xp)}</strong>`;
+}
+
+function updateRankRolesCount() {
+  const countEl = document.getElementById('rankRolesCount');
+  if (!countEl) return;
+  const count = document.querySelectorAll('.rank-role-card').length;
+  countEl.innerHTML = `Настроено: <strong>${count}</strong> ${pluralRoles(count)}`;
+}
+
+function pluralRoles(n) {
+  if (n % 10 === 1 && n % 100 !== 11) return 'роль';
+  if ([2,3,4].includes(n % 10) && ![12,13,14].includes(n % 100)) return 'роли';
+  return 'ролей';
+}
+
+function validateDuplicateLevels() {
+  const cards  = document.querySelectorAll('.rank-role-card');
+  const levels = {};
+  cards.forEach(card => {
+    const lvl = card.querySelector('[data-field="level"]')?.value?.trim();
+    if (!lvl) return;
+    levels[lvl] = (levels[lvl] || 0) + 1;
+  });
+  cards.forEach(card => {
+    const lvl = card.querySelector('[data-field="level"]')?.value?.trim();
+    const errEl = card.querySelector('.rank-role-card__error');
+    const isDup = lvl && levels[lvl] > 1;
+    card.classList.toggle('has-error', isDup);
+    if (errEl) errEl.textContent = isDup ? `Уровень ${lvl} уже добавлен` : '';
+  });
+}
+
+function addRankRoleCard(list, level = '', role = '') {
+  // Убираем пустое состояние если оно есть
+  const empty = list.querySelector('.rank-roles-empty');
+  if (empty) empty.remove();
+
+  const card = document.createElement('div');
+  card.className = 'rank-role-card';
+  card.innerHTML = `
+    <div class="rank-role-card__level">
+      <input
+        class="rank-role-card__level-badge form-control"
+        type="number" min="1" max="999"
+        placeholder="Ур."
+        data-field="level"
+        value="${level}"
+        aria-label="Уровень"
+      >
+      <div class="rank-role-card__xp-hint">${xpHintHtml(level)}</div>
+    </div>
+    <div class="rank-role-card__role">
+      <label>ID роли Discord</label>
+      <input
+        class="form-control"
+        type="text"
+        placeholder="123456789012345678"
+        data-field="role"
+        value="${role}"
+        aria-label="ID роли Discord"
+      >
+      <div class="rank-role-card__error"></div>
+    </div>
+    <button class="rank-role-card__remove" title="Удалить" aria-label="Удалить строку">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14H6L5 6"/>
+        <path d="M10 11v6M14 11v6"/>
+      </svg>
+    </button>
+  `;
+
+  // Обновляем XP-подсказку при вводе уровня
+  const lvlInput  = card.querySelector('[data-field="level"]');
+  const xpHintEl  = card.querySelector('.rank-role-card__xp-hint');
+  lvlInput.addEventListener('input', () => {
+    xpHintEl.innerHTML = xpHintHtml(lvlInput.value);
+    validateDuplicateLevels();
+    setUnsaved(true);
+  });
+  card.querySelector('[data-field="role"]').addEventListener('input', () => setUnsaved(true));
+
+  // Удаление
+  card.querySelector('.rank-role-card__remove').addEventListener('click', () => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(12px)';
+    card.style.transition = 'opacity 0.15s, transform 0.15s';
+    setTimeout(() => {
+      card.remove();
+      updateRankRolesCount();
+      validateDuplicateLevels();
+      showEmptyStateIfNeeded(list);
+      setUnsaved(true);
+    }, 150);
+  });
+
+  list.appendChild(card);
+  updateRankRolesCount();
+  validateDuplicateLevels();
+}
+
+function showEmptyStateIfNeeded(list) {
+  if (list.querySelectorAll('.rank-role-card').length === 0) {
+    list.innerHTML = `
+      <div class="rank-roles-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Нет настроенных ролей.<br>
+        Нажмите «Добавить строку» или выберите шаблон выше.
+      </div>
+    `;
+    updateRankRolesCount();
+  }
+}
+
+function addTemplateRows(list, levels) {
+  // Удаляем пустое состояние
+  list.querySelector('.rank-roles-empty')?.remove();
+  // Добавляем только те уровни, которых ещё нет
+  const existing = new Set();
+  list.querySelectorAll('[data-field="level"]').forEach(el => {
+    if (el.value) existing.add(el.value.trim());
+  });
+  levels.forEach(lvl => {
+    if (!existing.has(String(lvl))) {
+      addRankRoleCard(list, lvl, '');
+    }
+  });
+}
+
 function initRankRoleEditor(settings) {
-  const list    = document.getElementById('rankRolesList');
-  const addBtn  = document.getElementById('addRankRoleBtn');
+  const list   = document.getElementById('rankRolesList');
+  const addBtn = document.getElementById('addRankRoleBtn');
   if (!list || !addBtn) return;
 
   list.innerHTML = '';
   const saved = settings?.rankRoles || [];
-  saved.forEach(entry => addRankRoleRow(list, entry.level, entry.role));
-  if (!saved.length) addRankRoleRow(list);
+  if (saved.length) {
+    saved.forEach(entry => addRankRoleCard(list, entry.level, entry.role));
+  } else {
+    showEmptyStateIfNeeded(list);
+  }
 
+  // Кнопка «Добавить строку»
   const newAddBtn = addBtn.cloneNode(true);
   addBtn.parentNode.replaceChild(newAddBtn, addBtn);
-  newAddBtn.addEventListener('click', () => addRankRoleRow(list));
-}
+  newAddBtn.addEventListener('click', () => {
+    list.querySelector('.rank-roles-empty')?.remove();
+    addRankRoleCard(list);
+    setUnsaved(true);
+  });
 
-function addRankRoleRow(list, level = '', role = '') {
-  const row = document.createElement('div');
-  row.className = 'rank-role-entry rank-role-row';
-  row.innerHTML = `
-    <input class="form-control" type="number" min="1" max="999" placeholder="Уровень" data-field="level" value="${level}" style="max-width:100px">
-    <input class="form-control" placeholder="ID или @Название роли" data-field="role" value="${role}">
-    <button class="btn btn--ghost btn--sm remove-rank-role-btn" title="Удалить">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-    </button>
-  `;
-  row.querySelector('.remove-rank-role-btn').addEventListener('click', () => row.remove());
-  list.appendChild(row);
+  // Шаблоны
+  function bindTemplate(id, levels) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click', () => {
+      addTemplateRows(list, levels);
+      setUnsaved(true);
+    });
+  }
+
+  bindTemplate('tplStandard', [5, 10, 15, 20, 25, 30]);
+  bindTemplate('tplEvery5',   [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]);
+  bindTemplate('tplEvery10',  [10, 20, 30, 40, 50]);
+
+  const clearBtn = document.getElementById('tplClear');
+  if (clearBtn) {
+    const newClear = clearBtn.cloneNode(true);
+    clearBtn.parentNode.replaceChild(newClear, clearBtn);
+    newClear.addEventListener('click', () => {
+      if (list.querySelectorAll('.rank-role-card').length === 0) return;
+      if (!confirm('Очистить все строки ролей?')) return;
+      list.innerHTML = '';
+      showEmptyStateIfNeeded(list);
+      setUnsaved(true);
+    });
+  }
 }
 
 // =============================================
@@ -567,12 +890,10 @@ function initCommandsPage() {
     }
   }
 
-  // Поиск
   if (searchEl) {
     searchEl.addEventListener('input', () => { query = searchEl.value; render(); });
   }
 
-  // Фильтры
   filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       activeFilter = btn.dataset.filter;
@@ -628,7 +949,7 @@ function initHeroButtons() {
 }
 
 // =============================================
-// ANIMATE ON SCROLL (простой IntersectionObserver)
+// ANIMATE ON SCROLL
 // =============================================
 function initScrollAnimations() {
   const style = document.createElement('style');
@@ -663,6 +984,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initDashboard();
   initLevelsPage();
 
-  // Небольшая задержка чтобы контент успел отрендериться
   requestAnimationFrame(() => initScrollAnimations());
 });

@@ -1076,3 +1076,352 @@ input, select, textarea { font-family: inherit; }
   .footer__links { flex-direction: column; gap: 28px; }
   .footer__bottom { flex-direction: column; gap: 12px; text-align: center; }
 }
+
+/* =============================================
+   RANK ROLE EDITOR — улучшенный редактор
+   ============================================= */
+.rank-role-card {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 12px;
+  align-items: start;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  transition: border-color var(--transition), background var(--transition);
+  animation: cardIn 0.18s ease;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.rank-role-card:hover { background: #181818; border-left-color: #333; }
+.rank-role-card.has-error { border-left-color: var(--red); background: rgba(139,0,0,0.06); }
+
+.rank-role-card__level { display: flex; flex-direction: column; gap: 6px; }
+.rank-role-card__level-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-bottom: 2px solid #333;
+  color: var(--text-white);
+  padding: 10px 6px;
+  width: 100%;
+  font-family: 'ChineseRocks', 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  text-align: center;
+  transition: border-color var(--transition);
+}
+input.rank-role-card__level-badge:focus {
+  outline: none;
+  border-bottom-color: var(--red);
+}
+.rank-role-card__xp-hint {
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-align: center;
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  line-height: 1.4;
+  min-height: 30px;
+}
+.rank-role-card__xp-hint strong { color: #F0E68B; font-size: 0.75rem; display: block; }
+
+.rank-role-card__role { display: flex; flex-direction: column; gap: 4px; }
+.rank-role-card__role label {
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: 'Oswald', sans-serif;
+}
+.rank-role-card__error {
+  font-size: 0.7rem;
+  color: #e07070;
+  font-family: 'Libre Baskerville', serif;
+  margin-top: 2px;
+  display: none;
+}
+.rank-role-card.has-error .rank-role-card__error { display: block; }
+
+.rank-role-card__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: transparent;
+  border: 1px solid #333;
+  color: var(--text-muted);
+  transition: all var(--transition);
+  flex-shrink: 0;
+  margin-top: 6px;
+  cursor: pointer;
+}
+.rank-role-card__remove:hover {
+  background: rgba(139,0,0,0.2);
+  border-color: var(--red);
+  color: #e07070;
+}
+.rank-role-card__remove svg { width: 14px; height: 14px; }
+
+.rank-roles-empty {
+  border: 1px dashed var(--border-light);
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted);
+  font-family: 'Libre Baskerville', serif;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+.rank-roles-empty svg { width: 32px; height: 32px; stroke: #333; margin: 0 auto 12px; display: block; }
+
+.rank-role-templates {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.rank-role-templates > span {
+  font-size: 0.62rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: 'Oswald', sans-serif;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.template-btn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-grey);
+  padding: 5px 12px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all var(--transition);
+  cursor: pointer;
+}
+.template-btn:hover { background: var(--bg-elevated); border-color: #555; color: var(--text-white); }
+.template-btn--gold { border-color: #5a4a1a; color: var(--gold); }
+.template-btn--gold:hover { background: rgba(240,230,139,0.07); border-color: var(--gold); }
+
+.rank-roles-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.rank-roles-count {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: 'Oswald', sans-serif;
+}
+.rank-roles-count strong { color: var(--gold); }
+
+/* =============================================
+   SKELETON LOADER
+   ============================================= */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.25; }
+  50%       { opacity: 0.55; }
+}
+.skeleton-wrap { display: none; }
+.skeleton-wrap.active { display: block; }
+.skeleton-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 28px;
+  margin-bottom: 20px;
+}
+.skeleton-row {
+  height: 13px;
+  background: var(--bg-elevated);
+  margin-bottom: 10px;
+  animation: skeletonPulse 1.5s ease infinite;
+}
+.skeleton-row--short { width: 35%; }
+.skeleton-row--med   { width: 60%; }
+.skeleton-row--tall  { height: 40px; margin-bottom: 12px; }
+
+/* =============================================
+   UNSAVED CHANGES INDICATOR
+   ============================================= */
+.sidebar-save-wrap { margin-top: 16px; }
+.unsaved-indicator {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.63rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #F0E68B;
+  font-family: 'Oswald', sans-serif;
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  background: rgba(240,230,139,0.05);
+  border: 1px solid rgba(240,230,139,0.12);
+}
+.unsaved-indicator.visible { display: flex; }
+.unsaved-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #F0E68B;
+  flex-shrink: 0;
+  animation: dotPulse 1.5s ease infinite;
+}
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+/* =============================================
+   ECONOMY SECTION
+   ============================================= */
+.gold-rate-display {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.gold-rate-value {
+  font-family: 'ChineseRocks', 'Oswald', sans-serif;
+  font-size: 2.6rem;
+  color: var(--gold);
+  line-height: 1;
+}
+.gold-rate-unit {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: 'Oswald', sans-serif;
+}
+.economy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-top: 20px;
+}
+.economy-stat {
+  background: var(--bg-card);
+  padding: 20px;
+  text-align: center;
+  transition: background var(--transition);
+}
+.economy-stat:hover { background: var(--bg-elevated); }
+.economy-stat__value {
+  font-family: 'ChineseRocks', 'Oswald', sans-serif;
+  font-size: 1.6rem;
+  color: var(--text-white);
+  margin-bottom: 6px;
+}
+.economy-stat__label {
+  font-size: 0.62rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: 'Oswald', sans-serif;
+}
+
+/* =============================================
+   XP CALCULATOR (inline)
+   ============================================= */
+.xp-calc-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  padding: 16px 20px;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.xp-calc-box > label {
+  font-size: 0.62rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: 'Oswald', sans-serif;
+  flex-shrink: 0;
+}
+.xp-calc-input {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-white);
+  padding: 8px 12px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  width: 80px;
+  text-align: center;
+  outline: none;
+}
+.xp-calc-input:focus { border-color: var(--red); }
+.xp-calc-result {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.88rem;
+  color: var(--text-light);
+}
+.xp-calc-result strong { color: var(--gold); font-size: 1.05rem; }
+
+/* =============================================
+   MOBILE SIDEBAR TOGGLE
+   ============================================= */
+.sidebar-mobile-toggle {
+  display: none;
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-white);
+  padding: 13px 20px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.sidebar-mobile-toggle svg { width: 16px; height: 16px; transition: transform 0.2s; stroke: currentColor; }
+.sidebar-mobile-toggle.open svg { transform: rotate(180deg); }
+
+@media (max-width: 900px) {
+  .sidebar-mobile-toggle { display: flex; }
+  .sidebar-nav,
+  .sidebar-save-wrap { display: none; }
+  .sidebar-nav.mobile-open,
+  .sidebar-save-wrap.mobile-open { display: block; }
+  .rank-role-card { grid-template-columns: 70px 1fr auto; }
+}
+
+@media (max-width: 580px) {
+  .rank-role-card {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+  }
+  .rank-role-card__level { grid-column: 1; }
+  .rank-role-card__role  { grid-column: 1; }
+  .rank-role-card__remove { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+  .rank-role-templates { gap: 6px; }
+  .template-btn { padding: 5px 9px; font-size: 0.66rem; }
+  .form-grid { grid-template-columns: 1fr; }
+}
