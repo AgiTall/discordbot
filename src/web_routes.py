@@ -10,7 +10,7 @@ from functools import wraps
 
 from flask import jsonify, redirect, request, session
 
-import guild_config
+import src.guild_config as guild_config
 
 DISCORD_API = "https://discord.com/api"
 DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "1513810717495525377")
@@ -23,7 +23,7 @@ _routes_registered = False
 def _http_request(url, method="GET", data=None, headers=None, timeout=15):
     req_headers = dict(headers or {})
     # Discord API требует User-Agent, иначе банит запросы с серверов (403 Forbidden)
-    req_headers.setdefault("User-Agent", "DiscordBot (https://pchev.me, 0.5.7)")
+    req_headers.setdefault("User-Agent", "DiscordBot (https://pchev.me, 0.5.8)")
     
     body = None
     if data is not None:
@@ -250,6 +250,41 @@ def register_web_routes(app, get_bot, economy_store, get_leveling_db):
             return jsonify({"error": str(e)}), 400
 
         return jsonify({"status": "ok", "settings": settings})
+
+    @app.route("/api/guilds/<guild_id>/roles", methods=["GET"])
+    @login_required
+    def api_guild_roles(guild_id):
+        if not _user_can_access_guild(guild_id):
+            return jsonify({"error": "Forbidden"}), 403
+            
+        bot = get_bot()
+        if not bot:
+            return jsonify({"error": "Bot offline"}), 503
+            
+        guild = bot.get_guild(int(guild_id))
+        if not guild:
+            return jsonify({"error": "Guild not found"}), 404
+            
+        roles = []
+        for r in guild.roles:
+            # Пропускаем роль @everyone (у нее ID совпадает с ID сервера)
+            if r.id == guild.id:
+                continue
+                
+            color_hex = str(r.color)
+            if color_hex == "#000000":
+                color_hex = "#99aab5" # Дефолтный цвет Discord
+                
+            roles.append({
+                "id": str(r.id),
+                "name": r.name,
+                "color": color_hex,
+                "position": r.position
+            })
+            
+        # Сортируем от самых высоких ролей к самым низким
+        roles.sort(key=lambda x: x["position"], reverse=True)
+        return jsonify(roles)
 
     @app.route("/api/config", methods=["GET"])
     def legacy_get_config():

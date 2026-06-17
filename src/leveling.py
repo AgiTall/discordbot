@@ -6,7 +6,7 @@ import time
 import logging
 import math
 
-LEVELING_DB = "leveling.db"
+LEVELING_DB = "data/leveling.db"
 DEFAULT_XP_RATE = 1.0
 
 def calculate_xp_for_level(level: int) -> int:
@@ -45,9 +45,14 @@ class LevelingDB:
                     guild_id TEXT, 
                     level INTEGER, 
                     role_id TEXT, 
+                    remove_role_id TEXT,
                     PRIMARY KEY(guild_id, level)
                 )
             """)
+            try:
+                self.conn.execute("ALTER TABLE rank_roles ADD COLUMN remove_role_id TEXT")
+            except sqlite3.OperationalError:
+                pass
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS settings (
                     guild_id TEXT, 
@@ -90,11 +95,11 @@ class LevelingDB:
         row = cursor.fetchone()
         return row["pos"] + 1
 
-    def set_rank_role(self, guild_id: str, level: int, role_id: str):
+    def set_rank_role(self, guild_id: str, level: int, role_id: str, remove_role_id: str = None):
         with self.conn:
             self.conn.execute(
-                "INSERT OR REPLACE INTO rank_roles (guild_id, level, role_id) VALUES (?, ?, ?)",
-                (str(guild_id), level, str(role_id))
+                "INSERT OR REPLACE INTO rank_roles (guild_id, level, role_id, remove_role_id) VALUES (?, ?, ?, ?)",
+                (str(guild_id), level, str(role_id), str(remove_role_id) if remove_role_id else None)
             )
 
     def remove_rank_role(self, guild_id: str, level: int):
@@ -102,8 +107,8 @@ class LevelingDB:
             self.conn.execute("DELETE FROM rank_roles WHERE guild_id = ? AND level = ?", (str(guild_id), level))
 
     def get_rank_roles(self, guild_id: str):
-        cursor = self.conn.execute("SELECT level, role_id FROM rank_roles WHERE guild_id = ? ORDER BY level ASC", (str(guild_id),))
-        return {row["level"]: row["role_id"] for row in cursor}
+        cursor = self.conn.execute("SELECT level, role_id, remove_role_id FROM rank_roles WHERE guild_id = ? ORDER BY level ASC", (str(guild_id),))
+        return {row["level"]: {"role_id": row["role_id"], "remove_role_id": row["remove_role_id"]} for row in cursor}
 
     def set_setting(self, guild_id: str, key: str, value: str):
         with self.conn:
@@ -229,22 +234,32 @@ class LevelingCog(commands.Cog):
             highest_qualifying_level = 0
             target_role_id = None
 
-            for level_req, r_id in rank_roles.items():
+            for level_req, r_data in rank_roles.items():
+                r_id = r_data["role_id"]
                 if new_level >= level_req and level_req > highest_qualifying_level:
                     highest_qualifying_level = level_req
                     target_role_id = r_id
+                    target_remove_role_id = r_data.get("remove_role_id")
 
             if target_role_id:
                 target_role = guild.get_role(int(target_role_id))
                 if target_role:
                     target_role_assigned = target_role
-                    # Remove all other rank roles
                     roles_to_remove = []
-                    for r_id in rank_roles.values():
-                        if str(r_id) != str(target_role_id):
-                            r = guild.get_role(int(r_id))
-                            if r and r in user.roles:
-                                roles_to_remove.append(r)
+                    
+                    if target_remove_role_id:
+                        # Если явно указана роль для удаления
+                        rem_role = guild.get_role(int(target_remove_role_id))
+                        if rem_role and rem_role in user.roles:
+                            roles_to_remove.append(rem_role)
+                    else:
+                        # Иначе удаляем все предыдущие ранговые роли (старое поведение)
+                        for r_data in rank_roles.values():
+                            old_r_id = r_data["role_id"]
+                            if str(old_r_id) != str(target_role_id):
+                                r = guild.get_role(int(old_r_id))
+                                if r and r in user.roles:
+                                    roles_to_remove.append(r)
                     
                     try:
                         if roles_to_remove:
@@ -353,10 +368,10 @@ class LevelingCog(commands.Cog):
         current_rank_role = "Нет"
         if rank_roles:
             highest_qualifying_level = 0
-            for level_req, r_id in rank_roles.items():
+            for level_req, r_data in rank_roles.items():
                 if level >= level_req and level_req > highest_qualifying_level:
                     highest_qualifying_level = level_req
-                    r = interaction.guild.get_role(int(r_id))
+                    r = interaction.guild.get_role(int(r_data["role_id"]))
                     if r:
                         current_rank_role = r.mention
 
@@ -439,7 +454,8 @@ class LevelingCog(commands.Cog):
             return
 
         desc = ""
-        for lvl, role_id in roles.items():
+        for lvl, r_data in roles.items():
+            role_id = r_data["role_id"]
             desc += f"Уровень **{lvl}** → <@&{role_id}>\n"
             
         embed = discord.Embed(title="Ранговые роли", description=desc, color=discord.Color.blue())

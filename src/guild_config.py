@@ -30,8 +30,8 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
 
     rank_roles = leveling_db.get_rank_roles(gid)
     rank_roles_list = [
-        {"level": str(level), "role": role_id}
-        for level, role_id in sorted(rank_roles.items())
+        {"level": str(level), "role": r_data["role_id"], "removeRole": r_data.get("remove_role_id")}
+        for level, r_data in sorted(rank_roles.items())
     ]
 
     thread_channels = econ.get("thread_channel_ids") or []
@@ -155,8 +155,9 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
         for entry in data["rankRoles"] or []:
             level = entry.get("level")
             role = str(entry.get("role", "")).strip()
+            remove_role = str(entry.get("removeRole", "")).strip()
             if level and role.isdigit():
-                leveling_db.set_rank_role(gid, int(level), role)
+                leveling_db.set_rank_role(gid, int(level), role, remove_role if remove_role.isdigit() else None)
 
     economy_store.save_all()
     return get_guild_settings(economy_store, leveling_db, gid)

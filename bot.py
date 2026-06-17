@@ -31,14 +31,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from discord import PartialEmoji
-import leveling
-import web_routes
-CHANNELS_FILE = "channels.txt"
+import src.leveling as leveling
+import src.web_routes as web_routes
+CHANNELS_FILE = "data/channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
 BOT_TOKEN = ""
-BOT_VERSION = "v0.5.7"
-ECONOMY_FILE = "economy.json"
+BOT_VERSION = "v0.5.8"
+ECONOMY_FILE = "data/economy.json"
 ECONOMY_GLOBAL_KEY = "global"
 START_GOLD_RATE = 543.45
 
@@ -82,18 +82,18 @@ DEFAULT_GOLD_EMOJI = "🪙"
 DEFAULT_MAP_EMOJI = "🗺️"
 DEFAULT_INVESTMENT_EMOJI = "📈"
 DEFAULT_STATS_EMOJI = "👤"
-TREASURE_BANNER_FILE = "goldenmap.png"
-ROLE_IMAGE_FILE = "roles.png"
+TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
+ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
-BALANCE_IMAGE_FILE = "balance.png"
+BALANCE_IMAGE_FILE = "assets/images/balance.png"
 BALANCE_IMAGE_ATTACHMENT_NAME = "balance.png"
-BOUNTY_IMAGE_FILE = "hunter.png"
+BOUNTY_IMAGE_FILE = "assets/images/hunter.png"
 BOUNTY_IMAGE_ATTACHMENT_NAME = "hunter.png"
-NATURALIST_IMAGE_FILE = "naturalist.png"
+NATURALIST_IMAGE_FILE = "assets/images/naturalist.png"
 NATURALIST_IMAGE_ATTACHMENT_NAME = "naturalist.png"
-COLLECTOR_IMAGE_FILE = "collector.png"
+COLLECTOR_IMAGE_FILE = "assets/images/collector.png"
 COLLECTOR_IMAGE_ATTACHMENT_NAME = "collector.png"
-MOONSHINE_IMAGE_FILE = "moonshine.png"
+MOONSHINE_IMAGE_FILE = "assets/images/moonshine.png"
 MOONSHINE_IMAGE_ATTACHMENT_NAME = "moonshine.png"
 TREASURE_MAPS_PER_DROP = 1
 EXCAVATION_REWARD_CHANCE = 0.15
@@ -784,7 +784,7 @@ def with_economy_context(func):
 
 
 class EconomyStore:
-    def __init__(self, db_path="economy.db"):
+    def __init__(self, db_path="data/economy.db"):
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row

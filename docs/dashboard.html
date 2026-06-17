@@ -20,7 +20,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.5.7</span>
+        <span class="navbar__badge">v0.5.8</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -707,6 +707,40 @@
       </div>
     </section>
 
+  <!-- Modal для ранговых ролей -->
+  <div class="modal-overlay" id="rankRoleModal" hidden>
+    <div class="modal card">
+      <div class="modal__header">
+        <h3 class="heading-sm" id="rankRoleModalTitle">Добавить ранговую роль</h3>
+        <button class="modal__close" id="closeRankRoleModalBtn" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label for="modalRankLevel">Требуемый уровень</label>
+          <input type="number" id="modalRankLevel" class="form-control" placeholder="Например: 5" min="1" max="100">
+        </div>
+        <div class="form-group">
+          <label for="modalRankRoleSelect">Роль для выдачи</label>
+          <select id="modalRankRoleSelect" class="form-control form-control--select">
+            <option value="">Загрузка ролей...</option>
+          </select>
+          <p class="hint">Эта роль будет выдана при достижении уровня.</p>
+        </div>
+        <div class="form-group">
+          <label for="modalRemoveRoleSelect">Роль для изъятия (опционально)</label>
+          <select id="modalRemoveRoleSelect" class="form-control form-control--select">
+            <option value="">Не забирать конкретную роль</option>
+          </select>
+          <p class="hint">Если не указано, бот заберёт все предыдущие ранговые роли автоматически.</p>
+        </div>
+      </div>
+      <div class="modal__footer" style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn--secondary btn--sm" id="cancelRankRoleBtn">Отмена</button>
+        <button class="btn btn--primary btn--sm" id="saveRankRoleBtn">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
   </main>
 
   <!-- Toast-уведомление -->
@@ -741,7 +775,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2024 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.5.7</span>
+        <span class="footer__version">v0.5.8</span>
       </div>
     </div>
   </footer>

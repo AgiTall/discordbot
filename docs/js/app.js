@@ -358,6 +358,16 @@ function setupDashboardUi(settings) {
 
   hideSkeletonLoader();
   applySettingsToForm(settings);
+  
+  // Предзагрузка ролей сервера для UI
+  if (authState.selectedGuildId) {
+    guildRolesCache = [];
+    fetchGuildRoles(authState.selectedGuildId).then(() => {
+      initRankRoleEditor(settings);
+    });
+  } else {
+    initRankRoleEditor(settings);
+  }
 
   function activateSection(target) {
     sections.forEach(s => s.classList.toggle('active', s.id === target));
@@ -432,7 +442,6 @@ function setupDashboardUi(settings) {
   // Трекинг изменений запускаем после применения настроек
   setTimeout(trackChanges, 100);
 
-  initRankRoleEditor(settings);
   updateEconomySection(settings);
 }
 
@@ -583,9 +592,10 @@ function collectFormData() {
   // Ранговые роли — собираем из карточек
   const roles = [];
   document.querySelectorAll('.rank-role-card').forEach(card => {
-    const lvl  = card.querySelector('[data-field="level"]')?.value?.trim();
-    const role = card.querySelector('[data-field="role"]')?.value?.trim();
-    if (lvl && role) roles.push({ level: lvl, role });
+    const lvl  = card.dataset.level || card.querySelector('[data-field="level"]')?.value?.trim();
+    const role = card.dataset.role;
+    const removeRole = card.dataset.removeRole || '';
+    if (lvl && role) roles.push({ level: lvl, role, removeRole });
   });
   data.rankRoles = roles;
 
@@ -691,74 +701,88 @@ function validateDuplicateLevels() {
   });
 }
 
-function addRankRoleCard(list, level = '', role = '') {
-  // Убираем пустое состояние если оно есть
+function getRoleName(roleId) {
+  const role = guildRolesCache.find(r => String(r.id) === String(roleId));
+  return role ? role.name : roleId;
+}
+
+function getRoleColor(roleId) {
+  const role = guildRolesCache.find(r => String(r.id) === String(roleId));
+  return role ? role.color : '#99aab5';
+}
+
+function addRankRoleCard(list, level = '', roleId = '', removeRoleId = '') {
   const empty = list.querySelector('.rank-roles-empty');
   if (empty) empty.remove();
 
   const card = document.createElement('div');
   card.className = 'rank-role-card';
+  card.dataset.level = level;
+  card.dataset.role = roleId;
+  card.dataset.removeRole = removeRoleId;
+  
+  const roleName = roleId ? getRoleName(roleId) : 'Выберите роль';
+  const roleColor = roleId ? getRoleColor(roleId) : '#fff';
+  const removeRoleName = removeRoleId ? getRoleName(removeRoleId) : 'Авто-удаление старых';
+
   card.innerHTML = `
     <div class="rank-role-card__level">
-      <input
-        class="rank-role-card__level-badge form-control"
-        type="number" min="1" max="999"
-        placeholder="Ур."
-        data-field="level"
-        value="${level}"
-        aria-label="Уровень"
-      >
+      <div class="rank-role-card__level-badge form-control" style="cursor:default">${level}</div>
       <div class="rank-role-card__xp-hint">${xpHintHtml(level)}</div>
     </div>
     <div class="rank-role-card__role">
-      <label>ID роли Discord</label>
-      <input
-        class="form-control"
-        type="text"
-        placeholder="123456789012345678"
-        data-field="role"
-        value="${role}"
-        aria-label="ID роли Discord"
-      >
+      <label>Выдаётся роль</label>
+      <div style="padding: 6px 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 4px; display: flex; align-items: center; gap: 8px;">
+        <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:${roleColor}"></span>
+        <span style="font-family:'Helvetica Neue', sans-serif; font-size:0.85rem">${roleName}</span>
+      </div>
+      <label style="margin-top: 8px;">Изымается роль</label>
+      <div style="padding: 4px 12px; background: rgba(0,0,0,0.1); border: 1px solid var(--border); border-radius: 4px; font-family:'Helvetica Neue', sans-serif; font-size:0.75rem; color:var(--text-muted)">
+        ${removeRoleName}
+      </div>
       <div class="rank-role-card__error"></div>
     </div>
-    <button class="rank-role-card__remove" title="Удалить" aria-label="Удалить строку">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="3 6 5 6 21 6"/>
-        <path d="M19 6l-1 14H6L5 6"/>
-        <path d="M10 11v6M14 11v6"/>
-      </svg>
-    </button>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <button class="rank-role-card__remove" title="Редактировать" aria-label="Редактировать строку" onclick="editRankRoleCard(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+      </button>
+      <button class="rank-role-card__remove" title="Удалить" aria-label="Удалить строку" onclick="removeRankRoleCard(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14H6L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+      </button>
+    </div>
   `;
-
-  // Обновляем XP-подсказку при вводе уровня
-  const lvlInput  = card.querySelector('[data-field="level"]');
-  const xpHintEl  = card.querySelector('.rank-role-card__xp-hint');
-  lvlInput.addEventListener('input', () => {
-    xpHintEl.innerHTML = xpHintHtml(lvlInput.value);
-    validateDuplicateLevels();
-    setUnsaved(true);
-  });
-  card.querySelector('[data-field="role"]').addEventListener('input', () => setUnsaved(true));
-
-  // Удаление
-  card.querySelector('.rank-role-card__remove').addEventListener('click', () => {
-    card.style.opacity = '0';
-    card.style.transform = 'translateX(12px)';
-    card.style.transition = 'opacity 0.15s, transform 0.15s';
-    setTimeout(() => {
-      card.remove();
-      updateRankRolesCount();
-      validateDuplicateLevels();
-      showEmptyStateIfNeeded(list);
-      setUnsaved(true);
-    }, 150);
-  });
 
   list.appendChild(card);
   updateRankRolesCount();
   validateDuplicateLevels();
 }
+
+window.removeRankRoleCard = function(btn) {
+  const card = btn.closest('.rank-role-card');
+  card.style.opacity = '0';
+  card.style.transform = 'translateX(12px)';
+  card.style.transition = 'opacity 0.15s, transform 0.15s';
+  setTimeout(() => {
+    const list = card.parentNode;
+    card.remove();
+    updateRankRolesCount();
+    validateDuplicateLevels();
+    showEmptyStateIfNeeded(list);
+    setUnsaved(true);
+  }, 150);
+};
+
+window.editRankRoleCard = function(btn) {
+  const card = btn.closest('.rank-role-card');
+  openRankRoleModal(card);
+};
 
 function showEmptyStateIfNeeded(list) {
   if (list.querySelectorAll('.rank-role-card').length === 0) {
@@ -796,7 +820,7 @@ function initRankRoleEditor(settings) {
   list.innerHTML = '';
   const saved = settings?.rankRoles || [];
   if (saved.length) {
-    saved.forEach(entry => addRankRoleCard(list, entry.level, entry.role));
+    saved.forEach(entry => addRankRoleCard(list, entry.level, entry.role, entry.removeRole));
   } else {
     showEmptyStateIfNeeded(list);
   }
@@ -805,9 +829,7 @@ function initRankRoleEditor(settings) {
   const newAddBtn = addBtn.cloneNode(true);
   addBtn.parentNode.replaceChild(newAddBtn, addBtn);
   newAddBtn.addEventListener('click', () => {
-    list.querySelector('.rank-roles-empty')?.remove();
-    addRankRoleCard(list);
-    setUnsaved(true);
+    openRankRoleModal();
   });
 
   // Шаблоны
@@ -839,6 +861,106 @@ function initRankRoleEditor(settings) {
     });
   }
 }
+
+// =============================================
+// MODAL LOGIC FOR RANK ROLES
+// =============================================
+let guildRolesCache = [];
+let guildRolesLoading = false;
+
+async function fetchGuildRoles(guildId) {
+  if (guildRolesCache.length) return guildRolesCache;
+  if (guildRolesLoading) return []; 
+  guildRolesLoading = true;
+  try {
+    const res = await fetch(`/api/guilds/${guildId}/roles`);
+    if (res.ok) {
+      guildRolesCache = await res.json();
+    }
+  } catch(e) {
+    console.error('Failed to fetch guild roles:', e);
+  }
+  guildRolesLoading = false;
+  return guildRolesCache;
+}
+
+let editingRankRoleCard = null;
+
+async function openRankRoleModal(card = null) {
+  const modal = document.getElementById('rankRoleModal');
+  if (!modal) return;
+  
+  editingRankRoleCard = card;
+  const modalTitle = document.getElementById('rankRoleModalTitle');
+  const levelInput = document.getElementById('modalRankLevel');
+  const roleSelect = document.getElementById('modalRankRoleSelect');
+  const removeRoleSelect = document.getElementById('modalRemoveRoleSelect');
+  
+  modalTitle.textContent = card ? 'Редактировать роль' : 'Добавить ранговую роль';
+  
+  if (card) {
+    levelInput.value = card.dataset.level || '';
+  } else {
+    levelInput.value = '';
+  }
+  
+  // Show modal immediately with loading state
+  roleSelect.innerHTML = '<option value="">Загрузка ролей...</option>';
+  removeRoleSelect.innerHTML = '<option value="">Загрузка ролей...</option>';
+  modal.removeAttribute('hidden');
+  
+  const roles = await fetchGuildRoles(authState.selectedGuildId);
+  
+  roleSelect.innerHTML = '<option value="">Выберите роль...</option>';
+  removeRoleSelect.innerHTML = '<option value="">Не забирать конкретную роль</option>';
+  
+  roles.forEach(r => {
+    roleSelect.innerHTML += `<option value="${r.id}" style="color:${r.color}">${r.name}</option>`;
+    removeRoleSelect.innerHTML += `<option value="${r.id}" style="color:${r.color}">${r.name}</option>`;
+  });
+  
+  if (card) {
+    roleSelect.value = card.dataset.role || '';
+    removeRoleSelect.value = card.dataset.removeRole || '';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const modal = document.getElementById('rankRoleModal');
+  const closeBtn = document.getElementById('closeRankRoleModalBtn');
+  const cancelBtn = document.getElementById('cancelRankRoleBtn');
+  const saveBtn = document.getElementById('saveRankRoleBtn');
+  
+  function closeModal() {
+    if (modal) modal.setAttribute('hidden', '');
+  }
+  
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+  
+  saveBtn?.addEventListener('click', () => {
+    const level = document.getElementById('modalRankLevel').value.trim();
+    const roleId = document.getElementById('modalRankRoleSelect').value;
+    const removeRoleId = document.getElementById('modalRemoveRoleSelect').value;
+    
+    if (!level || !roleId) {
+      alert('Укажите требуемый уровень и выберите роль!');
+      return;
+    }
+    
+    const list = document.getElementById('rankRolesList');
+    
+    if (editingRankRoleCard) {
+      editingRankRoleCard.remove();
+      addRankRoleCard(list, level, roleId, removeRoleId);
+    } else {
+      addRankRoleCard(list, level, roleId, removeRoleId);
+    }
+    
+    setUnsaved(true);
+    closeModal();
+  });
+});
 
 // =============================================
 // КОМАНДЫ — поиск и фильтры
