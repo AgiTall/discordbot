@@ -1,63 +1,35 @@
 import re
 import sys
 import os
+import json
 
-FILES_TO_UPDATE = [
-    "bot.py",
-    "src/web_routes.py",
-    "docs/commands.html",
-    "docs/dashboard.html",
-    "docs/index.html",
-    "docs/levels.html"
-]
-
-def bump_version(bump_type="patch"):
-    # Читаем текущую версию из bot.py (или config.json если есть)
-    bot_code = ""
+def get_current_version():
     try:
-        with open("bot.py", "r", encoding="utf-8") as f:
-            bot_code = f.read()
+        with open("config.json", "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+            # Remove leading 'v' if present
+            v = cfg.get("version", "v0.5.8.1")
+            return v.lstrip("v")
     except Exception:
-        pass
+        return "0.5.8.1"
 
-    match = re.search(r'BOT_VERSION = "v(\d+)\.(\d+)\.(\d+)"', bot_code)
-    if not match:
-        print("Ошибка: Не удалось найти BOT_VERSION в bot.py")
-        return
-        
-    major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
-    current_version = f"{major}.{minor}.{patch}"
+def set_version(new_version):
+    current_version = get_current_version()
     print(f"Текущая версия: {current_version}")
-
-    # Вычисляем новую версию
-    if bump_type == "major":
-        major += 1
-        minor = 0
-        patch = 0
-    elif bump_type == "minor":
-        minor += 1
-        patch = 0
-    elif bump_type == "patch":
-        patch += 1
-    else:
-        print("Неизвестный тип обновления. Используйте: major, minor или patch.")
-        return
-
-    new_version = f"{major}.{minor}.{patch}"
     print(f"Новая версия: {new_version}")
-    
-    # Регулярные выражения для каждого файла
-    patterns = {
-        "bot.py": (rf'BOT_VERSION = "v{current_version}"', f'BOT_VERSION = "v{new_version}"'),
-        "src/web_routes.py": (rf'0\.5\.\d+', new_version),  # Обновляем версию в User-Agent
-        "docs/commands.html": (rf'v{current_version}', f'v{new_version}'),
-        "docs/dashboard.html": (rf'v{current_version}', f'v{new_version}'),
-        "docs/index.html": (rf'v{current_version}', f'v{new_version}'),
-        "docs/levels.html": (rf'v{current_version}', f'v{new_version}')
-    }
 
-    # Заменяем версию во всех файлах
-    for filepath in FILES_TO_UPDATE:
+    # Список файлов для обновления (добавлен dashboard.html, так как он есть в корне)
+    files_to_update = [
+        "src/web_routes.py",
+        "docs/commands.html",
+        "docs/dashboard.html",
+        "docs/index.html",
+        "docs/levels.html",
+        "dashboard.html",
+        "config.json"
+    ]
+
+    for filepath in files_to_update:
         if not os.path.exists(filepath):
             print(f"Файл {filepath} не найден, пропускаем...")
             continue
@@ -65,36 +37,24 @@ def bump_version(bump_type="patch"):
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
             
-        if filepath == "src/web_routes.py":
-            # В web_routes.py мы ищем именно строку User-Agent
-            content = re.sub(rf'pchev\.me, {current_version}', f'pchev.me, {new_version}', content)
-        else:
-            old_str, new_str = patterns[filepath]
-            content = content.replace(old_str, new_str)
+        # Простая замена старой версии на новую по всему файлу
+        content = content.replace(f"v{current_version}", f"v{new_version}")
+        content = content.replace(current_version, new_version)
             
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
             
         print(f"Обновлен файл: {filepath}")
 
-    print(f"Успех! Все файлы обновлены до версии {new_version}")
-
-    # Обновляем config.json version
-    try:
-        import json
-        cfg_path = "config.json"
-        if os.path.exists(cfg_path):
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        else:
-            cfg = {}
-        cfg["version"] = f"v{new_version}"
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
-        print("Обновлено config.json")
-    except Exception as e:
-        print(f"Не удалось обновить config.json: {e}")
+    print(f"Успех! Версия изменена с {current_version} на {new_version} везде.")
 
 if __name__ == "__main__":
-    b_type = sys.argv[1].lower() if len(sys.argv) > 1 else "patch"
-    bump_version(b_type)
+    if len(sys.argv) < 2:
+        print("Использование: python bump_version.py <новая_версия>")
+        print("Например: python bump_version.py 0.5.9")
+        sys.exit(1)
+        
+    new_version = sys.argv[1]
+    # Remove leading 'v' if user typed it
+    new_version = new_version.lstrip("v")
+    set_version(new_version)
