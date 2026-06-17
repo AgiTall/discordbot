@@ -1,6 +1,21 @@
 import os
 import logging
 
+# Загружаем .env ДО всех остальных импортов, чтобы переменные были доступны
+# при инициализации модулей (например, web_routes считывает DISCORD_CLIENT_ID на уровне модуля)
+def _bootstrap_load_env(env_file=".env"):
+    if not os.path.exists(env_file):
+        return
+    with open(env_file, "r", encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _key, _value = _line.split("=", 1)
+            os.environ[_key.strip()] = _value.strip().strip('"').strip("'")
+
+_bootstrap_load_env()
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 import json
 import sqlite3
@@ -563,7 +578,7 @@ def load_env_file():
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip().strip('"').strip("'")
-            os.environ.setdefault(key, value)
+            os.environ[key] = value
 
 
 def today_iso():
