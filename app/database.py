@@ -38,6 +38,12 @@ class Base(AsyncAttrs, DeclarativeBase):
     """Base class for all ORM models."""
     pass
 
+# Import models to ensure they are registered with Base.metadata
+from app.models.guild import Guild
+from app.models.guild_settings import GuildSettings
+from app.models.user import User
+from app.models.gang import Gang, GangMember
+
 
 async def init_db() -> None:
     """Create all tables (for development only; use Alembic in production)."""

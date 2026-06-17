@@ -44,7 +44,32 @@ async def get_all_settings(
     guild = await guild_service.get_or_create_guild(db, guild_id)
     all_settings = await guild_service.get_all_settings(db, guild)
 
-    return AllSettingsResponse(guild_id=guild_id, settings=all_settings)
+    # Flatten categories for frontend backwards-compatibility
+    flat_settings = {}
+    for cat_data in all_settings.values():
+        flat_settings.update(cat_data)
+
+    return AllSettingsResponse(guild_id=guild_id, settings=flat_settings)
+
+@router.put("/{guild_id}/settings")
+async def update_all_settings(
+    guild_id: str,
+    body: SettingsUpdate,
+    request: Request,
+    user: CurrentUser,
+    db: DbSession,
+):
+    """Update all settings from a flat dictionary."""
+    await require_guild_access(guild_id, user)
+    _ensure_bot_in_guild(request, guild_id)
+
+    guild = await guild_service.get_or_create_guild(db, guild_id)
+    
+    # We update all categories with the payload (the service should ignore irrelevant keys)
+    for category in VALID_CATEGORIES:
+        await guild_service.update_category_settings(db, guild, category, body.data)
+
+    return {"status": "ok"}
 
 
 @router.get("/{guild_id}/settings/{category}", response_model=SettingsCategoryResponse)

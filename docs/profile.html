@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="Личный кабинет Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — просмотр вашей банды, роли и характеристик.">
+  <title>Личный кабинет — Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+</head>
+
+<body>
+
+  <!-- ── НАВИГАЦИЯ ── -->
+  <nav class="navbar" role="navigation" aria-label="Главная навигация">
+    <div class="navbar__inner">
+      <a href="index.html" class="navbar__logo">
+        <img src="img/avatar.png" alt="Пчев WildWest RPG">
+        Пчев WildWest RPG
+        <span class="navbar__badge">v0.5.9</span>
+      </a>
+      <ul class="navbar__links" role="list">
+        <li><a href="index.html">Главная</a></li>
+        <li><a href="commands.html">Команды</a></li>
+        <li><a href="dashboard.html">Настройки</a></li>
+        <li><a href="levels.html">Уровни</a></li>
+        <li><a href="profile.html" class="active">Профиль</a></li>
+      </ul>
+      <div class="navbar__cta" id="navbarAuth">
+        <button class="btn btn--sm" data-action="invite">Добавить бота</button>
+      </div>
+      <button class="hamburger" id="hamburgerBtn" aria-label="Меню"><span></span><span></span><span></span></button>
+    </div>
+  </nav>
+
+  <!-- ── CONTENT ── -->
+  <main class="page-wrapper page-wrapper--padded">
+    <div class="page-hero">
+      <div class="container">
+        <div class="section-header__eyebrow">Игрок</div>
+        <h1 id="dashboardTitle">Личный кабинет</h1>
+        <p id="dashboardSubtitle">Информация о вашей банде и роли на выбранном сервере.</p>
+      </div>
+    </div>
+
+    <section class="section section--sm">
+      <div class="container">
+
+        <!-- Экран входа -->
+        <div id="authGate" class="auth-gate card">
+          <div class="auth-gate__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <h2>Войдите через Discord</h2>
+          <p>Авторизуйтесь, чтобы посмотреть свой профиль игрока и банду.</p>
+          <a href="/auth/discord" class="btn btn--discord" id="discordLoginBtn">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.1.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03z" />
+            </svg>
+            Войти через Discord
+          </a>
+        </div>
+
+        <!-- Выбор сервера -->
+        <div id="guildPicker" class="guild-picker" hidden>
+          <div class="guild-picker__header">
+            <div>
+              <h2>Выберите сервер</h2>
+              <p>Серверы, на которых вы играете (где добавлен бот).</p>
+            </div>
+            <div class="guild-picker__user" id="userBadge"></div>
+          </div>
+          <div class="guild-grid" id="guildGrid" role="list"></div>
+          <p id="guildPickerEmpty" class="guild-picker__empty" hidden>Нет доступных серверов. Зайдите на сервер с ботом.</p>
+        </div>
+
+        <div id="dashboardMain" hidden>
+          <div class="dashboard-toolbar">
+            <button class="btn btn--ghost btn--sm" id="changeGuildBtn">← Сменить сервер</button>
+            <div class="dashboard-toolbar__guild" id="currentGuildBadge"></div>
+            <button class="btn btn--ghost btn--sm" id="logoutBtn">Выйти</button>
+          </div>
+
+          <!-- СЕКЦИЯ: ПРОФИЛЬ -->
+          <div class="dash-section active" style="margin-top: 20px;">
+            <div class="dash-section__header">
+              <div class="dash-section__icon" aria-hidden="true">🤠</div>
+              <div class="dash-section__title">
+                <h2>Ваша Банда</h2>
+                <p>Информация о вашем отряде</p>
+              </div>
+            </div>
+
+            <div class="card" id="gangProfileCard">
+              <div class="rank-roles-empty" id="gangProfileLoading">Загрузка информации о банде...</div>
+              
+              <div id="gangProfileContent" hidden>
+                <h3 class="heading-md" id="myGangName" style="color:var(--gold);font-family:'ChineseRocks','Oswald',sans-serif;font-size:2rem;margin-bottom:4px">Название банды</h3>
+                <p style="color:var(--text-muted);margin-bottom:24px">Ваша роль: <strong id="myGangRole" style="color:var(--text)">Участник</strong></p>
+                
+                <div class="economy-grid">
+                  <div class="economy-stat">
+                    <div class="economy-stat__value" id="myGangBalance">$0</div>
+                    <div class="economy-stat__label">Общак банды</div>
+                  </div>
+                  <div class="economy-stat">
+                    <div class="economy-stat__value" id="myGangMembers">0</div>
+                    <div class="economy-stat__label">Участников</div>
+                  </div>
+                  <div class="economy-stat">
+                    <div class="economy-stat__value" id="myGangUpgrades">0</div>
+                    <div class="economy-stat__label">Улучшений лагеря</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+  
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer__inner">
+        <div>
+          <div class="footer__brand">
+            <img src="img/avatar.png" alt="Пчев WildWest RPG">
+            Пчев WildWest RPG
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script>
+    // Простая инициализация для страницы профиля, переиспользуя функции authState
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Это часть логики `initDashboardAuth` но адаптированная для профиля
+      await fetchAuthData();
+      
+      const gate = document.getElementById('authGate');
+      const picker = document.getElementById('guildPicker');
+      const main = document.getElementById('dashboardMain');
+      const userBadge = document.getElementById('userBadge');
+      const grid = document.getElementById('guildGrid');
+      
+      if (!authState.authenticated) {
+        gate.removeAttribute('hidden');
+        picker.setAttribute('hidden', '');
+        main.setAttribute('hidden', '');
+        return;
+      }
+      
+      gate.setAttribute('hidden', '');
+      picker.removeAttribute('hidden');
+      
+      if (authState.user) {
+        userBadge.innerHTML = \`<img src="\${authState.user.avatar_url || 'img/avatar.png'}" alt="Avatar"> \${authState.user.username}\`;
+      }
+      
+      // Показываем сервера, где бот ПРИСУТСТВУЕТ (даже если юзер не админ)
+      const botGuilds = (authState.guilds || []).filter(g => g.bot_present);
+      
+      if (botGuilds.length === 0) {
+        document.getElementById('guildPickerEmpty').removeAttribute('hidden');
+      } else {
+        grid.innerHTML = botGuilds.map(g => \`
+          <button class="guild-card" onclick="selectProfileGuild('\${g.id}', '\${g.name.replace(/'/g, "\\'")}', '\${g.icon || ''}')">
+            <div class="guild-card__icon">
+              \${g.icon 
+                ? '<img src="https://cdn.discordapp.com/icons/' + g.id + '/' + g.icon + '.png" alt="Icon">'
+                : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg-secondary);color:var(--text);font-weight:bold">' + g.name.charAt(0) + '</div>'
+              }
+            </div>
+            <div class="guild-card__name">\${g.name}</div>
+          </button>
+        \`).join('');
+      }
+      
+      document.getElementById('changeGuildBtn')?.addEventListener('click', () => {
+        picker.removeAttribute('hidden');
+        main.setAttribute('hidden', '');
+      });
+      document.getElementById('logoutBtn')?.addEventListener('click', logout);
+    });
+
+    async function selectProfileGuild(id, name, icon) {
+      document.getElementById('guildPicker').setAttribute('hidden', '');
+      document.getElementById('dashboardMain').removeAttribute('hidden');
+      document.getElementById('currentGuildBadge').textContent = name;
+      
+      const loading = document.getElementById('gangProfileLoading');
+      const content = document.getElementById('gangProfileContent');
+      
+      loading.removeAttribute('hidden');
+      content.setAttribute('hidden', '');
+      
+      try {
+        const res = await fetch(\`/api/guilds/\${id}/me/gang\`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            loading.innerHTML = 'Вы не состоите ни в одной банде на этом сервере.<br><small style="font-weight:normal;color:var(--text-muted)">Используйте команду /gang create или попросите лидера другой банды пригласить вас.</small>';
+          } else {
+            throw new Error('Ошибка при загрузке банды');
+          }
+          return;
+        }
+        
+        const data = await res.json();
+        
+        document.getElementById('myGangName').textContent = data.gang.name;
+        document.getElementById('myGangRole').textContent = data.my_role === 'leader' ? 'Лидер (Глава)' : 'Участник';
+        document.getElementById('myGangBalance').textContent = '$' + data.gang.balance.toLocaleString('ru-RU');
+        document.getElementById('myGangMembers').textContent = data.gang.member_count;
+        document.getElementById('myGangUpgrades').textContent = Object.keys(data.gang.camp_upgrades).length;
+        
+        loading.setAttribute('hidden', '');
+        content.removeAttribute('hidden');
+        
+      } catch (err) {
+        loading.innerHTML = \`<span style="color:var(--red)">\${err.message}</span>\`;
+      }
+    }
+  </script>
+</body>
+</html>

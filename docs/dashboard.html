@@ -27,6 +27,7 @@
         <li><a href="commands.html">Команды</a></li>
         <li><a href="dashboard.html" class="active">Настройки</a></li>
         <li><a href="levels.html">Уровни</a></li>
+        <li><a href="profile.html">Профиль</a></li>
       </ul>
       <div class="navbar__cta" id="navbarAuth">
         <button class="btn btn--sm" data-action="invite">Добавить бота</button>
@@ -40,6 +41,7 @@
     <a href="commands.html">Команды</a>
     <a href="dashboard.html">Настройки</a>
     <a href="levels.html">Уровни</a>
+    <a href="profile.html">Профиль</a>
     <button class="btn btn--sm" data-action="invite" style="margin-top:8px;align-self:flex-start">Добавить бота</button>
   </nav>
 
@@ -179,6 +181,17 @@
                       Экономика
                     </a>
                   </li>
+                  <li class="sidebar-nav__item">
+                    <a href="#" data-section="gangs" id="sidebarGangs">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 00-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 010 7.75"></path>
+                      </svg>
+                      Банды
+                    </a>
+                  </li>
                 </ul>
               </nav>
 
@@ -231,15 +244,17 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="newsChannelId">ID канала новостей</label>
-                      <input class="form-control" type="text" id="newsChannelId" data-setting="newsChannelId"
-                        placeholder="Например: 123456789012345678">
+                      <select class="form-control form-control--select" id="newsChannelId" data-setting="newsChannelId">
+                        <option value="">Загрузка каналов...</option>
+                      </select>
                       <p class="hint">Канал, в который бот публикует анонсы и новости. Настраивается командой
                         <code>/set-channel</code>.</p>
                     </div>
                     <div class="form-group">
                       <label for="treasureChannelId">ID канала карт сокровищ</label>
-                      <input class="form-control" type="text" id="treasureChannelId" data-setting="treasureChannelId"
-                        placeholder="Например: 123456789012345679">
+                      <select class="form-control form-control--select" id="treasureChannelId" data-setting="treasureChannelId">
+                        <option value="">Загрузка каналов...</option>
+                      </select>
                       <p class="hint">Канал для ежедневной раздачи карт сокровищ в 12:00 МСК.</p>
                     </div>
                   </div>
@@ -250,8 +265,9 @@
                   <div class="form-grid form-grid--single">
                     <div class="form-group">
                       <label for="threadChannelIds">ID каналов для автотредов (через запятую)</label>
-                      <input class="form-control" type="text" id="threadChannelIds" data-setting="threadChannelIds"
-                        placeholder="111..., 222...">
+                      <select multiple class="form-control form-control--select" id="threadChannelIds" data-setting="threadChannelIds" style="height: 120px;">
+                        <option value="">Загрузка каналов...</option>
+                      </select>
                       <p class="hint">Каналы, где бот автоматически создаёт треды к новым сообщениям. Команды:
                         <code>/threads-on</code> и <code>/threads-off</code>.</p>
                     </div>
@@ -263,8 +279,9 @@
                   <div class="form-grid form-grid--single">
                     <div class="form-group">
                       <label for="commandChannelIds">ID каналов для команд (через запятую)</label>
-                      <input class="form-control" type="text" id="commandChannelIds" data-setting="commandChannelIds"
-                        placeholder="111..., 222..., 333...">
+                      <select multiple class="form-control form-control--select" id="commandChannelIds" data-setting="commandChannelIds" style="height: 120px;">
+                        <option value="">Загрузка каналов...</option>
+                      </select>
                       <p class="hint">Каналы, где разрешены команды игроков. Добавить:
                         <code>/command-chat #канал</code>. Удалить: <code>/command-chat #канал remove:True</code>.</p>
                     </div>
@@ -298,8 +315,9 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="levelupChannelId">ID канала уведомлений</label>
-                      <input class="form-control" type="text" id="levelupChannelId" data-setting="levelupChannelId"
-                        placeholder="Например: 123456789012345680">
+                      <select class="form-control form-control--select" id="levelupChannelId" data-setting="levelupChannelId">
+                        <option value="">Загрузка каналов...</option>
+                      </select>
                       <p class="hint">Настройте командой <code>/set-levelup-channel #канал</code>.</p>
                     </div>
                   </div>
@@ -515,8 +533,9 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="welcomeChannelId">ID канала приветствий</label>
-                      <input class="form-control" type="text" id="welcomeChannelId" data-setting="welcomeChannelId"
-                        placeholder="Например: 123456789012345681">
+                      <select class="form-control form-control--select" id="welcomeChannelId" data-setting="welcomeChannelId">
+                        <option value="">Загрузка каналов...</option>
+                      </select>
                     </div>
                     <div class="form-group">
                       <label for="welcomeRoleId">ID роли для новичков</label>
@@ -568,8 +587,9 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="logsChannelId">ID канала логов</label>
-                      <input class="form-control" type="text" id="logsChannelId" data-setting="logsChannelId"
-                        placeholder="Например: 123456789012345683">
+                      <select class="form-control form-control--select" id="logsChannelId" data-setting="logsChannelId">
+                        <option value="">Загрузка каналов...</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -700,6 +720,43 @@
                 </div>
               </div>
 
+              <!-- ════════════ СЕКЦИЯ: БАНДЫ ════════════ -->
+              <div class="dash-section" id="gangs" aria-labelledby="gangsHeading">
+                <div class="dash-section__header">
+                  <div class="dash-section__icon" aria-hidden="true">🔫</div>
+                  <div class="dash-section__title">
+                    <h2 id="gangsHeading">Управление бандами</h2>
+                    <p>Список созданных банд сервера, их баланс и состав</p>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:12px">
+                    <h3 class="heading-sm">Все банды сервера</h3>
+                    <button class="btn btn--secondary btn--sm" onclick="fetchAndRenderGangs()">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                      </svg>
+                      Обновить
+                    </button>
+                  </div>
+
+                  <div style="display:grid;grid-template-columns:1fr 100px 100px 80px;gap:12px;padding:0 16px 8px;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--text-muted);font-family:'Oswald',sans-serif">
+                    <span>Название</span>
+                    <span>Участников</span>
+                    <span>Общак</span>
+                    <span>Действия</span>
+                  </div>
+
+                  <div id="gangsAdminList" aria-label="Список банд">
+                    <div class="rank-roles-empty">
+                      Загрузка банд...
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div><!-- /dashboard-content -->
           </div><!-- /dashboard-layout -->
         </div><!-- /dashboardMain -->
@@ -779,6 +836,18 @@
       </div>
     </div>
   </footer>
+
+  <!-- =============================================
+     COOKIE BANNER
+     ============================================= -->
+  <div id="cookieBanner" class="cookie-banner" hidden>
+    <div class="cookie-banner__content">
+      <p>Этот сайт использует файлы cookie для авторизации через Discord и сохранения ваших настроек.</p>
+    </div>
+    <div class="cookie-banner__actions">
+      <button class="btn btn--primary btn--sm" id="cookieAcceptBtn">Принять</button>
+    </div>
+  </div>
 
   <script src="js/app.js"></script>
 </body>

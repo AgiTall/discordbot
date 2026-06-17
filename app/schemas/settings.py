@@ -23,4 +23,4 @@ class SettingsCategoryResponse(BaseModel):
 class AllSettingsResponse(BaseModel):
     """Response containing all categories."""
     guild_id: str
-    settings: dict[str, dict[str, Any]]
+    settings: dict[str, Any]

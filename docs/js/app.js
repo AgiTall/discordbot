@@ -359,13 +359,20 @@ function setupDashboardUi(settings) {
   hideSkeletonLoader();
   applySettingsToForm(settings);
   
-  // Предзагрузка ролей сервера для UI
+  // Предзагрузка каналов и ролей сервера для UI
   if (authState.selectedGuildId) {
     guildRolesCache = [];
-    fetchGuildRoles(authState.selectedGuildId).then(() => {
+    guildChannelsCache = [];
+    Promise.all([
+      fetchGuildRoles(authState.selectedGuildId),
+      fetchGuildChannels(authState.selectedGuildId)
+    ]).then(([roles, channels]) => {
+      populateChannelSelects(channels);
+      applySettingsToForm(settings); // Применяем настройки после загрузки каналов
       initRankRoleEditor(settings);
     });
   } else {
+    applySettingsToForm(settings);
     initRankRoleEditor(settings);
   }
 
@@ -443,6 +450,9 @@ function setupDashboardUi(settings) {
   setTimeout(trackChanges, 100);
 
   updateEconomySection(settings);
+  if (authState.selectedGuildId) {
+    fetchAndRenderGangs();
+  }
 }
 
 function initSidebarMobileToggle() {
@@ -584,6 +594,9 @@ function collectFormData() {
     const key = el.dataset.setting;
     if (el.type === 'checkbox') {
       data[key] = el.checked;
+    } else if (el.type === 'select-multiple') {
+      const selected = Array.from(el.options).filter(opt => opt.selected).map(opt => opt.value);
+      data[key] = selected.join(', ');
     } else {
       data[key] = el.value;
     }
@@ -610,6 +623,11 @@ function applySettingsToForm(settings) {
     if (!el) return;
     if (el.type === 'checkbox') {
       el.checked = Boolean(val);
+    } else if (el.type === 'select-multiple') {
+      const values = (val || '').split(',').map(s => s.trim());
+      Array.from(el.options).forEach(opt => {
+        opt.selected = values.includes(opt.value);
+      });
     } else {
       el.value = val ?? '';
     }
@@ -867,6 +885,48 @@ function initRankRoleEditor(settings) {
 // =============================================
 let guildRolesCache = [];
 let guildRolesLoading = false;
+let guildChannelsCache = [];
+let guildChannelsLoading = false;
+
+async function fetchGuildChannels(guildId) {
+  if (guildChannelsCache.length) return guildChannelsCache;
+  if (guildChannelsLoading) return [];
+  guildChannelsLoading = true;
+  try {
+    const res = await fetch(`/api/guilds/${guildId}/channels`);
+    if (res.ok) {
+      guildChannelsCache = await res.json();
+    }
+  } catch(e) {
+    console.error('Failed to fetch guild channels:', e);
+  }
+  guildChannelsLoading = false;
+  return guildChannelsCache;
+}
+
+function populateChannelSelects(channels) {
+  const selectIds = [
+    'newsChannelId', 'treasureChannelId', 'threadChannelIds',
+    'commandChannelIds', 'levelupChannelId', 'welcomeChannelId', 'logsChannelId'
+  ];
+  
+  const optionsHtml = '<option value="">-- Выберите канал --</option>' + 
+    channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
+  const optionsHtmlMultiple = channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
+
+  selectIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      if (el.type === 'select-multiple') {
+        el.innerHTML = optionsHtmlMultiple;
+      } else {
+        el.innerHTML = optionsHtml;
+      }
+    }
+  });
+}
+
+let guildRolesLoadingFlag = false; // renamed to avoid duplicate with old state
 
 async function fetchGuildRoles(guildId) {
   if (guildRolesCache.length) return guildRolesCache;
@@ -1096,6 +1156,113 @@ function initScrollAnimations() {
 }
 
 // =============================================
+// GANGS DASHBOARD LOGIC
+// =============================================
+async function fetchAndRenderGangs() {
+  const container = document.getElementById('gangsAdminList');
+  if (!container || !authState.selectedGuildId) return;
+
+  container.innerHTML = '<div class="rank-roles-empty">Загрузка банд...</div>';
+
+  try {
+    const res = await fetch(`/api/guilds/${authState.selectedGuildId}/gangs`);
+    if (!res.ok) throw new Error('Ошибка загрузки');
+    const gangs = await res.json();
+
+    if (!gangs || gangs.length === 0) {
+      container.innerHTML = '<div class="rank-roles-empty">На сервере пока нет ни одной банды.</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    gangs.forEach(gang => {
+      const card = document.createElement('div');
+      card.style.display = 'grid';
+      card.style.gridTemplateColumns = '1fr 100px 100px 80px';
+      card.style.gap = '12px';
+      card.style.alignItems = 'center';
+      card.style.background = 'var(--bg-card)';
+      card.style.border = '1px solid var(--border)';
+      card.style.padding = '12px 16px';
+      card.style.borderRadius = 'var(--radius)';
+      card.style.marginBottom = '8px';
+
+      card.innerHTML = `
+        <div style="font-weight:600;color:var(--text);font-size:0.95rem;">
+          ${gang.name}
+          <div style="font-size:0.75rem;color:var(--text-muted);font-weight:400;margin-top:2px;">Улучшения: ${Object.keys(gang.camp_upgrades).length}</div>
+        </div>
+        <div style="font-size:0.9rem;color:var(--text);font-variant-numeric: tabular-nums;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;color:var(--text-muted)"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 00-3-3.87"></path><path d="M16 3.13a4 4 0 010 7.75"></path></svg>
+          ${gang.member_count}
+        </div>
+        <div style="font-size:0.9rem;color:var(--gold);font-family:'ChineseRocks','Oswald',sans-serif;letter-spacing:0.05em">
+          $${gang.balance.toLocaleString('ru-RU')}
+        </div>
+        <div style="display:flex;gap:6px;justify-content:flex-end;">
+          <button class="btn btn--secondary btn--sm" style="padding:6px;color:var(--red);border-color:rgba(211,47,47,0.3);background:transparent;" onclick="deleteGang(${gang.id}, '${gang.name.replace(/'/g, "\\'")}')" title="Удалить банду">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" width="16" height="16">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+
+  } catch (err) {
+    container.innerHTML = `<div class="rank-roles-empty" style="color:var(--red)">Ошибка: ${err.message}</div>`;
+  }
+}
+
+window.fetchAndRenderGangs = fetchAndRenderGangs;
+
+window.deleteGang = async function(gangId, gangName) {
+  if (!confirm(`Вы действительно хотите удалить банду "${gangName}"?\nЭто действие нельзя отменить!`)) return;
+
+  try {
+    const res = await fetch(`/api/guilds/${authState.selectedGuildId}/gangs/${gangId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Ошибка при удалении');
+    
+    // Перезагрузить список
+    fetchAndRenderGangs();
+    const toast = document.getElementById('toast');
+    if (toast) showToast(toast, 'Банда успешно удалена');
+  } catch (err) {
+    alert('Ошибка: ' + err.message);
+  }
+};
+
+
+// =============================================
+// COOKIE BANNER
+// =============================================
+function initCookieBanner() {
+  const banner = document.getElementById('cookieBanner');
+  const acceptBtn = document.getElementById('cookieAcceptBtn');
+  if (!banner || !acceptBtn) return;
+  
+  if (!localStorage.getItem('cookies_accepted')) {
+    setTimeout(() => {
+      banner.removeAttribute('hidden');
+      // небольшая задержка для анимации, если нужно
+      requestAnimationFrame(() => banner.classList.add('visible'));
+    }, 500);
+  }
+  
+  acceptBtn.addEventListener('click', () => {
+    localStorage.setItem('cookies_accepted', 'true');
+    banner.classList.remove('visible');
+    setTimeout(() => banner.setAttribute('hidden', ''), 400);
+  });
+}
+
+// =============================================
 // ИНИЦИАЛИЗАЦИЯ
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -1105,6 +1272,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCommandsPage();
   initDashboard();
   initLevelsPage();
+  initCookieBanner();
 
   requestAnimationFrame(() => initScrollAnimations());
 });

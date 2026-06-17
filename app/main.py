@@ -52,12 +52,13 @@ def create_app(bot=None) -> FastAPI:
     )
 
     # ── Routers ───────────────────────────────────────────────
-    from app.routers import auth, billing, guilds, settings as settings_router
+    from app.routers import auth, billing, guilds, settings as settings_router, gangs
 
     app.include_router(auth.router)
     app.include_router(guilds.router)
     app.include_router(settings_router.router)
     app.include_router(billing.router)
+    app.include_router(gangs.router)
 
     # ── Static files (dashboard + docs) ───────────────────────
     # Serve docs/ directory at root for the landing page and static assets
