@@ -1,5 +1,6 @@
 discord.py
 python-dotenv
+flask
 
 # ── FastAPI Backend ────────────────────────────────
 fastapi>=0.115
