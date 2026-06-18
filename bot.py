@@ -4795,6 +4795,17 @@ async def on_ready():
     global COMMANDS_SYNCED
 
     logging.info(f"Бот {bot.user.name} запущен!")
+    
+    # Установка статуса бота
+    try:
+        if hasattr(discord, "CustomActivity"):
+            activity = discord.CustomActivity(name=f"https://pchev.me/ {BOT_VERSION.lstrip('v')}")
+        else:
+            activity = discord.Activity(type=discord.ActivityType.custom, name=f"https://pchev.me/ {BOT_VERSION.lstrip('v')}")
+        await bot.change_presence(status=discord.Status.online, activity=activity)
+    except Exception as e:
+        logging.error(f"Не удалось установить статус: {e}")
+
     if not daily_treasure_map_event.is_running():
         daily_treasure_map_event.start()
     if not periodic_economy_save.is_running():

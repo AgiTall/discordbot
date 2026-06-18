@@ -70,20 +70,38 @@ async def get_guild_channels(
         from fastapi import HTTPException
         raise HTTPException(status_code=503, detail="Bot offline")
 
-    guild = bot.get_guild(int(guild_id))
+    try:
+        guild = bot.get_guild(int(guild_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid guild ID")
+
     if not guild:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Guild not found")
 
     channels = []
     for ch in guild.channels:
+        # discord.ChannelType.text == 0, voice == 2, category == 4, news == 5, forum == 15
+        try:
+            # Safely get type as integer
+            ctype = int(ch.type)
+        except Exception:
+            ctype = getattr(ch.type, 'value', 0)
+            
+        cname = None
+        if getattr(ch, "category", None):
+            # ch.category can be a CategoryChannel or potentially a string/int in odd API states
+            cname = getattr(ch.category, "name", str(ch.category))
+            
         channels.append(ChannelItem(
             id=str(ch.id),
-            name=ch.name,
-            type=ch.type.value,
-            category=ch.category.name if ch.category else None,
-            position=ch.position,
+            name=str(ch.name),
+            type=ctype,
+            category=cname,
+            position=getattr(ch, "position", 0),
         ))
 
-    channels.sort(key=lambda x: x.position)
+    # Optional: filter out category channels themselves from the dropdown if needed,
+    # but we'll return all channels and let the frontend show them.
+    channels.sort(key=lambda x: getattr(x, "position", 0))
     return channels
+
