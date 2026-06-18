@@ -7270,14 +7270,18 @@ async def on_voice_state_update(member, before, after):
 # Create a discussion thread for new posts in configured channels.
 @bot.event
 async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    await bot.process_commands(message)
-
-    guild_thread_channels = set()
+    token = None
     if message.guild:
-        guild_thread_channels = get_guild_thread_channel_ids(message.guild.id)
+        token = set_economy_guild_id(message.guild.id)
+    try:
+        if message.author == bot.user:
+            return
+
+        await bot.process_commands(message)
+
+        guild_thread_channels = set()
+        if message.guild:
+            guild_thread_channels = get_guild_thread_channel_ids(message.guild.id)
 
     if message.channel.id in guild_thread_channels or message.channel.id in active_channels:
         if not isinstance(message.channel, discord.Thread):

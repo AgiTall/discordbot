@@ -20,7 +20,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.5.9.1</span>
+        <span class="navbar__badge">v0.5.9.2</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -244,17 +244,13 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="newsChannelId">ID канала новостей</label>
-                      <select class="form-control form-control--select" id="newsChannelId" data-setting="news_channel_id">
-                        <option value="">Загрузка каналов...</option>
-                      </select>
+                      <input type="text" class="form-control" id="newsChannelId" data-setting="news_channel_id" list="channelDatalist" placeholder="Выберите канал или введите ID">
                       <p class="hint">Канал, в который бот публикует анонсы и новости. Настраивается командой
                         <code>/set-channel</code>.</p>
                     </div>
                     <div class="form-group">
                       <label for="treasureChannelId">ID канала для кладов</label>
-                      <select class="form-control form-control--select" id="treasureChannelId" data-setting="treasure_channel_id">
-                        <option value="">Загрузка каналов...</option>
-                      </select>
+                      <input type="text" class="form-control" id="treasureChannelId" data-setting="treasure_channel_id" list="channelDatalist" placeholder="Выберите канал или введите ID">
                       <p class="hint">Канал для ежедневной раздачи карт сокровищ в 12:00 МСК.</p>
                     </div>
                   </div>
@@ -265,9 +261,7 @@
                   <div class="form-grid form-grid--single">
                     <div class="form-group">
                       <label for="threadChannelIds">ID каналов для авто-тредов (через запятую)</label>
-                      <select multiple class="form-control form-control--select" id="threadChannelIds" data-setting="thread_channel_ids" style="height:120px">
-                        <option value="">Загрузка каналов...</option>
-                      </select>
+                      <input type="text" class="form-control" id="threadChannelIds" data-setting="thread_channel_ids" placeholder="Например: 12345678, 87654321">
                       <p class="hint">Каналы, где бот автоматически создаёт треды к новым сообщениям. Команды:
                         <code>/threads-on</code> и <code>/threads-off</code>.</p>
                     </div>
@@ -279,9 +273,7 @@
                   <div class="form-grid form-grid--single">
                     <div class="form-group">
                       <label for="commandChannelIds">ID каналов для команд (через запятую)</label>
-                      <select multiple class="form-control form-control--select" id="commandChannelIds" data-setting="command_channel_ids" style="height:120px">
-                        <option value="">Загрузка каналов...</option>
-                      </select>
+                      <input type="text" class="form-control" id="commandChannelIds" data-setting="command_channel_ids" placeholder="Например: 12345678, 87654321">
                       <p class="hint">Каналы, где разрешены команды игроков. Добавить:
                         <code>/command-chat #канал</code>. Удалить: <code>/command-chat #канал remove:True</code>.</p>
                     </div>
@@ -315,9 +307,7 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="levelupChannelId">Канал для уведомлений о новом уровне</label>
-                      <select class="form-control form-control--select" id="levelupChannelId" data-setting="levelup_channel_id">
-                        <option value="">Загрузка каналов...</option>
-                      </select>
+                      <input type="text" class="form-control" id="levelupChannelId" data-setting="levelup_channel_id" list="channelDatalist" placeholder="Выберите канал или введите ID">
                       <p class="hint">Настройте командой <code>/set-levelup-channel #канал</code>.</p>
                     </div>
                   </div>
@@ -533,9 +523,7 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="welcomeChannelId">Канал приветствий</label>
-                      <select class="form-control form-control--select" id="welcomeChannelId" data-setting="welcome_channel_id">
-                        <option value="">Загрузка каналов...</option>
-                      </select>
+                      <input type="text" class="form-control" id="welcomeChannelId" data-setting="welcome_channel_id" list="channelDatalist" placeholder="Выберите канал или введите ID">
                     </div>
                     <div class="form-group">
                       <label for="welcomeRoleId">ID роли для новичков</label>
@@ -587,9 +575,7 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="logsChannelId">ID канала логов</label>
-                      <select class="form-control form-control--select" id="logsChannelId" data-setting="logs_channel_id">
-                        <option value="">Загрузка каналов...</option>
-                      </select>
+                      <input type="text" class="form-control" id="logsChannelId" data-setting="logs_channel_id" list="channelDatalist" placeholder="Выберите канал или введите ID">
                     </div>
                   </div>
                 </div>
@@ -832,7 +818,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2024 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.5.9.1</span>
+        <span class="footer__version">v0.5.9.2</span>
       </div>
     </div>
   </footer>
@@ -851,5 +837,8 @@
 
   <script src="js/app.js"></script>
 </body>
+
+<!-- Datalist для каналов -->
+<datalist id="channelDatalist"></datalist>
 
 </html>

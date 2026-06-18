@@ -915,25 +915,10 @@ async function fetchGuildChannels(guildId) {
 }
 
 function populateChannelSelects(channels) {
-  const selectIds = [
-    'newsChannelId', 'treasureChannelId', 'threadChannelIds',
-    'commandChannelIds', 'levelupChannelId', 'welcomeChannelId', 'logsChannelId'
-  ];
-  
-  const optionsHtml = '<option value="">-- Выберите канал --</option>' + 
-    channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
-  const optionsHtmlMultiple = channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
-
-  selectIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      if (el.type === 'select-multiple') {
-        el.innerHTML = optionsHtmlMultiple;
-      } else {
-        el.innerHTML = optionsHtml;
-      }
-    }
-  });
+  const datalist = document.getElementById('channelDatalist');
+  if (datalist) {
+    datalist.innerHTML = channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
+  }
 }
 
 let guildRolesPromise = null;

@@ -286,6 +286,31 @@ def register_web_routes(app, get_bot, economy_store, get_leveling_db):
         roles.sort(key=lambda x: x["position"], reverse=True)
         return jsonify(roles)
 
+    @app.route("/api/guilds/<guild_id>/channels", methods=["GET"])
+    @login_required
+    def api_guild_channels(guild_id):
+        if not _user_can_access_guild(guild_id):
+            return jsonify({"error": "Forbidden"}), 403
+            
+        bot = get_bot()
+        if not bot:
+            return jsonify({"error": "Bot offline"}), 503
+            
+        guild = bot.get_guild(int(guild_id))
+        if not guild:
+            return jsonify({"error": "Guild not found"}), 404
+            
+        channels = []
+        for c in guild.text_channels:
+            channels.append({
+                "id": str(c.id),
+                "name": c.name,
+                "position": c.position
+            })
+            
+        channels.sort(key=lambda x: x["position"])
+        return jsonify(channels)
+
     @app.route("/api/config", methods=["GET"])
     def legacy_get_config():
         return jsonify({
