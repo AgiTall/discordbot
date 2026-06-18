@@ -7,7 +7,7 @@
 // КОНФИГУРАЦИЯ
 // =============================================
 const CONFIG = {
-  botVersion: 'v0.5.7',
+  botVersion: 'v0.5.9.1',
   inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377&scope=bot%20applications.commands&permissions=8',
   supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
   storageKey: 'membot_settings',
@@ -888,20 +888,30 @@ let guildRolesLoading = false;
 let guildChannelsCache = [];
 let guildChannelsLoading = false;
 
+let guildChannelsPromise = null;
+
 async function fetchGuildChannels(guildId) {
   if (guildChannelsCache.length) return guildChannelsCache;
-  if (guildChannelsLoading) return [];
-  guildChannelsLoading = true;
-  try {
-    const res = await fetch(`/api/guilds/${guildId}/channels`);
-    if (res.ok) {
-      guildChannelsCache = await res.json();
-    }
-  } catch(e) {
-    console.error('Failed to fetch guild channels:', e);
-  }
-  guildChannelsLoading = false;
-  return guildChannelsCache;
+  if (guildChannelsPromise) return guildChannelsPromise;
+  
+  guildChannelsPromise = fetch(`/api/guilds/${guildId}/channels`, { credentials: 'same-origin' })
+    .then(res => {
+      if (!res.ok) throw new Error('Network response was not ok');
+      return res.json();
+    })
+    .then(data => {
+      guildChannelsCache = data;
+      return data;
+    })
+    .catch(e => {
+      console.error('Failed to fetch guild channels:', e);
+      return [];
+    })
+    .finally(() => {
+      guildChannelsPromise = null;
+    });
+    
+  return guildChannelsPromise;
 }
 
 function populateChannelSelects(channels) {
@@ -926,22 +936,30 @@ function populateChannelSelects(channels) {
   });
 }
 
-let guildRolesLoadingFlag = false; // renamed to avoid duplicate with old state
+let guildRolesPromise = null;
 
 async function fetchGuildRoles(guildId) {
   if (guildRolesCache.length) return guildRolesCache;
-  if (guildRolesLoading) return []; 
-  guildRolesLoading = true;
-  try {
-    const res = await fetch(`/api/guilds/${guildId}/roles`);
-    if (res.ok) {
-      guildRolesCache = await res.json();
-    }
-  } catch(e) {
-    console.error('Failed to fetch guild roles:', e);
-  }
-  guildRolesLoading = false;
-  return guildRolesCache;
+  if (guildRolesPromise) return guildRolesPromise;
+  
+  guildRolesPromise = fetch(`/api/guilds/${guildId}/roles`, { credentials: 'same-origin' })
+    .then(res => {
+      if (!res.ok) throw new Error('Network response was not ok');
+      return res.json();
+    })
+    .then(data => {
+      guildRolesCache = data;
+      return data;
+    })
+    .catch(e => {
+      console.error('Failed to fetch guild roles:', e);
+      return [];
+    })
+    .finally(() => {
+      guildRolesPromise = null;
+    });
+    
+  return guildRolesPromise;
 }
 
 let editingRankRoleCard = null;
@@ -1165,7 +1183,7 @@ async function fetchAndRenderGangs() {
   container.innerHTML = '<div class="rank-roles-empty">Загрузка банд...</div>';
 
   try {
-    const res = await fetch(`/api/guilds/${authState.selectedGuildId}/gangs`);
+    const res = await fetch(`/api/guilds/${authState.selectedGuildId}/gangs`, { credentials: 'same-origin' });
     if (!res.ok) throw new Error('Ошибка загрузки');
     const gangs = await res.json();
 
@@ -1225,7 +1243,8 @@ window.deleteGang = async function(gangId, gangName) {
 
   try {
     const res = await fetch(`/api/guilds/${authState.selectedGuildId}/gangs/${gangId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'same-origin',
     });
     if (!res.ok) throw new Error('Ошибка при удалении');
     
