@@ -4799,9 +4799,9 @@ async def on_ready():
     # Установка статуса бота
     try:
         if hasattr(discord, "CustomActivity"):
-            activity = discord.CustomActivity(name=f"https://pchev.me/ {BOT_VERSION.lstrip('v')}")
+            activity = discord.CustomActivity(name=f"pchev.me {BOT_VERSION.lstrip('v')}")
         else:
-            activity = discord.Activity(type=discord.ActivityType.custom, name=f"https://pchev.me/ {BOT_VERSION.lstrip('v')}")
+            activity = discord.Activity(type=discord.ActivityType.custom, name=f"pchev.me {BOT_VERSION.lstrip('v')}")
         await bot.change_presence(status=discord.Status.online, activity=activity)
     except Exception as e:
         logging.error(f"Не удалось установить статус: {e}")
