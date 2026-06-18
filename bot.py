@@ -7283,31 +7283,33 @@ async def on_message(message):
         if message.guild:
             guild_thread_channels = get_guild_thread_channel_ids(message.guild.id)
 
-    if message.channel.id in guild_thread_channels or message.channel.id in active_channels:
-        if not isinstance(message.channel, discord.Thread):
-            try:
-                if message.thread:
-                    return
+        if message.channel.id in guild_thread_channels or message.channel.id in active_channels:
+            if not isinstance(message.channel, discord.Thread):
+                try:
+                    if message.thread:
+                        return
 
-                thread_name = message.content.strip()
-                if not thread_name.strip():
-                    if message.attachments:
-                        thread_name = f"File discussion: {message.attachments[0].filename}"
-                    else:
-                        thread_name = f"Discussion from {message.author.display_name}"
+                    thread_name = message.content.strip()
+                    if not thread_name.strip():
+                        if message.attachments:
+                            thread_name = f"File discussion: {message.attachments[0].filename}"
+                        else:
+                            thread_name = f"Discussion from {message.author.display_name}"
 
-                if len(thread_name) > 90:
-                    thread_name = f"{thread_name[:87]}..."
+                    if len(thread_name) > 90:
+                        thread_name = f"{thread_name[:87]}..."
 
-                thread = await message.create_thread(
-                    name=thread_name, auto_archive_duration=1440
-                )
-                await thread.send(embed=build_bot_embed("Обсуждение", "Делитесь мыслями."))
-            except discord.Forbidden:
-                logging.info(f"Нет прав для создания треда в канале {message.channel.id}")
-            except discord.HTTPException as e:
-                logging.info(f"Создание треда не удалось: {e}")
-
+                    thread = await message.create_thread(
+                        name=thread_name, auto_archive_duration=1440
+                    )
+                    await thread.send(embed=build_bot_embed("Обсуждение", "Делитесь мыслями."))
+                except discord.Forbidden:
+                    logging.info(f"Нет прав для создания треда в канале {message.channel.id}")
+                except discord.HTTPException as e:
+                    logging.info(f"Создание треда не удалось: {e}")
+    finally:
+        if token is not None:
+            reset_economy_guild_id(token)
 
 def main():
     load_env_file()
