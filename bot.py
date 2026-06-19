@@ -532,7 +532,7 @@ def with_economy_context(func):
 
 
 class EconomyStore:
-    def __init__(self, db_path="data/economy.db"):
+    def __init__(self, db_path=os.path.join(os.environ.get("DATA_DIR", "data"), "economy.db")):
         self.db_path = db_path
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)

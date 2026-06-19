@@ -7,7 +7,7 @@ import logging
 import math
 import os
 
-LEVELING_DB = "data/leveling.db"
+LEVELING_DB = os.path.join(os.environ.get("DATA_DIR", "data"), "leveling.db")
 DEFAULT_XP_RATE = 1.0
 
 def calculate_xp_for_level(level: int) -> int:
@@ -25,6 +25,8 @@ def calculate_total_xp_for_level(level: int) -> int:
     for i in range(1, level + 1):
         total += calculate_xp_for_level(i)
     return total
+
+import os
 
 class LevelingDB:
     def __init__(self, db_path=LEVELING_DB):
