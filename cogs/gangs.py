@@ -33,6 +33,67 @@ def get_gangs(guild_id: int):
 def user_in_gang(account):
     return account.get("gang_name")
 
+class GangCreateConfirmView(discord.ui.View):
+    def __init__(self, guild_id, member, gang_name):
+        super().__init__(timeout=120)
+        self.guild_id = guild_id
+        self.member = member
+        self.gang_name = gang_name
+
+    @discord.ui.button(label="Подтвердить покупку 50 🪙", style=discord.ButtonStyle.success, custom_id="confirm_gang_create")
+    async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        token = set_economy_guild_id(self.guild_id)
+        try:
+            if interaction.user.id != self.member.id:
+                await interaction.response.send_message("Это не ваш запрос!", ephemeral=True)
+                return
+                
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                gangs = get_gangs(interaction.guild_id)
+                
+                if user_in_gang(account):
+                    await interaction.response.send_message("Вы уже состоите в банде!", ephemeral=True)
+                    return
+                
+                if self.gang_name.lower() in (g.lower() for g in gangs.keys()):
+                    await interaction.response.send_message(f"Банда с именем **{self.gang_name}** уже существует.", ephemeral=True)
+                    return
+                
+                if account.get("gold", 0.0) < GANG_CREATE_COST:
+                    await interaction.response.send_message(f"Для создания банды нужно {GANG_CREATE_COST} золота.", ephemeral=True)
+                    return
+                
+                # Create Gang
+                account["gold"] -= GANG_CREATE_COST
+                account["gang_name"] = self.gang_name
+                
+                max_id = max([g.get("id", 0) for g in gangs.values()] + [0])
+                gang_id = max_id + 1
+
+                gangs[self.gang_name] = {
+                    "id": gang_id,
+                    "leader": interaction.user.id,
+                    "members": [interaction.user.id],
+                    "cash": 0.0,
+                    "gold": 0.0,
+                    "level": 1,
+                    "influence": 0,
+                    "leader_role_name": "Лидер",
+                    "member_role_name": "Участник",
+                    "created_at": now_local().isoformat(timespec="seconds"),
+                    "last_rob_at": None
+                }
+                
+                save_economy()
+                
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+            await interaction.response.send_message(f"🏴‍☠️ Вы успешно основали банду **{self.gang_name}**! Поздравляем!")
+        finally:
+            reset_economy_guild_id(token)
+
 class GangsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
