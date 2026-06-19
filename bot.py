@@ -2247,15 +2247,14 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-bot.set_economy_guild_id = set_economy_guild_id
-bot.validate_bet = validate_bet
-bot.economy_lock = economy_lock
-bot.get_account = get_account
-bot.save_economy = save_economy
-bot.format_money = format_money
-bot.accrue_deposit_interest = accrue_deposit_interest
-
 async def setup_hook():
+    bot.set_economy_guild_id = set_economy_guild_id
+    bot.validate_bet = validate_bet
+    bot.economy_lock = economy_lock
+    bot.get_account = get_account
+    bot.save_economy = save_economy
+    bot.format_money = format_money
+    bot.accrue_deposit_interest = accrue_deposit_interest
     try:
         await bot.add_cog(leveling.LevelingCog(bot))
         await bot.load_extension("cogs.casino")
