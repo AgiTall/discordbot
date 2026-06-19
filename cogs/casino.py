@@ -297,14 +297,6 @@ class CasinoCog(commands.Cog):
 
     @app_commands.command(name="blackjack", description="Сыграть blackjack с дилером")
     @app_commands.describe(bet="Ставка деньгами. 0 — без ставки")
-    @blackjack_command.error
-    async def blackjack_error(self, interaction, error):
-        import traceback
-        print(f"Blackjack error: {error}")
-        traceback.print_exception(type(error), error, error.__traceback__)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(f"Произошла ошибка: {error}", ephemeral=True)
-
     async def blackjack_command(self, interaction: discord.Interaction, bet: float = 0.0):
         bet, error = self.bot.validate_bet(bet)
         if error:
@@ -357,6 +349,13 @@ class CasinoCog(commands.Cog):
         view.message = await interaction.followup.send(
             embed=view.build_embed(), view=view, wait=True, ephemeral=True
         )
+        
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        import traceback
+        print(f"Casino Cog error: {error}")
+        traceback.print_exception(type(error), error, error.__traceback__)
+        if not interaction.response.is_done():
+            await interaction.response.send_message(f"Произошла ошибка: {error}", ephemeral=True)
     
     
 
