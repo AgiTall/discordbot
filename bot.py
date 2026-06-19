@@ -1,3 +1,4 @@
+from src.naturalist_logic import *
 from src.bounty_logic import *
 from src.moonshiner_logic import *
 import os
@@ -30,6 +31,7 @@ from flask import Flask, request, jsonify
 from threading import Thread
 from datetime import date, datetime, time, timedelta, timezone
 import discord
+
 
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -91,8 +93,6 @@ ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
 BALANCE_IMAGE_FILE = "assets/images/balance.png"
 BALANCE_IMAGE_ATTACHMENT_NAME = "balance.png"
-NATURALIST_IMAGE_FILE = "assets/images/naturalist.png"
-NATURALIST_IMAGE_ATTACHMENT_NAME = "naturalist.png"
 COLLECTOR_IMAGE_FILE = "assets/images/collector.png"
 COLLECTOR_IMAGE_ATTACHMENT_NAME = "collector.png"
 TREASURE_MAPS_PER_DROP = 1
@@ -105,14 +105,6 @@ DEALER_MAX_FILL = 35
 DEALER_DELIVERY_MIN_REWARD = 500
 DEALER_DELIVERY_MAX_REWARD = 625
 DEALER_ROLE_KEY = "trader"
-DEFAULT_NATURALIST_BUTTON_EMOJIS = {
-    "sample": "🔬",
-    "sell": "💵",
-    "collection": "📖",
-    "legendary": "🐾",
-    "shop": "🧪",
-    "refresh": "🔄",
-}
 DEFAULT_CUSTOM_MESSAGES = {
     "roles_description": "Выберите профессию и купите доступную роль за золото.",
     "roles_footer": "Доступные роли покупаются зелёными кнопками ниже.",
@@ -197,23 +189,8 @@ DEFAULT_ROLE_EMOJIS = {
     for role_definition in ROLE_DEFINITIONS
 }
 
-NATURALIST_ROLE_KEY = "naturalist"
 
 
-NATURALIST_MAX_LEVEL = 20
-NATURALIST_SAMPLE_COOLDOWN_SECONDS = 5 * 60
-NATURALIST_LEGENDARY_COOLDOWN_SECONDS = 60 * 60
-NATURALIST_TRANQ_PRICE = 5.0
-NATURALIST_START_TRANQS = 50
-NATURALIST_BASE_TRANQ_CAP = 200
-NATURALIST_UPGRADED_TRANQ_CAP = 250
-
-NATURALIST_REGIONS = {
-    "forest": {"name": "Лес", "emoji": "🌲"},
-    "mountains": {"name": "Горы", "emoji": "⛰️"},
-    "wetlands": {"name": "Болота", "emoji": "💧"},
-    "desert": {"name": "Пустыня", "emoji": "🏜️"},
-}
 ANIMALS = {
     "rabbit": {"name": "Кролик", "region": "forest", "shots": 1, "chance": 0.88, "cash": 2.5, "xp": 25},
     "deer": {"name": "Олень", "region": "forest", "shots": 2, "chance": 0.78, "cash": 4.0, "xp": 45},
@@ -722,12 +699,6 @@ def debug_gold_info():
     return key, stored, resolved
 
 
-def get_naturalist_button_emoji(button_key):
-    emojis = economy_data.get("naturalist_button_emojis", {})
-    emoji = emojis.get(button_key)
-    if not emoji:
-        return str(DEFAULT_NATURALIST_BUTTON_EMOJIS[button_key])
-    return str(emoji)
 
 
 
@@ -933,112 +904,22 @@ def apply_role_xp(progress, amount, max_level, base):
 
 
 
-def default_naturalist_data():
-    return {
-        "level": 1,
-        "xp": 0,
-        "samples": {},
-        "inventory": {"tranquilizers": NATURALIST_START_TRANQS},
-        "last_sample_at": None,
-        "legendary_cooldown_until": None,
-    }
 
 
-def get_naturalist_tranq_cap(naturalist):
-    return (
-        NATURALIST_UPGRADED_TRANQ_CAP
-        if int(naturalist.get("level", 1)) >= 3
-        else NATURALIST_BASE_TRANQ_CAP
-    )
 
 
-def normalize_naturalist_data(naturalist):
-    if not isinstance(naturalist, dict):
-        naturalist = default_naturalist_data()
-
-    try:
-        naturalist["level"] = max(
-            1, min(NATURALIST_MAX_LEVEL, int(naturalist.get("level", 1)))
-        )
-    except (TypeError, ValueError):
-        naturalist["level"] = 1
-    try:
-        naturalist["xp"] = max(0, int(naturalist.get("xp", 0)))
-    except (TypeError, ValueError):
-        naturalist["xp"] = 0
-
-    samples = naturalist.get("samples", {})
-    if not isinstance(samples, dict):
-        samples = {}
-    normalized_samples = {}
-    valid_sample_keys = set(ANIMALS) | set(LEGENDARY_ANIMALS)
-    for sample_key, amount in samples.items():
-        if sample_key not in valid_sample_keys:
-            continue
-        try:
-            amount = max(0, int(amount))
-        except (TypeError, ValueError):
-            amount = 0
-        if amount > 0:
-            normalized_samples[sample_key] = amount
-    naturalist["samples"] = normalized_samples
-
-    inventory = naturalist.get("inventory", {})
-    if not isinstance(inventory, dict):
-        inventory = {}
-    try:
-        tranquilizers = max(0, int(inventory.get("tranquilizers", NATURALIST_START_TRANQS)))
-    except (TypeError, ValueError):
-        tranquilizers = NATURALIST_START_TRANQS
-    naturalist["inventory"] = {
-        "tranquilizers": min(tranquilizers, get_naturalist_tranq_cap(naturalist))
-    }
-    naturalist.setdefault("last_sample_at", None)
-    naturalist.setdefault("legendary_cooldown_until", None)
-    return naturalist
 
 
-def get_naturalist_account(account):
-    account["naturalist"] = normalize_naturalist_data(account.get("naturalist"))
-    return account["naturalist"]
 
 
-def naturalist_sample_cooldown_seconds(naturalist):
-    cooldown = NATURALIST_SAMPLE_COOLDOWN_SECONDS
-    if naturalist.get("level", 1) >= 10:
-        cooldown = int(cooldown * 0.8)
-    return cooldown
 
 
-def get_naturalist_sample_cooldown(naturalist):
-    last_sample_at = naturalist.get("last_sample_at")
-    if not last_sample_at:
-        return 0
-    cooldown = naturalist_sample_cooldown_seconds(naturalist)
-    seconds_passed = (now_local() - parse_local_datetime(last_sample_at)).total_seconds()
-    return max(0, cooldown - seconds_passed)
 
 
-def get_naturalist_legendary_cooldown(naturalist):
-    cooldown_until = naturalist.get("legendary_cooldown_until")
-    if not cooldown_until:
-        return 0
-    seconds_left = (parse_local_datetime(cooldown_until) - now_local()).total_seconds()
-    return max(0, seconds_left)
 
 
-def get_naturalist_success_chance(naturalist, base_chance):
-    level = int(naturalist.get("level", 1))
-    bonus = level * 0.01
-    if level >= 5:
-        bonus += 0.05
-    if level >= 15:
-        bonus += 0.10
-    return min(0.95, base_chance + bonus)
 
 
-def get_naturalist_sale_multiplier(naturalist):
-    return 1.05 if naturalist.get("level", 1) >= 20 else 1.0
 
 
 def format_sample_name(sample_key):
@@ -1049,45 +930,14 @@ def format_sample_name(sample_key):
     return sample_key
 
 
-def count_naturalist_samples(naturalist):
-    return sum(int(amount) for amount in naturalist.get("samples", {}).values())
 
 
-def format_naturalist_samples_short(naturalist):
-    samples = naturalist.get("samples", {})
-    if not samples:
-        return "нет"
-    rows = [
-        f"{format_sample_name(sample_key)} x{amount}"
-        for sample_key, amount in sorted(samples.items())
-    ]
-    text = ", ".join(rows[:6])
-    if len(rows) > 6:
-        text += f" и ещё {len(rows) - 6}"
-    return text
 
 
-def format_naturalist_short(account):
-    naturalist = get_naturalist_account(account)
-    needed = xp_for_next_level(naturalist["level"], 180)
-    tranqs = naturalist["inventory"]["tranquilizers"]
-    cap = get_naturalist_tranq_cap(naturalist)
-    return (
-        f"уровень {naturalist['level']}, опыт {naturalist['xp']}/{needed}, "
-        f"транквилизаторы {tranqs}/{cap}, образцы: {format_naturalist_samples_short(naturalist)}"
-    )
 
 
-def has_full_naturalist_category(naturalist, region_key):
-    samples = naturalist.get("samples", {})
-    return all(samples.get(animal_key, 0) > 0 for animal_key in CATEGORIES[region_key])
 
 
-def get_naturalist_category_progress(naturalist, region_key):
-    samples = naturalist.get("samples", {})
-    collected = sum(1 for animal_key in CATEGORIES[region_key] if samples.get(animal_key, 0) > 0)
-    total = len(CATEGORIES[region_key])
-    return collected, total
 
 
 def format_balance_role_sections(guild, member, account):
@@ -1567,10 +1417,6 @@ def get_balance_image_file():
 
 
 
-def get_naturalist_image_file():
-    if not os.path.exists(NATURALIST_IMAGE_FILE):
-        return None
-    return discord.File(NATURALIST_IMAGE_FILE, filename=NATURALIST_IMAGE_ATTACHMENT_NAME)
 
 
 def build_bot_embed(title, description, color=BOT_EMBED_COLOR):
@@ -3056,575 +2902,36 @@ class MoonshineMainView(MoonshineOwnerView):
 
 
 
-def build_naturalist_embed(guild, account, note=None):
-    naturalist = get_naturalist_account(account)
-    role_definition = get_role_definition(NATURALIST_ROLE_KEY)
-    role = find_guild_role(guild, role_definition)
-    icon = get_role_icon(role_definition, role)
-    needed = xp_for_next_level(naturalist["level"], 180)
-    tranqs = naturalist["inventory"]["tranquilizers"]
-    tranq_cap = get_naturalist_tranq_cap(naturalist)
-    sample_cooldown = get_naturalist_sample_cooldown(naturalist)
-    legendary_cooldown = get_naturalist_legendary_cooldown(naturalist)
-    sample_cooldown_text = "готово" if sample_cooldown <= 0 else format_duration(sample_cooldown)
-    legendary_text = (
-        "доступно"
-        if naturalist["level"] >= 5 and legendary_cooldown <= 0
-        else "с 5 уровня"
-        if naturalist["level"] < 5
-        else format_duration(legendary_cooldown)
-    )
-    note_text = f"\n\n{note}" if note else ""
-    embed = discord.Embed(
-        title=f"{icon} Натуралист",
-        description=(
-            "Собирайте образцы, сдавайте их Гарриет и закрывайте категории справочника.\n\n"
-            "🌿 Прогресс\n"
-            f"├─ Уровень: **{naturalist['level']}/{NATURALIST_MAX_LEVEL}**\n"
-            f"├─ Опыт: **{naturalist['xp']}/{needed}**\n"
-            f"├─ Транквилизаторы: **{tranqs}/{tranq_cap}**\n"
-            f"├─ Образцы: **{count_naturalist_samples(naturalist)}**\n"
-            f"├─ Обычная охота: **{sample_cooldown_text}**\n"
-            f"└─ Легендарка: **{legendary_text}**"
-            f"{note_text}"
-        ),
-        color=discord.Color.dark_green(),
-    )
-    if os.path.exists(NATURALIST_IMAGE_FILE):
-        embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
-    return embed
 
 
-class NaturalistOwnerView(discord.ui.View):
-    def __init__(self, user_id, timeout=600):
-        super().__init__(timeout=timeout)
-        self.user_id = user_id
-
-    async def interaction_check(self, interaction):
-        set_economy_guild_id(interaction.guild_id)
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "Это меню натуралиста открыто не для вас.", ephemeral=True
-            )
-            return False
-        return True
 
 
-class NaturalistMainView(NaturalistOwnerView):
-    def __init__(self, user_id):
-        super().__init__(user_id)
-        self.sample_button.emoji = get_naturalist_button_emoji("sample")
-        self.sell_button.emoji = get_naturalist_button_emoji("sell")
-        self.collection_button.emoji = get_naturalist_button_emoji("collection")
-        self.legendary_button.emoji = get_naturalist_button_emoji("legendary")
-        self.shop_button.emoji = get_naturalist_button_emoji("shop")
-        self.refresh_button.emoji = get_naturalist_button_emoji("refresh")
-
-    @discord.ui.button(label="Взять образец", style=discord.ButtonStyle.primary, row=0)
-    async def sample_button(self, interaction, button):
-        embed = build_bot_embed(
-            "Выбор региона",
-            "Выберите регион, где хотите искать животное.",
-            color=discord.Color.dark_green(),
-        )
-        if os.path.exists(NATURALIST_IMAGE_FILE):
-            embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistRegionView(interaction.user.id)
-        )
-
-    @discord.ui.button(label="Сдать образцы", style=discord.ButtonStyle.success, row=0)
-    async def sell_button(self, interaction, button):
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            samples = dict(naturalist.get("samples", {}))
-            if not samples:
-                save_economy()
-                await interaction.response.send_message(
-                    "У вас пока нет образцов для сдачи.", ephemeral=True
-                )
-                return
-
-            multiplier = get_naturalist_sale_multiplier(naturalist)
-            cash_total = 0.0
-            gold_total = 0.0
-            xp_total = 0
-            sold_count = 0
-            for sample_key, amount in samples.items():
-                if sample_key in ANIMALS:
-                    item = ANIMALS[sample_key]
-                    cash_total += item["cash"] * amount
-                    xp_total += item["xp"] * amount
-                else:
-                    item = LEGENDARY_ANIMALS[sample_key]
-                    cash_total += item["cash"] * amount
-                    gold_total += item["gold"] * amount
-                    xp_total += item["xp"] * amount
-                sold_count += amount
-            cash_total = round(cash_total * multiplier, 2)
-            account["cash"] += cash_total
-            account["gold"] += gold_total
-            naturalist["samples"] = {}
-            levels = apply_role_xp(naturalist, xp_total, NATURALIST_MAX_LEVEL, 180)
-            interaction.client.dispatch("leveling_add_xp", interaction.user, xp_total, "jobs")
-            save_economy()
-
-            note = (
-                f"Гарриет приняла **{format_integer(sold_count)}** образцов: "
-                f"**{format_money(cash_total)}**"
-            )
-            if gold_total > 0:
-                note += f" и **{format_gold(gold_total)}**"
-            note += f". Опыт: **+{xp_total}**."
-            if levels:
-                note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
-            embed = build_naturalist_embed(interaction.guild, account, note=note)
-
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistMainView(interaction.user.id)
-        )
-
-    @discord.ui.button(label="Справочник", style=discord.ButtonStyle.secondary, row=0)
-    async def collection_button(self, interaction, button):
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            embed = build_naturalist_collection_embed(naturalist)
-            save_economy()
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistCollectionView(interaction.user.id, naturalist)
-        )
-
-    @discord.ui.button(label="Легендарное животное", style=discord.ButtonStyle.primary, row=1)
-    async def legendary_button(self, interaction, button):
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            if naturalist["level"] < 5:
-                save_economy()
-                await interaction.response.send_message(
-                    "Легендарные животные открываются с 5 уровня натуралиста.",
-                    ephemeral=True,
-                )
-                return
-            embed = build_naturalist_legendary_embed(naturalist)
-            save_economy()
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistLegendaryView(interaction.user.id, naturalist)
-        )
-
-    @discord.ui.button(label="Магазин", style=discord.ButtonStyle.secondary, row=1)
-    async def shop_button(self, interaction, button):
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            embed = build_naturalist_shop_embed(account, naturalist)
-            save_economy()
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistShopView(interaction.user.id)
-        )
-
-    @discord.ui.button(label="Обновить", style=discord.ButtonStyle.secondary, row=1)
-    async def refresh_button(self, interaction, button):
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            embed = build_naturalist_embed(interaction.guild, account)
-            save_economy()
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistMainView(interaction.user.id)
-        )
 
 
-class NaturalistRegionSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(
-                label=f"{region['emoji']} {region['name']}",
-                value=region_key,
-                description=", ".join(ANIMALS[key]["name"] for key in CATEGORIES[region_key]),
-            )
-            for region_key, region in NATURALIST_REGIONS.items()
-        ]
-        super().__init__(
-            placeholder="Выберите регион",
-            min_values=1,
-            max_values=1,
-            options=options,
-        )
-
-    async def callback(self, interaction):
-        region_key = self.values[0]
-        region = NATURALIST_REGIONS[region_key]
-        lines = []
-        for animal_key in CATEGORIES[region_key]:
-            animal = ANIMALS[animal_key]
-            lines.append(
-                f"**{animal['name']}** — {animal['shots']} патр., "
-                f"шанс {format_percent(animal['chance'] * 100)}, "
-                f"сдача {format_money(animal['cash'])}, опыт {animal['xp']}"
-            )
-        embed = build_bot_embed(
-            f"{region['emoji']} {region['name']}",
-            "\n".join(lines),
-            color=discord.Color.dark_green(),
-        )
-        if os.path.exists(NATURALIST_IMAGE_FILE):
-            embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistAnimalView(interaction.user.id, region_key)
-        )
 
 
-class NaturalistRegionView(NaturalistOwnerView):
-    def __init__(self, user_id):
-        super().__init__(user_id)
-        self.add_item(NaturalistRegionSelect())
 
 
-class NaturalistAnimalSelect(discord.ui.Select):
-    def __init__(self, region_key):
-        options = []
-        for animal_key in CATEGORIES[region_key]:
-            animal = ANIMALS[animal_key]
-            options.append(
-                discord.SelectOption(
-                    label=animal["name"],
-                    value=animal_key,
-                    description=(
-                        f"{animal['shots']} патр. · шанс {format_percent(animal['chance'] * 100)} · "
-                        f"{format_number(animal['cash'])}$"
-                    ),
-                )
-            )
-        super().__init__(
-            placeholder="Выберите животное",
-            min_values=1,
-            max_values=1,
-            options=options,
-        )
-
-    async def callback(self, interaction):
-        animal_key = self.values[0]
-        animal = ANIMALS[animal_key]
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            cooldown = get_naturalist_sample_cooldown(naturalist)
-            if cooldown > 0:
-                save_economy()
-                await interaction.response.send_message(
-                    f"Следующий образец можно брать через **{format_duration(cooldown)}**.",
-                    ephemeral=True,
-                )
-                return
-            if naturalist["inventory"]["tranquilizers"] < animal["shots"]:
-                save_economy()
-                await interaction.response.send_message(
-                    "Не хватает транквилизаторов. Купите их в магазине натуралиста.",
-                    ephemeral=True,
-                )
-                return
-
-            naturalist["inventory"]["tranquilizers"] -= animal["shots"]
-            naturalist["last_sample_at"] = now_local().isoformat(timespec="seconds")
-            chance = get_naturalist_success_chance(naturalist, animal["chance"])
-            success = random.random() <= chance
-            if success:
-                naturalist["samples"][animal_key] = naturalist["samples"].get(animal_key, 0) + 1
-                xp_reward = random.randint(20, 30)
-                levels = apply_role_xp(
-                    naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180
-                )
-                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
-                note = (
-                    f"Образец **{animal['name']}** получен. "
-                    f"Потрачено патронов: **{animal['shots']}**. "
-                    f"Опыт: **+{xp_reward}**."
-                )
-                if levels:
-                    note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
-            else:
-                note = (
-                    f"**{animal['name']}** убежал. "
-                    f"Потрачено патронов: **{animal['shots']}**. "
-                    f"Шанс был **{format_percent(chance * 100)}**."
-                )
-            save_economy()
-            embed = build_naturalist_embed(interaction.guild, account, note=note)
-
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistMainView(interaction.user.id)
-        )
 
 
-class NaturalistAnimalView(NaturalistOwnerView):
-    def __init__(self, user_id, region_key):
-        super().__init__(user_id)
-        self.add_item(NaturalistAnimalSelect(region_key))
 
 
-def build_naturalist_collection_embed(naturalist):
-    lines = []
-    for region_key, region in NATURALIST_REGIONS.items():
-        collected, total = get_naturalist_category_progress(naturalist, region_key)
-        status = "готово к сдаче" if collected == total else f"{collected}/{total}"
-        lines.append(f"{region['emoji']} **{region['name']}** — {status}")
-    samples = format_naturalist_samples_short(naturalist)
-    embed = build_bot_embed(
-        "Справочник натуралиста",
-        "\n".join(lines) + f"\n\nОбразцы: **{samples}**",
-        color=discord.Color.dark_green(),
-    )
-    if os.path.exists(NATURALIST_IMAGE_FILE):
-        embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
-    return embed
 
 
-class NaturalistCategoryButton(discord.ui.Button):
-    def __init__(self, region_key, naturalist):
-        region = NATURALIST_REGIONS[region_key]
-        complete = has_full_naturalist_category(naturalist, region_key)
-        super().__init__(
-            label=f"Сдать: {region['name']}",
-            style=discord.ButtonStyle.success if complete else discord.ButtonStyle.secondary,
-            emoji=region["emoji"],
-            disabled=not complete,
-            custom_id=f"naturalist:category:{region_key}",
-        )
-        self.region_key = region_key
-
-    async def callback(self, interaction):
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            if not has_full_naturalist_category(naturalist, self.region_key):
-                save_economy()
-                await interaction.response.send_message(
-                    "Для сдачи категории нужен хотя бы один образец каждого животного.",
-                    ephemeral=True,
-                )
-                return
-            for animal_key in CATEGORIES[self.region_key]:
-                naturalist["samples"][animal_key] -= 1
-                if naturalist["samples"][animal_key] <= 0:
-                    naturalist["samples"].pop(animal_key, None)
-            cash_reward = round(100.0 * get_naturalist_sale_multiplier(naturalist), 2)
-            gold_reward = 0.5
-            xp_reward = 300
-            account["cash"] += cash_reward
-            account["gold"] += gold_reward
-            levels = apply_role_xp(naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180)
-            interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
-            save_economy()
-            region = NATURALIST_REGIONS[self.region_key]
-            note = (
-                f"Категория **{region['name']}** сдана: "
-                f"**{format_money(cash_reward)}**, **{format_gold(gold_reward)}**, "
-                f"опыт **+{xp_reward}**."
-            )
-            if levels:
-                note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
-            embed = build_naturalist_embed(interaction.guild, account, note=note)
-
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistMainView(interaction.user.id)
-        )
 
 
-class NaturalistCollectionView(NaturalistOwnerView):
-    def __init__(self, user_id, naturalist):
-        super().__init__(user_id)
-        for region_key in NATURALIST_REGIONS:
-            self.add_item(NaturalistCategoryButton(region_key, naturalist))
 
 
-def build_naturalist_legendary_embed(naturalist):
-    lines = []
-    for animal_key, animal in LEGENDARY_ANIMALS.items():
-        lock = "" if naturalist["level"] >= animal["required_level"] else " 🔒"
-        lines.append(
-            f"**{animal['name']}**{lock} — с {animal['required_level']} ур., "
-            f"10 патр., сдача {format_money(animal['cash'])} + {format_gold(animal['gold'])}"
-        )
-    embed = build_bot_embed(
-        "Легендарное животное",
-        "\n".join(lines),
-        color=discord.Color.dark_green(),
-    )
-    if os.path.exists(NATURALIST_IMAGE_FILE):
-        embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
-    return embed
 
 
-class NaturalistLegendarySelect(discord.ui.Select):
-    def __init__(self, naturalist):
-        options = []
-        for animal_key, animal in LEGENDARY_ANIMALS.items():
-            if naturalist["level"] < animal["required_level"]:
-                continue
-            options.append(
-                discord.SelectOption(
-                    label=animal["name"],
-                    value=animal_key,
-                    description=(
-                        f"10 патр. · {format_number(animal['cash'])}$ · "
-                        f"{format_number(animal['gold'])} зол."
-                    ),
-                )
-            )
-        if not options:
-            options.append(
-                discord.SelectOption(
-                    label="Нет доступных легендарных животных",
-                    value="none",
-                    description="Повысьте уровень натуралиста",
-                )
-            )
-        super().__init__(
-            placeholder="Выберите легендарное животное",
-            min_values=1,
-            max_values=1,
-            options=options,
-        )
-
-    async def callback(self, interaction):
-        if self.values[0] == "none":
-            await interaction.response.send_message(
-                "Пока нет доступных легендарных животных.", ephemeral=True
-            )
-            return
-
-        animal_key = self.values[0]
-        animal = LEGENDARY_ANIMALS[animal_key]
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            cooldown = get_naturalist_legendary_cooldown(naturalist)
-            if cooldown > 0:
-                save_economy()
-                await interaction.response.send_message(
-                    f"Следующая легендарная охота будет доступна через **{format_duration(cooldown)}**.",
-                    ephemeral=True,
-                )
-                return
-            if naturalist["level"] < animal["required_level"]:
-                save_economy()
-                await interaction.response.send_message(
-                    "Уровень натуралиста пока слишком низкий.", ephemeral=True
-                )
-                return
-            if naturalist["inventory"]["tranquilizers"] < 10:
-                save_economy()
-                await interaction.response.send_message(
-                    "Для легендарной охоты нужно 10 транквилизаторов.",
-                    ephemeral=True,
-                )
-                return
-
-            naturalist["inventory"]["tranquilizers"] -= 10
-            naturalist["legendary_cooldown_until"] = (
-                now_local() + timedelta(seconds=NATURALIST_LEGENDARY_COOLDOWN_SECONDS)
-            ).isoformat(timespec="seconds")
-            chance = min(0.70, 0.50 + naturalist["level"] * 0.01)
-            success = random.random() <= chance
-            if success:
-                naturalist["samples"][animal_key] = naturalist["samples"].get(animal_key, 0) + 1
-                xp_reward = max(20, animal["xp"] // 3)
-                levels = apply_role_xp(
-                    naturalist, xp_reward, NATURALIST_MAX_LEVEL, 180
-                )
-                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
-                note = (
-                    f"Легендарный образец **{animal['name']}** получен. "
-                    f"Опыт: **+{xp_reward}**."
-                )
-                if levels:
-                    note += f"\nНовый уровень натуралиста: **{naturalist['level']}**."
-            else:
-                note = (
-                    f"**{animal['name']}** ушёл от вас. "
-                    f"Шанс был **{format_percent(chance * 100)}**."
-                )
-            save_economy()
-            embed = build_naturalist_embed(interaction.guild, account, note=note)
-
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistMainView(interaction.user.id)
-        )
 
 
-class NaturalistLegendaryView(NaturalistOwnerView):
-    def __init__(self, user_id, naturalist):
-        super().__init__(user_id)
-        self.add_item(NaturalistLegendarySelect(naturalist))
 
 
-def build_naturalist_shop_embed(account, naturalist):
-    tranqs = naturalist["inventory"]["tranquilizers"]
-    cap = get_naturalist_tranq_cap(naturalist)
-    return build_bot_embed(
-        "Магазин натуралиста",
-        (
-            f"Транквилизатор: **{format_money(NATURALIST_TRANQ_PRICE)}** за штуку.\n"
-            f"Инвентарь: **{tranqs}/{cap}**\n"
-            f"Наличные: **{format_money(account['cash'])}**"
-        ),
-        color=discord.Color.dark_green(),
-    )
 
 
-class NaturalistShopButton(discord.ui.Button):
-    def __init__(self, amount, label):
-        super().__init__(
-            label=label,
-            style=discord.ButtonStyle.success,
-            emoji=get_naturalist_button_emoji("shop"),
-        )
-        self.amount = amount
-
-    async def callback(self, interaction):
-        async with economy_lock:
-            account = get_account(interaction.user.id)
-            naturalist = get_naturalist_account(account)
-            cap = get_naturalist_tranq_cap(naturalist)
-            current = naturalist["inventory"]["tranquilizers"]
-            space = max(0, cap - current)
-            if space <= 0:
-                save_economy()
-                await interaction.response.send_message(
-                    "Сумка транквилизаторов уже заполнена.", ephemeral=True
-                )
-                return
-            if self.amount == "max":
-                affordable = int(account["cash"] // NATURALIST_TRANQ_PRICE)
-                amount = min(space, affordable)
-            else:
-                amount = min(space, int(self.amount))
-            cost = amount * NATURALIST_TRANQ_PRICE
-            if amount <= 0 or account["cash"] + 0.0001 < cost:
-                save_economy()
-                await interaction.response.send_message(
-                    "Не хватает денег на покупку транквилизаторов.", ephemeral=True
-                )
-                return
-            account["cash"] -= cost
-            naturalist["inventory"]["tranquilizers"] += amount
-            save_economy()
-            note = f"Куплено **{amount}** транквилизаторов за **{format_money(cost)}**."
-            embed = build_naturalist_embed(interaction.guild, account, note=note)
-
-        await interaction.response.edit_message(
-            embed=embed, view=NaturalistMainView(interaction.user.id)
-        )
 
 
-class NaturalistShopView(NaturalistOwnerView):
-    def __init__(self, user_id):
-        super().__init__(user_id)
-        self.add_item(NaturalistShopButton(10, "Купить 10"))
-        self.add_item(NaturalistShopButton(50, "Купить 50"))
-        self.add_item(NaturalistShopButton("max", "Купить максимум"))
 
 
 @tasks.loop(time=time(hour=12, minute=0, tzinfo=MSK_TZ))
@@ -4699,36 +4006,6 @@ async def moonshine_command(interaction: discord.Interaction):
 
 
 
-@bot.tree.command(name="naturalist", description="Натуралист: образцы, справочник и магазин")
-async def naturalist_command(interaction: discord.Interaction):
-    if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message(
-            "Эту команду можно использовать только на сервере.", ephemeral=True
-        )
-        return
-
-    async with economy_lock:
-        update_gold_rate()
-        account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
-        if not has_game_role(interaction.user, NATURALIST_ROLE_KEY, account):
-            save_economy()
-            await interaction.response.send_message(
-                get_custom_message("role_required").format(role="Натуралист"),
-                ephemeral=True,
-            )
-            return
-        embed = build_naturalist_embed(interaction.guild, account)
-        save_economy()
-
-    image = get_naturalist_image_file()
-    view = NaturalistMainView(interaction.user.id)
-    if image:
-        await interaction.response.send_message(
-            embed=embed, view=view, file=image, ephemeral=True
-        )
-    else:
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 @bot.tree.command(name="gold-rate", description="Показать текущий курс золота")
