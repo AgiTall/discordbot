@@ -1578,6 +1578,7 @@ async def setup_hook():
         await bot.add_cog(leveling.LevelingCog(bot))
         await bot.load_extension("cogs.casino")
         await bot.load_extension("cogs.shop")
+        await bot.load_extension("cogs.gangs")
     except Exception as e:
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
