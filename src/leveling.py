@@ -5,6 +5,7 @@ import sqlite3
 import time
 import logging
 import math
+import os
 
 LEVELING_DB = "data/leveling.db"
 DEFAULT_XP_RATE = 1.0
