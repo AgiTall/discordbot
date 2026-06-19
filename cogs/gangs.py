@@ -122,32 +122,15 @@ class GangsCog(commands.Cog):
                 if account.get("gold", 0.0) < GANG_CREATE_COST:
                     await interaction.response.send_message(f"Для создания банды нужно {GANG_CREATE_COST} золота.", ephemeral=True)
                     return
-                
-                # Create Gang
-                account["gold"] -= GANG_CREATE_COST
-                account["gang_name"] = name
-                
-                # Auto-incrementing ID
-                max_id = max([g.get("id", 0) for g in gangs.values()] + [0])
-                gang_id = max_id + 1
-
-                gangs[name] = {
-                    "id": gang_id,
-                    "leader": interaction.user.id,
-                    "members": [interaction.user.id],
-                    "cash": 0.0,
-                    "gold": 0.0,
-                    "level": 1,
-                    "influence": 0,
-                    "leader_role_name": "Лидер",
-                    "member_role_name": "Участник",
-                    "created_at": now_local().isoformat(timespec="seconds"),
-                    "last_rob_at": None
-                }
-                
-                save_economy()
-                
-            await interaction.response.send_message(f"🏴‍☠️ Вы успешно основали банду **{name}**! Поздравляем!")
+                    
+            embed = discord.Embed(
+                title="Создание банды",
+                description="Вы собрали со всего дикого запада бродяг и кочевников чтобы работать сообща? Тогда вашему вниманию предоставлена механика банд, изначальной стоимостью 50 слитков.",
+                color=discord.Color.dark_gold()
+            )
+            view = GangCreateConfirmView(interaction.guild_id, interaction.user, name)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+            
         finally:
             reset_economy_guild_id(token)
 
