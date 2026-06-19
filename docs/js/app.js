@@ -7,7 +7,7 @@
 // КОНФИГУРАЦИЯ
 // =============================================
 const CONFIG = {
-  botVersion: 'v0.5.9.3',
+  botVersion: 'v0.6.0',
   inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377&scope=bot%20applications.commands&permissions=8',
   supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
   storageKey: 'membot_settings',
@@ -346,6 +346,125 @@ function trackChanges() {
 // =============================================
 // DASHBOARD UI
 // =============================================
+
+let economyStatsLoaded = false;
+let wealthChartInstance = null;
+let gangsChartInstance = null;
+
+async function loadEconomyStats(guildId) {
+  if (economyStatsLoaded) return;
+  const tbody = document.getElementById("leaderboardTbody");
+  if (!tbody) return;
+  
+  try {
+    const res = await fetch(`/api/guilds/${guildId}/stats`);
+    if (!res.ok) throw new Error("Failed to fetch stats");
+    const data = await res.json();
+    
+    // Populate Leaderboard
+    tbody.innerHTML = "";
+    if (data.leaderboard && data.leaderboard.length > 0) {
+      data.leaderboard.forEach((u, i) => {
+        const tr = document.createElement("tr");
+        tr.style.borderBottom = "1px solid var(--border)";
+        tr.innerHTML = `
+          <td style="padding:10px;color:var(--text-muted);">${i + 1}</td>
+          <td style="padding:10px;font-weight:bold;color:var(--gold);">${u.name}</td>
+          <td style="padding:10px;">${u.level}</td>
+          <td style="padding:10px;">${u.cash.toLocaleString("ru-RU")}</td>
+          <td style="padding:10px;">${u.gold.toLocaleString("ru-RU")}</td>
+          <td style="padding:10px;font-weight:bold;">${Math.round(u.wealth).toLocaleString("ru-RU")} 💰</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } else {
+      tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:10px;text-align:center;color:var(--text-muted);\">Нет данных</td></tr>";
+    }
+
+    // Chart.js Default Config for Dark Theme
+    Chart.defaults.color = "#99aab5";
+    Chart.defaults.font.family = "Inter, sans-serif";
+
+    // Wealth Pie Chart
+    const wCtx = document.getElementById("wealthChart");
+    if (wCtx && data.leaderboard) {
+      const topNames = data.leaderboard.slice(0, 5).map(u => u.name);
+      const topWealth = data.leaderboard.slice(0, 5).map(u => u.wealth);
+      
+      const sumTop5 = topWealth.reduce((a, b) => a + b, 0);
+      const totalServerWealth = (data.globals.total_cash || 0) + ((data.globals.total_gold || 0) * (data.globals.gold_rate || 1));
+      const othersWealth = Math.max(0, totalServerWealth - sumTop5);
+      
+      if (topNames.length > 0) {
+        topNames.push("Остальные");
+        topWealth.push(othersWealth);
+      }
+
+      if (wealthChartInstance) wealthChartInstance.destroy();
+      wealthChartInstance = new Chart(wCtx, {
+        type: "doughnut",
+        data: {
+          labels: topNames,
+          datasets: [{
+            data: topWealth,
+            backgroundColor: ["#c19b38", "#d93838", "#4287f5", "#38c172", "#9b59b6", "#2f3136"],
+            borderColor: "#202225",
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "right" },
+            title: { display: true, text: "Распределение богатства" }
+          }
+        }
+      });
+    }
+
+    // Gangs Bar Chart
+    const gCtx = document.getElementById("gangsChart");
+    if (gCtx && data.gangs) {
+      const gNames = data.gangs.map(g => g.name);
+      const gWealth = data.gangs.map(g => g.wealth);
+      
+      if (gangsChartInstance) gangsChartInstance.destroy();
+      gangsChartInstance = new Chart(gCtx, {
+        type: "bar",
+        data: {
+          labels: gNames,
+          datasets: [{
+            label: "Состояние общака",
+            data: gWealth,
+            backgroundColor: "#d93838",
+            borderColor: "#f04747",
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, grid: { color: "#2f3136" } },
+            x: { grid: { display: false } }
+          },
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: "Самые богатые банды" }
+          }
+        }
+      });
+    }
+
+    economyStatsLoaded = true;
+  } catch (err) {
+    console.error("Failed to load economy stats:", err);
+    tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:10px;text-align:center;color:#d93838;\">Ошибка загрузки</td></tr>";
+  }
+}
+
 let dashboardUiReady = false;
 
 function setupDashboardUi(settings) {
@@ -379,10 +498,15 @@ function setupDashboardUi(settings) {
     initRankRoleEditor(settings);
   }
 
+
   function activateSection(target) {
     sections.forEach(s => s.classList.toggle('active', s.id === target));
     navLinks.forEach(a => a.classList.toggle('active', a.dataset.section === target));
+    if (target === "economy") {
+      loadEconomyStats(authState.selectedGuildId);
+    }
     // На мобильных закрываем сайдбар после выбора
+
     if (window.innerWidth <= 900) {
       document.getElementById('sidebarNav')?.classList.remove('mobile-open');
       document.getElementById('sidebarSaveWrap')?.classList.remove('mobile-open');

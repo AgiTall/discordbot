@@ -39,8 +39,11 @@ class GangCreateConfirmView(discord.ui.View):
         self.guild_id = guild_id
         self.member = member
         self.gang_name = gang_name
+        for child in self.children:
+            if getattr(child, "custom_id", None) == "confirm_gang_create":
+                child.label = f"Подтвердить покупку 50 {get_gold_emoji()}"
 
-    @discord.ui.button(label="Подтвердить покупку 50 🪙", style=discord.ButtonStyle.success, custom_id="confirm_gang_create")
+    @discord.ui.button(label="Подтвердить", style=discord.ButtonStyle.success, custom_id="confirm_gang_create")
     async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         token = set_economy_guild_id(self.guild_id)
         try:
@@ -129,7 +132,7 @@ class GangsCog(commands.Cog):
                 color=discord.Color.dark_gold()
             )
             view = GangCreateConfirmView(interaction.guild_id, interaction.user, name)
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
         finally:
             reset_economy_guild_id(token)

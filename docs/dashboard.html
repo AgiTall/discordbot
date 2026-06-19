@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -20,7 +21,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.5.9.3</span>
+        <span class="navbar__badge">v0.6.0</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -726,7 +727,41 @@
                 </div>
               </div>
 
-              <!-- ════════════ СЕКЦИЯ: БАНДЫ ════════════ -->
+              
+
+                <!-- CHARTS AND LEADERBOARD SECTION -->
+                <div class="card" style="margin-top:20px">
+                  <h3 class="heading-sm" style="margin-bottom:16px">Статистика Сервера</h3>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+                    <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px;border-radius:4px;">
+                      <canvas id="wealthChart" style="max-height: 250px;"></canvas>
+                    </div>
+                    <div style="background:var(--bg-card);border:1px solid var(--border);padding:16px;border-radius:4px;">
+                      <canvas id="gangsChart" style="max-height: 250px;"></canvas>
+                    </div>
+                  </div>
+                  
+                  <h3 class="heading-sm" style="margin-bottom:16px">🏆 Топ-10 Богачей</h3>
+                  <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;text-align:left;font-size:0.9rem;">
+                      <thead>
+                        <tr style="border-bottom:1px solid var(--border);color:var(--text-muted);">
+                          <th style="padding:10px;">#</th>
+                          <th style="padding:10px;">Игрок</th>
+                          <th style="padding:10px;">Уровень</th>
+                          <th style="padding:10px;">Деньги</th>
+                          <th style="padding:10px;">Золото</th>
+                          <th style="padding:10px;">Состояние</th>
+                        </tr>
+                      </thead>
+                      <tbody id="leaderboardTbody">
+                        <tr><td colspan="6" style="padding:10px;text-align:center;">Загрузка...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+<!-- ════════════ СЕКЦИЯ: БАНДЫ ════════════ -->
               <div class="dash-section" id="gangs" aria-labelledby="gangsHeading">
                 <div class="dash-section__header">
                   <div class="dash-section__icon" aria-hidden="true">🔫</div>
@@ -903,7 +938,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2024 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.5.9.2</span>
+        <span class="footer__version">v0.6.0</span>
       </div>
     </div>
   </footer>
