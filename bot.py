@@ -80,7 +80,6 @@ def run_web():
     except Exception:
         return
 MIN_GOLD_RATE = 50.0
-DEPOSIT_DAILY_RATE = 0.03
 WORK_COOLDOWN_SECONDS = 60 * 60
 DEALER_COOLDOWN_SECONDS = 60 * 60
 DEFAULT_CASH_EMOJI = "$"
@@ -989,7 +988,7 @@ def format_account(account):
     return (
         f"Деньги: **{format_money(account['cash'])}**\n"
         f"Золото: **{format_gold(account['gold'])}**\n"
-        f"Вклад: **{format_money(account['deposit'])}**\n"
+
         f"Карты: **{format_treasure_maps(account['treasure_maps'])}**\n"
         f"Повозка торговца: **{format_percent(account['dealer_wagon'])}**\n"
         f"Самогонщик: **{format_moonshine_short(account)}**\n"
@@ -1101,26 +1100,12 @@ def get_account(user_id):
         account["dealer_wagon"] = 0.0
     account.setdefault("deposit_updated_at", now_local().isoformat(timespec="seconds"))
     account.setdefault("last_work_at", None)
+    if "deposit" in account and account["deposit"] > 0:
+        account["cash"] += account["deposit"]
+        account["deposit"] = 0.0
     return account
 
 
-def accrue_deposit_interest(account):
-    now = now_local()
-    deposit = float(account.get("deposit", 0.0))
-    last_update = parse_local_datetime(account.get("deposit_updated_at"))
-
-    if deposit <= 0:
-        account["deposit"] = 0.0
-        account["deposit_updated_at"] = now.isoformat(timespec="seconds")
-        return 0.0  
-
-    seconds_passed = max(0.0, (now - last_update).total_seconds())
-    days_passed = seconds_passed / 86400
-    new_deposit = deposit * ((1 + DEPOSIT_DAILY_RATE) ** days_passed)
-
-    account["deposit"] = new_deposit
-    account["deposit_updated_at"] = now.isoformat(timespec="seconds")
-    return new_deposit - deposit
 
 
 def random_work_reward():
@@ -1589,10 +1574,10 @@ async def setup_hook():
     bot.get_account = get_account
     bot.save_economy = save_economy
     bot.format_money = format_money
-    bot.accrue_deposit_interest = accrue_deposit_interest
     try:
         await bot.add_cog(leveling.LevelingCog(bot))
         await bot.load_extension("cogs.casino")
+        await bot.load_extension("cogs.shop")
     except Exception as e:
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
@@ -1614,7 +1599,6 @@ ADMIN_COMMAND_NAMES = {
     "remove-gold",
     "set-gold",
     "give-map",
-    "set-deposit",
     "set-rate",
     "treasure-channel",
     "treasure-event",
@@ -1902,10 +1886,9 @@ def build_roles_embed(guild, member=None, account=None):
     return embed
 
 
-def build_balance_embed(guild, member, account, rate, interest=0.0):
+def build_balance_embed(guild, member, account, rate):
     cash = account["cash"]
     gold = account["gold"]
-    deposit = account["deposit"]
     treasure_maps = account["treasure_maps"]
     role_sections, unavailable_role_sections = format_balance_role_sections(
         guild, member, account
@@ -1914,17 +1897,17 @@ def build_balance_embed(guild, member, account, rate, interest=0.0):
     description = (
         "💰 Финансы\n"
         f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
+        f"├─ 🧰 Сейф (Деньги): {format_money_plain(account.get('safe_cash', 0.0))}\n"
+        f"├─ 🧰 Сейф (Золото): {format_number(account.get('safe_gold', 0.0))} золота\n"
         f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
         f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
         "🎭 Роли\n"
         f"{role_sections}\n"
         "\n"
-        "🏦 Банк\n"
-        f"├─ {get_investment_emoji()} Вклад: {format_money_plain(deposit)}\n"
-        f"├─ Доход: +{format_money_plain(interest)}\n"
-        f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
+        "🏦 Экономика\n"
+        f"├─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
         "🔒 Недоступные роли\n"
-        f"{unavailable_role_sections}"
+        f"{unavailable_role_sections}\n"
     )
     embed = discord.Embed(
         title=f"{get_stats_emoji()}Статистика: {member.display_name}",
@@ -1986,7 +1969,6 @@ async def buy_game_role(interaction, role_key):
             remove_expired_role_discounts()
             update_gold_rate()
             account = get_account(member.id)
-            accrue_deposit_interest(account)
             already_owned = role_key in account["owned_roles"] or role in member.roles
 
             if already_owned:
@@ -2189,7 +2171,6 @@ def build_help_pages(is_admin):
         name="Информация",
         value=(
             f"Курс золота обновляется раз в день.\n"
-            f"Вклад растёт на **{format_number(DEPOSIT_DAILY_RATE * 100)}% в день**.\n"
             f"Эмодзи: деньги **{get_cash_emoji()}**, золото **{get_gold_emoji()}**, "
             f"карта **{get_map_emoji()}**, инвестиции **{get_investment_emoji()}**, "
             f"статистика **{get_stats_emoji()}**."
@@ -2222,7 +2203,6 @@ def build_help_pages(is_admin):
                 "`/give-gold member/all amount` — выдать золото.\n"
                 "`/remove-gold member amount` — отнять золото.\n"
                 "`/set-gold member amount` — установить золото.\n"
-                "`/set-deposit member amount` — установить вклад."
             ),
             inline=False,
         )
@@ -3456,10 +3436,9 @@ async def balance_command(interaction: discord.Interaction):
     async with economy_lock:
         rate = update_gold_rate()
         account = get_account(interaction.user.id)
-        interest = accrue_deposit_interest(account)
         save_economy()
 
-        embed = build_balance_embed(interaction.guild, interaction.user, account, rate, interest)
+        embed = build_balance_embed(interaction.guild, interaction.user, account, rate)
 
     balance_image = get_balance_image_file()
     if balance_image:
@@ -3473,7 +3452,6 @@ async def work_command(interaction: discord.Interaction):
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
         cooldown = get_work_cooldown(account)
 
         if cooldown > 0:
@@ -3514,7 +3492,6 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
 
     async with economy_lock:
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
         if account["cash"] + 0.0001 < bet:
             save_economy()
             await interaction.response.send_message(
@@ -3564,7 +3541,6 @@ async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
 
     async with economy_lock:
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
         if account["cash"] + 0.0001 < bet:
             save_economy()
             await interaction.response.send_message(
@@ -3810,7 +3786,6 @@ async def excavation_command(interaction: discord.Interaction):
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
 
         if account["treasure_maps"] <= 0:
             save_economy()
@@ -3853,7 +3828,6 @@ async def dealer_command(interaction: discord.Interaction):
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
 
         if not has_game_role(interaction.user, DEALER_ROLE_KEY, account):
             save_economy()
@@ -3923,7 +3897,6 @@ async def dealer_delivery_command(interaction: discord.Interaction):
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
 
         if not has_game_role(interaction.user, DEALER_ROLE_KEY, account):
             save_economy()
@@ -3979,7 +3952,6 @@ async def moonshine_command(interaction: discord.Interaction):
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
 
         if not has_game_role(interaction.user, MOONSHINER_ROLE_KEY, account):
             save_economy()
@@ -4031,7 +4003,6 @@ async def buy_gold_command(interaction: discord.Interaction, amount: float):
     async with economy_lock:
         rate = update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
         cost = amount * rate
 
         if not math.isfinite(cost):
@@ -4066,7 +4037,6 @@ async def sell_gold_command(interaction: discord.Interaction, amount: float):
     async with economy_lock:
         rate = update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
 
         if account["gold"] + 0.0001 < amount:
             message = (
@@ -4099,7 +4069,6 @@ async def deposit_command(interaction: discord.Interaction, amount: float):
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        interest = accrue_deposit_interest(account)
 
         if account["cash"] + 0.0001 < amount:
             message = (
@@ -4129,8 +4098,6 @@ async def withdraw_deposit_command(
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        interest = accrue_deposit_interest(account)
-        deposit = account["deposit"]
 
         if deposit <= 0:
             message = "Ваш вклад пуст."
@@ -4170,9 +4137,8 @@ async def admin_balance_command(interaction: discord.Interaction, member: discor
     async with economy_lock:
         rate = update_gold_rate()
         account = get_account(member.id)
-        interest = accrue_deposit_interest(account)
         save_economy()
-        embed = build_balance_embed(interaction.guild, member, account, rate, interest)
+        embed = build_balance_embed(interaction.guild, member, account, rate)
 
     balance_image = get_balance_image_file()
     if balance_image:
@@ -4203,7 +4169,6 @@ async def admin_give_cash_command(
         update_gold_rate()
         for target in targets:
             account = get_account(target.id)
-            accrue_deposit_interest(account)
             account["cash"] += amount
         save_economy()
         if is_all:
@@ -4245,7 +4210,6 @@ async def admin_remove_cash_command(
         total_taken = 0.0
         for target in targets:
             account = get_account(target.id)
-            accrue_deposit_interest(account)
             taken = min(account["cash"], amount)
             account["cash"] -= taken
             total_taken += taken
@@ -4278,7 +4242,6 @@ async def admin_set_cash_command(
     async with economy_lock:
         update_gold_rate()
         account = get_account(member.id)
-        accrue_deposit_interest(account)
         set_non_negative(account, "cash", amount)
         save_economy()
         message = f"Баланс денег установлен для {member.mention}.\n{format_account(account)}"
@@ -4308,7 +4271,6 @@ async def admin_give_gold_command(
         update_gold_rate()
         for target in targets:
             account = get_account(target.id)
-            accrue_deposit_interest(account)
             account["gold"] += amount
         save_economy()
         if is_all:
@@ -4350,7 +4312,6 @@ async def admin_remove_gold_command(
         total_taken = 0.0
         for target in targets:
             account = get_account(target.id)
-            accrue_deposit_interest(account)
             taken = min(account["gold"], amount)
             account["gold"] -= taken
             total_taken += taken
@@ -4383,7 +4344,6 @@ async def admin_set_gold_command(
     async with economy_lock:
         update_gold_rate()
         account = get_account(member.id)
-        accrue_deposit_interest(account)
         set_non_negative(account, "gold", amount)
         save_economy()
         message = f"Баланс золота установлен для {member.mention}.\n{format_account(account)}"
@@ -4419,7 +4379,6 @@ async def admin_give_map_command(
         update_gold_rate()
         for target in targets:
             account = get_account(target.id)
-            accrue_deposit_interest(account)
             account["treasure_maps"] += amount
         save_economy()
         if is_all:
@@ -4462,7 +4421,6 @@ async def admin_remove_map_command(
         total_taken = 0
         for target in targets:
             account = get_account(target.id)
-            accrue_deposit_interest(account)
             normalize_treasure_maps(account)
             taken = min(account["treasure_maps"], amount)
             account["treasure_maps"] -= taken
