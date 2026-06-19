@@ -7,7 +7,7 @@
 // КОНФИГУРАЦИЯ
 // =============================================
 const CONFIG = {
-  botVersion: 'v0.5.9.1',
+  botVersion: 'v0.5.9.3',
   inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377&scope=bot%20applications.commands&permissions=8',
   supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
   storageKey: 'membot_settings',
@@ -629,6 +629,14 @@ function applySettingsToForm(settings) {
         opt.selected = values.includes(opt.value);
       });
     } else {
+      if (el.tagName === 'SELECT' && el.classList.contains('channel-select') && val) {
+        if (!Array.from(el.options).some(opt => opt.value === String(val))) {
+          const opt = document.createElement('option');
+          opt.value = val;
+          opt.text = 'ID: ' + val;
+          el.appendChild(opt);
+        }
+      }
       el.value = val ?? '';
     }
   });
@@ -915,6 +923,18 @@ async function fetchGuildChannels(guildId) {
 }
 
 function populateChannelSelects(channels) {
+  const optionsHtml = '<option value="">Не выбран (или выберите из списка)</option>' + 
+    channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
+    
+  document.querySelectorAll('select.channel-select').forEach(select => {
+    const currentVal = select.value;
+    select.innerHTML = optionsHtml;
+    if (currentVal && !channels.some(c => String(c.id) === String(currentVal))) {
+        select.innerHTML += `<option value="${currentVal}">ID: ${currentVal}</option>`;
+    }
+    select.value = currentVal;
+  });
+
   const datalist = document.getElementById('channelDatalist');
   if (datalist) {
     datalist.innerHTML = channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
