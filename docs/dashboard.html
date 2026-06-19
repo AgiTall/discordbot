@@ -191,6 +191,16 @@
                       </svg>
                       Банды
                     </a>
+                  <li class="sidebar-nav__item">
+                    <a href="#" data-section="emojis" id="sidebarEmojis">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                        <line x1="9" y1="9" x2="9.01" y2="9" />
+                        <line x1="15" y1="9" x2="15.01" y2="9" />
+                      </svg>
+                      Эмодзи
+                    </a>
                   </li>
                 </ul>
               </nav>
@@ -748,6 +758,71 @@
                   <div id="gangsAdminList" aria-label="Список банд">
                     <div class="rank-roles-empty">
                       Загрузка банд...
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ════════════ СЕКЦИЯ: ЭМОДЗИ ════════════ -->
+              <div class="dash-section" id="emojis" aria-labelledby="emojisHeading">
+                <div class="dash-section__header">
+                  <div class="dash-section__icon" aria-hidden="true">😀</div>
+                  <div class="dash-section__title">
+                    <h2 id="emojisHeading">Эмодзи</h2>
+                    <p>Настройка эмодзи для экономики и статистики. Можно использовать кастомные эмодзи с вашего сервера.</p>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label for="cashEmoji">Валюта (Наличные)</label>
+                      <div style="display:flex; gap:10px; align-items:center;">
+                        <div id="preview_cashEmoji" style="font-size:24px; min-width:32px; text-align:center;">💲</div>
+                        <select class="form-control emoji-select" id="cashEmoji" data-setting="cashEmoji">
+                          <option value="$">💲 По умолчанию ($)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="goldEmoji">Золото</label>
+                      <div style="display:flex; gap:10px; align-items:center;">
+                        <div id="preview_goldEmoji" style="font-size:24px; min-width:32px; text-align:center;">🪙</div>
+                        <select class="form-control emoji-select" id="goldEmoji" data-setting="goldEmoji">
+                          <option value="🪙">🪙 По умолчанию (🪙)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="mapEmoji">Карты сокровищ</label>
+                      <div style="display:flex; gap:10px; align-items:center;">
+                        <div id="preview_mapEmoji" style="font-size:24px; min-width:32px; text-align:center;">🗺️</div>
+                        <select class="form-control emoji-select" id="mapEmoji" data-setting="mapEmoji">
+                          <option value="🗺️">🗺️ По умолчанию (🗺️)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="investmentEmoji">Инвестиции (Акции)</label>
+                      <div style="display:flex; gap:10px; align-items:center;">
+                        <div id="preview_investmentEmoji" style="font-size:24px; min-width:32px; text-align:center;">📈</div>
+                        <select class="form-control emoji-select" id="investmentEmoji" data-setting="investmentEmoji">
+                          <option value="📈">📈 По умолчанию (📈)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="statsEmoji">Статистика (Профиль)</label>
+                      <div style="display:flex; gap:10px; align-items:center;">
+                        <div id="preview_statsEmoji" style="font-size:24px; min-width:32px; text-align:center;">👤</div>
+                        <select class="form-control emoji-select" id="statsEmoji" data-setting="statsEmoji">
+                          <option value="👤">👤 По умолчанию (👤)</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>

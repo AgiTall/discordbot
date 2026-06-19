@@ -244,10 +244,36 @@ def register_web_routes(app, get_bot, economy_store, get_leveling_db):
             return jsonify({"error": "No data"}), 400
 
         db = _get_leveling_db(get_leveling_db)
+        old_settings = guild_config.get_guild_settings(economy_store, db, guild_id)
+
         try:
             settings = guild_config.set_guild_settings(economy_store, db, guild_id, data)
         except (ValueError, TypeError) as e:
             return jsonify({"error": str(e)}), 400
+
+        bot = get_bot()
+        if bot and getattr(bot, "loop", None):
+            import asyncio
+            guild = bot.get_guild(int(guild_id))
+            if guild:
+                channel_map = {
+                    "newsChannelId": "публикации анонсов и новостей",
+                    "treasureChannelId": "ежедневной раздачи карт сокровищ",
+                    "levelupChannelId": "уведомлений о повышении уровня",
+                    "welcomeChannelId": "приветствий новых участников",
+                    "logsChannelId": "записи серверных логов",
+                }
+                for key, purpose in channel_map.items():
+                    if key in data:
+                        old_val = str(old_settings.get(key) or "")
+                        new_val = str(settings.get(key) or "")
+                        if new_val and new_val != old_val and new_val.isdigit():
+                            channel = guild.get_channel(int(new_val))
+                            if channel:
+                                asyncio.run_coroutine_threadsafe(
+                                    channel.send(f"✅ Этот канал теперь используется для **{purpose}**."),
+                                    bot.loop
+                                )
 
         return jsonify({"status": "ok", "settings": settings})
 
@@ -285,6 +311,32 @@ def register_web_routes(app, get_bot, economy_store, get_leveling_db):
         # Сортируем от самых высоких ролей к самым низким
         roles.sort(key=lambda x: x["position"], reverse=True)
         return jsonify(roles)
+
+    @app.route("/api/guilds/<guild_id>/emojis", methods=["GET"])
+    @login_required
+    def api_guild_emojis(guild_id):
+        if not _user_can_access_guild(guild_id):
+            return jsonify({"error": "Forbidden"}), 403
+            
+        bot = get_bot()
+        if not bot:
+            return jsonify({"error": "Bot offline"}), 503
+            
+        guild = bot.get_guild(int(guild_id))
+        if not guild:
+            return jsonify({"error": "Guild not found"}), 404
+            
+        emojis = []
+        for e in guild.emojis:
+            emojis.append({
+                "id": str(e.id),
+                "name": e.name,
+                "url": str(e.url),
+                "animated": e.animated,
+                "format": f"<a:{e.name}:{e.id}>" if e.animated else f"<:{e.name}:{e.id}>"
+            })
+            
+        return jsonify(emojis)
 
     @app.route("/api/guilds/<guild_id>/channels", methods=["GET"])
     @login_required

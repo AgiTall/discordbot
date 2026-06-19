@@ -363,11 +363,14 @@ function setupDashboardUi(settings) {
   if (authState.selectedGuildId) {
     guildRolesCache = [];
     guildChannelsCache = [];
+    guildEmojisCache = [];
     Promise.all([
       fetchGuildRoles(authState.selectedGuildId),
-      fetchGuildChannels(authState.selectedGuildId)
-    ]).then(([roles, channels]) => {
+      fetchGuildChannels(authState.selectedGuildId),
+      fetchGuildEmojis(authState.selectedGuildId)
+    ]).then(([roles, channels, emojis]) => {
       populateChannelSelects(channels);
+      populateEmojiSelects(emojis);
       applySettingsToForm(settings); // Применяем настройки после загрузки каналов
       initRankRoleEditor(settings);
     });
@@ -636,8 +639,18 @@ function applySettingsToForm(settings) {
           opt.text = 'ID: ' + val;
           el.appendChild(opt);
         }
+      } else if (el.tagName === 'SELECT' && el.classList.contains('emoji-select') && val) {
+        if (!Array.from(el.options).some(opt => opt.value === String(val))) {
+          const opt = document.createElement('option');
+          opt.value = val;
+          opt.text = val;
+          el.appendChild(opt);
+        }
       }
       el.value = val ?? '';
+      if (el.classList.contains('emoji-select')) {
+        updateEmojiPreview(el);
+      }
     }
   });
 }
@@ -939,6 +952,69 @@ function populateChannelSelects(channels) {
   if (datalist) {
     datalist.innerHTML = channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
   }
+}
+
+let guildEmojisCache = [];
+let guildEmojisPromise = null;
+
+function fetchGuildEmojis(guildId) {
+  if (guildEmojisCache.length) return guildEmojisCache;
+  if (guildEmojisPromise) return guildEmojisPromise;
+  
+  guildEmojisPromise = fetch(`/api/guilds/${guildId}/emojis`, { credentials: 'same-origin' })
+    .then(r => {
+      if (!r.ok) throw new Error('Network error');
+      return r.json();
+    })
+    .then(data => {
+      guildEmojisCache = data;
+      return data;
+    })
+    .catch(() => [])
+    .finally(() => guildEmojisPromise = null);
+    
+  return guildEmojisPromise;
+}
+
+function updateEmojiPreview(selectEl) {
+  const previewEl = document.getElementById('preview_' + selectEl.id);
+  if (!previewEl) return;
+  const val = selectEl.value;
+  // If it's a custom emoji like <:name:id> or <a:name:id>
+  const match = val.match(/<(a?):([^:]+):(\d+)>/);
+  if (match) {
+    const animated = match[1] === 'a';
+    const id = match[3];
+    const ext = animated ? 'gif' : 'png';
+    previewEl.innerHTML = `<img src="https://cdn.discordapp.com/emojis/${id}.${ext}" alt="${val}" style="width:24px;height:24px;vertical-align:middle;">`;
+  } else {
+    // Unicode emoji
+    previewEl.innerHTML = val;
+  }
+}
+
+function populateEmojiSelects(emojis) {
+  const customOptions = emojis.map(e => `<option value="${e.format}">${e.name}</option>`).join('');
+  document.querySelectorAll('select.emoji-select').forEach(select => {
+    // Keep the first default option
+    const defaultOpt = select.options[0].outerHTML;
+    const currentVal = select.value;
+    
+    let html = defaultOpt;
+    if (emojis.length > 0) {
+      html += `<optgroup label="Эмодзи сервера">${customOptions}</optgroup>`;
+    }
+    select.innerHTML = html;
+    
+    select.value = currentVal;
+    if (!select.value && currentVal) {
+      select.innerHTML += `<option value="${currentVal}">${currentVal}</option>`;
+      select.value = currentVal;
+    }
+    
+    updateEmojiPreview(select);
+    select.addEventListener('change', () => updateEmojiPreview(select));
+  });
 }
 
 let guildRolesPromise = null;

@@ -68,6 +68,11 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
         "logVoice": bool(econ.get("log_voice")),
         "logCommands": bool(econ.get("log_commands")),
         "goldRate": float(econ.get("gold_rate") or 0),
+        "cashEmoji": str(econ.get("cash_emoji") or "$"),
+        "goldEmoji": str(econ.get("gold_emoji") or "🪙"),
+        "mapEmoji": str(econ.get("map_emoji") or "🗺️"),
+        "investmentEmoji": str(econ.get("investment_emoji") or "📈"),
+        "statsEmoji": str(econ.get("stats_emoji") or "👤"),
     }
 
 
@@ -158,6 +163,18 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
             remove_role = str(entry.get("removeRole", "")).strip()
             if level and role.isdigit():
                 leveling_db.set_rank_role(gid, int(level), role, remove_role if remove_role.isdigit() else None)
+
+    for field, db_field in [
+        ("cashEmoji", "cash_emoji"),
+        ("goldEmoji", "gold_emoji"),
+        ("mapEmoji", "map_emoji"),
+        ("investmentEmoji", "investment_emoji"),
+        ("statsEmoji", "stats_emoji")
+    ]:
+        if field in data:
+            val = str(data[field]).strip()
+            if val:
+                econ[db_field] = val
 
     economy_store.save_all()
     return get_guild_settings(economy_store, leveling_db, gid)
