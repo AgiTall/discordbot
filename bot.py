@@ -1579,6 +1579,7 @@ async def setup_hook():
         await bot.load_extension("cogs.casino")
         await bot.load_extension("cogs.shop")
         await bot.load_extension("cogs.gangs")
+        await bot.load_extension("cogs.robbery")
     except Exception as e:
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
@@ -1895,6 +1896,16 @@ def build_balance_embed(guild, member, account, rate):
         guild, member, account
     )
 
+    gang_name = account.get("gang_name")
+    gang_str = ""
+    if gang_name:
+        guild_data = economy_data.current()
+        gang = guild_data.get("gangs", {}).get(gang_name, {})
+        gang_id = gang.get("id", "N/A")
+        is_leader = gang.get("leader") == member.id
+        role_name = gang.get("leader_role_name", "Лидер") if is_leader else gang.get("member_role_name", "Участник")
+        gang_str = f"🏴‍☠️ Фракция: **{gang_name}** [#{gang_id}] ({role_name})\n\n"
+
     description = (
         "💰 Финансы\n"
         f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
@@ -1902,6 +1913,7 @@ def build_balance_embed(guild, member, account, rate):
         f"├─ 🧰 Сейф (Золото): {format_number(account.get('safe_gold', 0.0))} золота\n"
         f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
         f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
+        f"{gang_str}"
         "🎭 Роли\n"
         f"{role_sections}\n"
         "\n"
