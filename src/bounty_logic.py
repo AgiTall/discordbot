@@ -4,6 +4,7 @@ import random
 import json
 import discord
 from discord import app_commands
+from src.xp_utils import *
 
 BOUNTY_IMAGE_FILE = "assets/images/hunter.png"
 

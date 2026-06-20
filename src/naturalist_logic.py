@@ -4,6 +4,7 @@ import random
 import json
 import discord
 from discord import app_commands
+from src.xp_utils import *
 
 NATURALIST_IMAGE_FILE = "assets/images/naturalist.png"
 
@@ -51,6 +52,40 @@ NATURALIST_REGIONS = {
     "wetlands": {"name": "Болота", "emoji": "💧"},
     "desert": {"name": "Пустыня", "emoji": "🏜️"},
 }
+
+ANIMALS = {
+    "rabbit": {"name": "Кролик", "region": "forest", "shots": 1, "chance": 0.88, "cash": 2.5, "xp": 25},
+    "deer": {"name": "Олень", "region": "forest", "shots": 2, "chance": 0.78, "cash": 4.0, "xp": 45},
+    "fox": {"name": "Лиса", "region": "forest", "shots": 2, "chance": 0.72, "cash": 4.5, "xp": 50},
+    "wolf": {"name": "Волк", "region": "forest", "shots": 3, "chance": 0.60, "cash": 6.0, "xp": 75},
+    "bighorn": {"name": "Горный баран", "region": "mountains", "shots": 2, "chance": 0.70, "cash": 4.5, "xp": 55},
+    "eagle": {"name": "Орёл", "region": "mountains", "shots": 1, "chance": 0.62, "cash": 5.0, "xp": 65},
+    "moose": {"name": "Лось", "region": "mountains", "shots": 5, "chance": 0.48, "cash": 9.0, "xp": 105},
+    "bear": {"name": "Медведь", "region": "mountains", "shots": 5, "chance": 0.42, "cash": 10.0, "xp": 120},
+    "beaver": {"name": "Бобр", "region": "wetlands", "shots": 2, "chance": 0.74, "cash": 4.0, "xp": 45},
+    "frog": {"name": "Лягушка", "region": "wetlands", "shots": 1, "chance": 0.86, "cash": 2.0, "xp": 20},
+    "boar": {"name": "Кабан", "region": "wetlands", "shots": 2, "chance": 0.66, "cash": 5.0, "xp": 65},
+    "alligator": {"name": "Аллигатор", "region": "wetlands", "shots": 5, "chance": 0.45, "cash": 9.5, "xp": 115},
+    "coyote": {"name": "Койот", "region": "desert", "shots": 2, "chance": 0.73, "cash": 4.0, "xp": 45},
+    "snake": {"name": "Гремучая змея", "region": "desert", "shots": 1, "chance": 0.68, "cash": 3.5, "xp": 40},
+    "pronghorn": {"name": "Вилорог", "region": "desert", "shots": 2, "chance": 0.76, "cash": 4.0, "xp": 45},
+    "cougar": {"name": "Пума", "region": "desert", "shots": 3, "chance": 0.55, "cash": 7.0, "xp": 85},
+}
+CATEGORIES = {
+    region_key: [
+        animal_key
+        for animal_key, animal in ANIMALS.items()
+        if animal["region"] == region_key
+    ]
+    for region_key in NATURALIST_REGIONS
+}
+LEGENDARY_ANIMALS = {
+    "legendary_buck": {"name": "Легендарный олень", "required_level": 5, "cash": 60.0, "gold": 1.0, "xp": 260},
+    "legendary_wolf": {"name": "Легендарный волк", "required_level": 8, "cash": 75.0, "gold": 1.2, "xp": 320},
+    "legendary_bear": {"name": "Легендарный медведь", "required_level": 12, "cash": 95.0, "gold": 1.5, "xp": 420},
+    "legendary_cougar": {"name": "Легендарная пума", "required_level": 16, "cash": 120.0, "gold": 2.0, "xp": 560},
+}
+
 
 
 def get_naturalist_button_emoji(button_key):

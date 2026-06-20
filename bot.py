@@ -190,38 +190,6 @@ DEFAULT_ROLE_EMOJIS = {
 
 
 
-ANIMALS = {
-    "rabbit": {"name": "Кролик", "region": "forest", "shots": 1, "chance": 0.88, "cash": 2.5, "xp": 25},
-    "deer": {"name": "Олень", "region": "forest", "shots": 2, "chance": 0.78, "cash": 4.0, "xp": 45},
-    "fox": {"name": "Лиса", "region": "forest", "shots": 2, "chance": 0.72, "cash": 4.5, "xp": 50},
-    "wolf": {"name": "Волк", "region": "forest", "shots": 3, "chance": 0.60, "cash": 6.0, "xp": 75},
-    "bighorn": {"name": "Горный баран", "region": "mountains", "shots": 2, "chance": 0.70, "cash": 4.5, "xp": 55},
-    "eagle": {"name": "Орёл", "region": "mountains", "shots": 1, "chance": 0.62, "cash": 5.0, "xp": 65},
-    "moose": {"name": "Лось", "region": "mountains", "shots": 5, "chance": 0.48, "cash": 9.0, "xp": 105},
-    "bear": {"name": "Медведь", "region": "mountains", "shots": 5, "chance": 0.42, "cash": 10.0, "xp": 120},
-    "beaver": {"name": "Бобр", "region": "wetlands", "shots": 2, "chance": 0.74, "cash": 4.0, "xp": 45},
-    "frog": {"name": "Лягушка", "region": "wetlands", "shots": 1, "chance": 0.86, "cash": 2.0, "xp": 20},
-    "boar": {"name": "Кабан", "region": "wetlands", "shots": 2, "chance": 0.66, "cash": 5.0, "xp": 65},
-    "alligator": {"name": "Аллигатор", "region": "wetlands", "shots": 5, "chance": 0.45, "cash": 9.5, "xp": 115},
-    "coyote": {"name": "Койот", "region": "desert", "shots": 2, "chance": 0.73, "cash": 4.0, "xp": 45},
-    "snake": {"name": "Гремучая змея", "region": "desert", "shots": 1, "chance": 0.68, "cash": 3.5, "xp": 40},
-    "pronghorn": {"name": "Вилорог", "region": "desert", "shots": 2, "chance": 0.76, "cash": 4.0, "xp": 45},
-    "cougar": {"name": "Пума", "region": "desert", "shots": 3, "chance": 0.55, "cash": 7.0, "xp": 85},
-}
-CATEGORIES = {
-    region_key: [
-        animal_key
-        for animal_key, animal in ANIMALS.items()
-        if animal["region"] == region_key
-    ]
-    for region_key in NATURALIST_REGIONS
-}
-LEGENDARY_ANIMALS = {
-    "legendary_buck": {"name": "Легендарный олень", "required_level": 5, "cash": 60.0, "gold": 1.0, "xp": 260},
-    "legendary_wolf": {"name": "Легендарный волк", "required_level": 8, "cash": 75.0, "gold": 1.2, "xp": 320},
-    "legendary_bear": {"name": "Легендарный медведь", "required_level": 12, "cash": 95.0, "gold": 1.5, "xp": 420},
-    "legendary_cougar": {"name": "Легендарная пума", "required_level": 16, "cash": 120.0, "gold": 2.0, "xp": 560},
-}
 
 
 # File helpers
@@ -730,9 +698,6 @@ def format_exchange_rate(value):
     return f"{format_number(value)} {get_cash_emoji()}"
 
 
-def format_integer(value):
-    return f"{int(value):,}".replace(",", " ")
-
 
 def format_treasure_maps(value):
     return f"{format_integer(value)} {get_map_emoji()} карт сокровищ"
@@ -869,28 +834,7 @@ def format_recipe_ingredients(recipe):
 
 
 
-def xp_for_next_level(level, base):
-    return max(1, int(level * base))
-
-
-def apply_role_xp(progress, amount, max_level, base):
-    progress["xp"] = max(0, int(progress.get("xp", 0)) + int(amount))
-    progress["level"] = max(1, min(max_level, int(progress.get("level", 1))))
-    levels_gained = 0
-
-    while progress["level"] < max_level:
-        needed = xp_for_next_level(progress["level"], base)
-        if progress["xp"] < needed:
-            break
-        progress["xp"] -= needed
-        progress["level"] += 1
-        levels_gained += 1
-
-    if progress["level"] >= max_level:
-        progress["level"] = max_level
-        progress["xp"] = min(progress["xp"], xp_for_next_level(max_level, base))
-
-    return levels_gained
+from src.xp_utils import *
 
 
 
@@ -955,11 +899,8 @@ def format_balance_role_sections(guild, member, account):
                 row = f"{icon} {name}: {format_progress_percent(wagon)}"
             elif role_definition["key"] == MOONSHINER_ROLE_KEY:
                 moonshine = get_moonshine_account(account)
-                row = (
-                    f"{icon} {name}: {format_moonshine_bottles(moonshine)}\n"
-                    f"   Уровень аппарата: {get_moonshine_level(moonshine)}\n"
-                    f"   Статус: {format_moonshine_batch_status(moonshine)}"
-                )
+                bottles = moonshine.get("bottles", 0)
+                row = f"{icon} {name}: {format_moonshine_short(account)}, {bottles}/20 бутылок"
             elif role_definition["key"] == BOUNTY_ROLE_KEY:
                 row = f"{icon} {name}: {format_bounty_short(account)}"
             elif role_definition["key"] == NATURALIST_ROLE_KEY:
@@ -4070,74 +4011,26 @@ async def sell_gold_command(interaction: discord.Interaction, amount: float):
     await interaction.response.send_message(message, ephemeral=True)
 
 
-@bot.tree.command(name="deposit", description="Положить деньги на вклад")
-@app_commands.describe(amount="Сколько положить на вклад")
-async def deposit_command(interaction: discord.Interaction, amount: float):
-    if not is_valid_amount(amount):
-        await interaction.response.send_message(
-            "Введите сумму больше нуля.", ephemeral=True
-        )
-        return
+DEPOSIT_DAILY_RATE = 0.03
 
-    async with economy_lock:
-        update_gold_rate()
-        account = get_account(interaction.user.id)
+def accrue_deposit_interest(account):
+    now = now_local()
+    deposit = float(account.get("deposit", 0.0))
+    last_update = parse_local_datetime(account.get("deposit_updated_at"))
 
-        if account["cash"] + 0.0001 < amount:
-            message = (
-                f"Недостаточно денег. Вы хотите положить **{format_money(amount)}**, "
-                f"но у вас **{format_money(account['cash'])}**."
-            )
-        else:
-            account["cash"] -= amount
-            account["deposit"] += amount
-            message = (
-                f"Вы положили **{format_money(amount)}**.\n"
-                f"Вклад сейчас: **{format_money(account['deposit'])}**."
-            )
-            if interest > 0:
-                message += f"\nПроцент добавлен: **+{format_money(interest)}**."
+    if deposit <= 0:
+        account["deposit"] = 0.0
+        account["deposit_updated_at"] = now.isoformat(timespec="seconds")
+        return 0.0  
 
-        save_economy()
+    seconds_passed = max(0.0, (now - last_update).total_seconds())
+    days_passed = seconds_passed / 86400
+    new_deposit = deposit * ((1 + DEPOSIT_DAILY_RATE) ** days_passed)
 
-    await interaction.response.send_message(message, ephemeral=True)
+    account["deposit"] = new_deposit
+    account["deposit_updated_at"] = now.isoformat(timespec="seconds")
+    return new_deposit - deposit
 
-
-@bot.tree.command(name="withdraw", description="Снять деньги с вклада")
-@app_commands.describe(amount="Сколько снять. Используйте 0 или пусто, чтобы снять всё")
-async def withdraw_deposit_command(
-    interaction: discord.Interaction, amount: float = 0.0
-):
-    async with economy_lock:
-        update_gold_rate()
-        account = get_account(interaction.user.id)
-
-        if deposit <= 0:
-            message = "Ваш вклад пуст."
-        else:
-            if amount == 0:
-                amount = deposit
-
-            if not is_valid_amount(amount):
-                message = "Введите сумму больше нуля или 0, чтобы снять всё."
-            elif deposit + 0.0001 < amount:
-                message = (
-                    f"Недостаточно средств на вкладе. Вы хотите снять "
-                    f"**{format_money(amount)}**, но на вкладе **{format_money(deposit)}**."
-                )
-            else:
-                account["deposit"] = max(0.0, deposit - amount)
-                account["cash"] += amount
-                message = (
-                    f"Вы сняли **{format_money(amount)}**.\n"
-                    f"Деньги на руках: **{format_money(account['cash'])}**."
-                )
-                if interest > 0:
-                    message += f"\nПроцент добавлен: **+{format_money(interest)}**."
-
-        save_economy()
-
-    await interaction.response.send_message(message, ephemeral=True)
 
 
 @bot.tree.command(name="check", description="Админ: показать баланс участника")
@@ -5330,6 +5223,22 @@ async def on_message(message):
     finally:
         if token is not None:
             reset_economy_guild_id(token)
+
+# --- INJECT BOT GLOBALS INTO LOGIC MODULES ---
+# Это необходимо, так как логика была вынесена из bot.py, 
+# но продолжает использовать функции и переменные (например, economy_data, format_money).
+def _inject_missing_globals():
+    import src.bounty_logic
+    import src.naturalist_logic
+    import src.moonshiner_logic
+    bot_globals = globals()
+    for mod in [src.bounty_logic, src.naturalist_logic, src.moonshiner_logic]:
+        for k, v in bot_globals.items():
+            if not k.startswith("__") and not hasattr(mod, k):
+                setattr(mod, k, v)
+
+_inject_missing_globals()
+# ---------------------------------------------
 
 def main():
     load_env_file()
