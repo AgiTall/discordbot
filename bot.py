@@ -2924,17 +2924,14 @@ async def sync_commands():
     except Exception as e:
         logging.error(f"Синхронизация глобальных команд не удалась: {e}")
 
-    # Guild sync appears in the Discord client almost immediately.
+    # Remove guild specific commands to prevent duplicates
     for guild in guilds:
         try:
-            bot.tree.copy_global_to(guild=guild)
-            guild_commands = await bot.tree.sync(guild=guild)
-            logging.info(
-                f"Команды синхронизированы для сервера '{guild.name}': "
-                f"{len(guild_commands)}"
-            )
+            bot.tree.clear_commands(guild=guild)
+            await bot.tree.sync(guild=guild)
+            logging.info(f"Локальные команды удалены для сервера '{guild.name}' во избежание дублирования")
         except Exception as e:
-            logging.error(f"Синхронизация команд не удалась для сервера '{guild.name}': {e}")
+            logging.error(f"Очистка команд не удалась для сервера '{guild.name}': {e}")
 
 
 @bot.event
@@ -5049,9 +5046,9 @@ async def on_guild_join(guild):
         reset_economy_guild_id(token)
 
     try:
-        bot.tree.copy_global_to(guild=guild)
-        synced = await bot.tree.sync(guild=guild)
-        logging.info(f"Команды синхронизированы для нового сервера '{guild.name}': {len(synced)}")
+        bot.tree.clear_commands(guild=guild)
+        await bot.tree.sync(guild=guild)
+        logging.info(f"Команды синхронизированы (глобально) для нового сервера '{guild.name}'")
     except Exception as e:
         logging.error(f"Синхронизация команд не удалась для нового сервера '{guild.name}': {e}")
 
