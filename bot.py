@@ -2935,21 +2935,22 @@ async def sync_commands():
     """Register slash commands so they appear in Discord's input suggestions."""
     guilds = bot.guilds
 
-    # Global sync is useful for production, but Discord can cache it for a while.
+    # Очищаем глобальные команды, чтобы не было дубликатов
     try:
-        global_commands = await bot.tree.sync()
-        logging.info(f"Глобальные команды синхронизированы: {len(global_commands)}")
+        bot.tree.clear_commands(guild=None)
+        await bot.tree.sync()
+        logging.info("Глобальные команды очищены (используем локальную синхронизацию для моментального обновления).")
     except Exception as e:
-        logging.error(f"Синхронизация глобальных команд не удалась: {e}")
+        logging.error(f"Очистка глобальных команд не удалась: {e}")
 
-    # Remove guild specific commands to prevent duplicates
+    # Копируем команды на каждый сервер (появляются моментально)
     for guild in guilds:
         try:
-            bot.tree.clear_commands(guild=guild)
-            await bot.tree.sync(guild=guild)
-            logging.info(f"Локальные команды удалены для сервера '{guild.name}' во избежание дублирования")
+            bot.tree.copy_global_to(guild=guild)
+            guild_commands = await bot.tree.sync(guild=guild)
+            logging.info(f"Команды синхронизированы моментально для сервера '{guild.name}': {len(guild_commands)}")
         except Exception as e:
-            logging.error(f"Очистка команд не удалась для сервера '{guild.name}': {e}")
+            logging.error(f"Синхронизация команд не удалась для сервера '{guild.name}': {e}")
 
 
 @bot.event
@@ -5064,9 +5065,9 @@ async def on_guild_join(guild):
         reset_economy_guild_id(token)
 
     try:
-        bot.tree.clear_commands(guild=guild)
-        await bot.tree.sync(guild=guild)
-        logging.info(f"Команды синхронизированы (глобально) для нового сервера '{guild.name}'")
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        logging.info(f"Команды синхронизированы моментально для нового сервера '{guild.name}': {len(synced)}")
     except Exception as e:
         logging.error(f"Синхронизация команд не удалась для нового сервера '{guild.name}': {e}")
 
