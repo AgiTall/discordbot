@@ -2034,204 +2034,222 @@ class RoleShopView(discord.ui.View):
         return True
 
 def build_help_pages(is_admin):
-    pages = []
+    pages = {}
 
+    # 1. Overview
     overview = discord.Embed(
         title="Справка бота",
         description=(
-            "Бот создаёт треды, ведёт экономику, роли, карты сокровищ, "
-            "повозку торговца и админ-настройки сервера."
+            "Добро пожаловать на Дикий Запад! Бот предоставляет систему экономики, "
+            "профессий, банд, а также мини-игры и торговлю.\n\n"
+            "Используйте выпадающее меню ниже, чтобы выбрать нужную категорию команд."
         ),
         color=discord.Color.gold(),
-    )
-    overview.add_field(
-        name="Страницы",
-        value=(
-            "**1. Обзор** — разделы справки.\n"
-            "**2. Игроки** — основные команды.\n"
-            "**3. Торговля и роли** — профессии, повозка и карты.\n"
-            "**4. Админ-команды** — управление экономикой и настройками."
-        ),
-        inline=False,
     )
     overview.add_field(
         name="Быстрый старт",
         value=(
-            "`/balance`, `/work`, `/roles`, `/dice`, `/poker`, `/blackjack`, "
-            "`/dealer`, `/moonshine`, `/excavation`"
+            "`/balance`, `/work`, `/roles`, `/gang-info`, `/bounty`, `/naturalist`"
         ),
         inline=False,
     )
-    pages.append(overview)
+    pages["overview"] = {
+        "label": "Обзор",
+        "description": "Главная страница справки",
+        "emoji": "📖",
+        "embed": overview
+    }
 
+    # 2. Economy
     economy = discord.Embed(
-        title="Справка: Игроки",
-        description="Команды, доступные обычным игрокам.",
+        title="Справка: Экономика и Действия",
+        description="Основные команды для заработка и траты денег.",
         color=discord.Color.gold(),
     )
     economy.add_field(
-        name="Экономика",
+        name="Деньги и Золото",
         value=(
-            "`/balance` — показать деньги, золото, вклад, карты, повозку и витрину.\n"
-            "`/work` — заработать 20–300 денег; крупные награды реже.\n"
+            "`/balance` — показать ваш баланс, карты, повозку и витрину.\n"
+            "`/work` — заработать деньги (кулдаун 2 часа).\n"
             "`/gold-rate` — показать текущий курс золота.\n"
-            "`/buy-gold amount` — купить золото за деньги.\n"
-            "`/sell-gold amount` — продать золото за деньги.\n"
-            "`/deposit amount` — положить деньги на вклад.\n"
-            "`/withdraw amount` — снять деньги с вклада; `0` снимает всё."
+            "`/buy-gold` / `/sell-gold` — обмен валюты.\n"
+            "`/deposit` / `/withdraw` — управление вкладом в банке."
         ),
         inline=False,
     )
     economy.add_field(
-        name="Общение",
-        value="`/send member message` — отправить личное сообщение участнику через бота.",
-        inline=False,
-    )
-    economy.add_field(
-        name="Игры",
+        name="Магазин и Взаимодействия",
         value=(
-            "`/dice bet` — кости против бота.\n"
-            "`/poker bet` — 5-карточный покер против бота.\n"
-            "`/blackjack bet` — blackjack с кнопками Взять/Стоп."
+            "`/shop` — открыть магазин предметов.\n"
+            "`/safe-money` / `/safe-take-money` — использование личного сейфа.\n"
+            "`/rob` — ограбить другого игрока (риск штрафа, кулдаун 2 часа).\n"
+            "`/send` — отправить личное сообщение через бота."
         ),
         inline=False,
     )
-    pages.append(economy)
+    pages["economy"] = {
+        "label": "Экономика и Действия",
+        "description": "Баланс, работа, магазин, банк и ограбления",
+        "emoji": "💰",
+        "embed": economy
+    }
 
+    # 3. Roles
     roles = discord.Embed(
-        title="Справка: Торговля и Роли",
-        description="Профессии, карты сокровищ и события.",
+        title="Справка: Роли и Профессии",
+        description="Команды профессий и заработка.",
         color=discord.Color.gold(),
     )
     roles.add_field(
-        name="Роли",
+        name="Доступные профессии",
         value=(
             "`/roles` — список профессий с описаниями и кнопками покупки.\n"
-            "`/dealer` — команда торговца: заполнить повозку на 10–35%; кулдаун 1 час.\n"
-            "`/dealer-delivery` — доставить полную повозку и получить 500–625 долларов.\n"
-            "`/moonshine` — меню самогонщика: бражка за 50 долларов, особые ингредиенты, улучшения и доставка."
+            "`/dealer` / `/dealer-delivery` — заполнение и доставка повозки торговца.\n"
+            "`/moonshine` — варка и продажа самогона, прокачка аппарата.\n"
+            "`/bounty` / `/bounty-leaderboard` — охота за головами и доска почета.\n"
+            "`/naturalist` — справочник животных и сбор образцов."
         ),
         inline=False,
     )
     roles.add_field(
         name="Карты сокровищ",
         value=(
-            "`/excavation` — потратить карту, выбрать одно из трёх мест и получить 2 попытки найти клад.\n"
-            "Карты выдаются каждый день в **12:00 по МСК**."
+            "`/excavation` — потратить карту и попытаться найти клад.\n"
+            "Карты выдаются во время ежедневных ивентов."
         ),
         inline=False,
     )
-    roles.add_field(
-        name="Информация",
-        value=(
-            f"Курс золота обновляется раз в день.\n"
-            f"Эмодзи: деньги **{get_cash_emoji()}**, золото **{get_gold_emoji()}**, "
-            f"карта **{get_map_emoji()}**, инвестиции **{get_investment_emoji()}**, "
-            f"статистика **{get_stats_emoji()}**."
-        ),
-        inline=False,
-    )
-    pages.append(roles)
+    pages["roles"] = {
+        "label": "Роли и Профессии",
+        "description": "Торговец, Самогонщик, Охотник, Натуралист",
+        "emoji": "🤠",
+        "embed": roles
+    }
 
+    # 4. Gangs
+    gangs = discord.Embed(
+        title="Справка: Банды",
+        description="Объединяйтесь с другими игроками в банды.",
+        color=discord.Color.gold(),
+    )
+    gangs.add_field(
+        name="Управление бандой",
+        value=(
+            "`/gang-create` — создать банду (цена: 50 золота).\n"
+            "`/gang-info` — статистика банды и состав участников.\n"
+            "`/gang-invite` / `/gang-join` / `/gang-leave` — приглашение и выход.\n"
+            "`/gang-kick` — выгнать участника.\n"
+            "`/gang-transfer` — передать лидерство.\n"
+            "`/gang-set-roles` — настроить названия ролей в банде."
+        ),
+        inline=False,
+    )
+    gangs.add_field(
+        name="Общак и Войны",
+        value=(
+            "`/gang-deposit` / `/gang-withdraw` — пополнение и снятие денег из общака.\n"
+            "`/gang-rob` — ограбить общак чужой банды."
+        ),
+        inline=False,
+    )
+    pages["gangs"] = {
+        "label": "Банды",
+        "description": "Создание банд, общак, войны и управление",
+        "emoji": "🔫",
+        "embed": gangs
+    }
+
+    # 5. Games
+    games = discord.Embed(
+        title="Справка: Игры",
+        description="Испытайте удачу в казино.",
+        color=discord.Color.gold(),
+    )
+    games.add_field(
+        name="Доступные игры",
+        value=(
+            "`/dice bet` — кости против бота.\n"
+            "`/poker bet` — 5-карточный покер с заменой карт.\n"
+            "`/blackjack` — блэкджек с дилером."
+        ),
+        inline=False,
+    )
+    pages["games"] = {
+        "label": "Игры",
+        "description": "Кости, покер, блэкджек",
+        "emoji": "🎲",
+        "embed": games
+    }
+
+    # 6. Admin
     admin = discord.Embed(
         title="Справка: Админ-команды",
-        description="Команды управления серверной экономикой и настройками.",
+        description="Команды управления сервером и экономикой.",
         color=discord.Color.gold(),
     )
     if is_admin:
         admin.add_field(
-            name="Треды",
-            value=(
-                "`/threads-on channel` — включить автоматические треды.\n"
-                "`/threads-off channel` — выключить автоматические треды."
-            ),
+            name="Основные",
+            value="`/check`, `/give-money`, `/remove-money`, `/set-money`, `/give-gold` и т.д.",
             inline=False,
         )
         admin.add_field(
-            name="Балансы",
-            value=(
-                "`/check member` — показать баланс участника.\n"
-                "`/give-money member/all amount` — выдать деньги.\n"
-                "`/remove-money member amount` — отнять деньги.\n"
-                "`/set-money member amount` — установить деньги.\n"
-                "`/give-gold member/all amount` — выдать золото.\n"
-                "`/remove-gold member amount` — отнять золото.\n"
-                "`/set-gold member amount` — установить золото.\n"
-            ),
+            name="Профессии",
+            value="`/fill-dealer`, `/give-moonshine-ingredient`, `/set-moonshine-upgrade`, `/set-moonshine-skill`, `/finish-moonshine`, `/reset-moonshine`",
             inline=False,
         )
         admin.add_field(
-            name="Карты и Повозка",
-            value=(
-                "`/give-map member/all amount` — выдать карты сокровищ.\n"
-                "`/treasure-channel channel` — задать канал объявлений карт.\n"
-                "`/treasure-event amount` — выдать всем карты и объявить ивент.\n"
-                "`/fill-dealer percent member` — изменить заполнение повозки."
-            ),
-            inline=False,
-        )
-        admin.add_field(
-            name="Самогонщик",
-            value=(
-                "`/give-moonshine-ingredient member ingredient amount` — выдать ингредиент.\n"
-                "`/remove-moonshine-ingredient member ingredient amount` — забрать ингредиент.\n"
-                "`/set-moonshine-upgrade member level` — установить уровень аппарата.\n"
-                "`/set-moonshine-skill member enabled` — включить сокращённое время.\n"
-                "`/finish-moonshine member` — завершить текущую партию.\n"
-                "`/reset-moonshine member` — сбросить состояние самогонщика."
-            ),
-            inline=False,
-        )
-        admin.add_field(
-            name="Настройки",
-            value=(
-                "`/set-rate rate` — установить курс золота.\n"
-                "`/set-emoji currency emoji` — настроить эмодзи валют, кнопок и ролей.\n"
-                "`/set-message message_key text` — изменить текстовые шаблоны.\n"
-                "`/set-icon-roles role emoji` — задать иконку роли в `/roles`.\n"
-                "`/set-discounts-roles role price` — скидка на роль на неделю.\n"
-                "`/clear-discounts-roles role` — снять скидку с роли.\n"
-                "`/reset-work member` — сбросить кулдаун `/work`."
-            ),
+            name="Настройки и ивенты",
+            value="`/treasure-event`, `/set-agitation-channel`, `/set-discount-shop`, `/set-rate`, `/set-emoji`, `/set-message`, `/set-icon-roles`, `/set-discounts-roles`",
             inline=False,
         )
     else:
         admin.add_field(
             name="Недоступно",
-            value="Эта страница видна всем, но команды может использовать только администрация.",
+            value="У вас нет прав администратора для просмотра этих команд.",
             inline=False,
         )
-    pages.append(admin)
+    pages["admin"] = {
+        "label": "Админ-команды",
+        "description": "Настройки и управление ботом",
+        "emoji": "⚙️",
+        "embed": admin
+    }
 
-    for index, page in enumerate(pages, start=1):
-        page.set_footer(text=f"Страница {index}/{len(pages)}")
+    # Add banner to all pages if exists
+    for key, data in pages.items():
         if os.path.exists(TREASURE_BANNER_FILE):
-            page.set_image(url=f"attachment://{TREASURE_BANNER_FILE}")
+            data["embed"].set_image(url=f"attachment://{TREASURE_BANNER_FILE}")
 
     return pages
 
 
-class HelpPageButton(discord.ui.Button):
-    def __init__(self, direction):
-        label = "Назад" if direction < 0 else "Вперёд"
-        super().__init__(label=label, style=discord.ButtonStyle.secondary)
-        self.direction = direction
+class HelpCategorySelect(discord.ui.Select):
+    def __init__(self, pages):
+        self.pages = pages
+        options = []
+        for key, data in pages.items():
+            options.append(
+                discord.SelectOption(
+                    label=data["label"],
+                    description=data["description"],
+                    emoji=data["emoji"],
+                    value=key
+                )
+            )
+        super().__init__(placeholder="Выберите категорию команд...", min_values=1, max_values=1, options=options)
 
-    async def callback(self, interaction):
-        view = self.view
-        view.current_page = (view.current_page + self.direction) % len(view.pages)
-        await interaction.response.edit_message(
-            embed=view.pages[view.current_page], view=view
-        )
+    async def callback(self, interaction: discord.Interaction):
+        selected_key = self.values[0]
+        selected_page = self.pages[selected_key]["embed"]
+        await interaction.response.edit_message(embed=selected_page, view=self.view)
 
 
 class HelpView(discord.ui.View):
     def __init__(self, pages):
         super().__init__(timeout=600)
         self.pages = pages
-        self.current_page = 0
-        self.add_item(HelpPageButton(-1))
-        self.add_item(HelpPageButton(1))
+        self.add_item(HelpCategorySelect(pages))
 
 
 def validate_bet(amount):
@@ -3132,11 +3150,11 @@ async def help_command(interaction: discord.Interaction):
     banner = get_treasure_banner_file()
     if banner:
         await interaction.response.send_message(
-            embed=pages[0], view=HelpView(pages), file=banner, ephemeral=True
+            embed=pages["overview"]["embed"], view=HelpView(pages), file=banner, ephemeral=True
         )
     else:
         await interaction.response.send_message(
-            embed=pages[0], view=HelpView(pages), ephemeral=True
+            embed=pages["overview"]["embed"], view=HelpView(pages), ephemeral=True
         )
 
 

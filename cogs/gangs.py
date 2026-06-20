@@ -249,38 +249,112 @@ class GangsCog(commands.Cog):
             
         finally:
             reset_economy_guild_id(token)
+class GangInviteView(discord.ui.View):
+    def __init__(self, guild_id: int, gang_name: str, inviter_id: int, bot):
+        super().__init__(timeout=86400) # 24 часа
+        self.guild_id = guild_id
+        self.gang_name = gang_name
+        self.inviter_id = inviter_id
+        self.bot = bot
+
+    @discord.ui.button(label="Принять", style=discord.ButtonStyle.success, emoji="🟢")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        token = set_economy_guild_id(self.guild_id)
+        try:
+            async with economy_lock:
+                guild_invites = GANG_INVITES.get(self.guild_id, {})
+                if guild_invites.get(interaction.user.id) != self.gang_name:
+                    await interaction.response.edit_message(content="❌ Это приглашение больше не действительно или было отозвано.", view=None, embed=None)
+                    return
+
+                gangs = get_gangs(self.guild_id)
+                if self.gang_name not in gangs:
+                    await interaction.response.edit_message(content="❌ Эта банда больше не существует.", view=None, embed=None)
+                    del guild_invites[interaction.user.id]
+                    return
+
+                account = get_account(interaction.user.id)
+                if user_in_gang(account):
+                    await interaction.response.edit_message(content="❌ Вы уже состоите в другой банде.", view=None, embed=None)
+                    del guild_invites[interaction.user.id]
+                    return
+
+                # Добавляем в банду
+                account["gang_name"] = self.gang_name
+                if interaction.user.id not in gangs[self.gang_name]["members"]:
+                    gangs[self.gang_name]["members"].append(interaction.user.id)
+                
+                del guild_invites[interaction.user.id]
+                role_id = gangs[self.gang_name].get("discord_role_id")
+                save_economy()
+
+            # Выдаем роль
+            if role_id:
+                guild = self.bot.get_guild(self.guild_id)
+                if guild:
+                    member = guild.get_member(interaction.user.id)
+                    if member:
+                        role = guild.get_role(role_id)
+                        if role:
+                            try:
+                                await member.add_roles(role)
+                            except discord.Forbidden:
+                                pass
+
+            await interaction.response.edit_message(content=f"✅ Вы успешно присоединились к банде **{self.gang_name}**!", view=None, embed=None)
+        finally:
+            reset_economy_guild_id(token)
+
+    @discord.ui.button(label="Отклонить", style=discord.ButtonStyle.danger, emoji="🔴")
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild_invites = GANG_INVITES.get(self.guild_id, {})
+        if guild_invites.get(interaction.user.id) == self.gang_name:
+            del guild_invites[interaction.user.id]
+        await interaction.response.edit_message(content=f"❌ Вы отклонили приглашение в банду **{self.gang_name}**.", view=None, embed=None)
+
 
     @app_commands.command(name="gang-invite", description="Пригласить игрока в банду (только для лидера)")
+    @app_commands.describe(member="Кого пригласить")
     async def gang_invite(self, interaction: discord.Interaction, member: discord.Member):
         token = set_economy_guild_id(interaction.guild_id)
         try:
             if member.bot:
                 await interaction.response.send_message("Нельзя приглашать ботов.", ephemeral=True)
                 return
-                
+
             async with economy_lock:
                 account = get_account(interaction.user.id)
                 gang_name = user_in_gang(account)
                 gangs = get_gangs(interaction.guild_id)
-                
+
                 if not gang_name or gang_name not in gangs:
                     await interaction.response.send_message("Вы не состоите в банде.", ephemeral=True)
                     return
-                    
+
                 if gangs[gang_name]["leader"] != interaction.user.id:
                     await interaction.response.send_message("Только лидер банды может приглашать новых участников.", ephemeral=True)
                     return
-                
+
                 target_account = get_account(member.id)
                 if user_in_gang(target_account):
                     await interaction.response.send_message("Этот игрок уже состоит в банде.", ephemeral=True)
                     return
-                    
-                # Add invite
+
                 guild_invites = GANG_INVITES.setdefault(interaction.guild_id, {})
                 guild_invites[member.id] = gang_name
-                
-            await interaction.response.send_message(f"Вы отправили приглашение {member.mention} в банду **{gang_name}**! Игрок должен использовать `/gang-join {gang_name}`.")
+
+            embed = discord.Embed(
+                title="Приглашение в банду",
+                description=f"Игрок **{interaction.user.display_name}** приглашает вас присоединиться к банде **{gang_name}** на сервере **{interaction.guild.name}**!\n\nНажмите кнопку ниже, чтобы принять или отклонить приглашение.",
+                color=discord.Color.green()
+            )
+            view = GangInviteView(interaction.guild_id, gang_name, interaction.user.id, self.bot)
+            try:
+                await member.send(embed=embed, view=view)
+                await interaction.response.send_message(f"✅ Вы успешно отправили приглашение {member.mention} в ЛС!", ephemeral=False)
+            except discord.Forbidden:
+                await interaction.response.send_message(f"⚠️ Приглашение отправлено, но у {member.mention} **закрыты личные сообщения**!\n\nИгроку придётся принять приглашение вручную, введя команду `/gang-join name:{gang_name}` здесь на сервере.", ephemeral=False)
+
         finally:
             reset_economy_guild_id(token)
 
@@ -718,6 +792,124 @@ class GangsCog(commands.Cog):
                     else:
                         save_economy()
                         await interaction.response.send_message(f"🚨 **ПРОВАЛ!** Ограбление сорвалось, но ваш общак был пуст, так что вы ничего не потеряли (кроме репутации).")
+        finally:
+            reset_economy_guild_id(token)
+
+    @app_commands.command(name="admin-set-gang-leader", description="Админ: Установить лидера для выбранной банды")
+    @app_commands.describe(gang_name="Название банды", member="Новый лидер банды")
+    @app_commands.default_permissions(administrator=True)
+    async def admin_set_gang_leader(self, interaction: discord.Interaction, gang_name: str, member: discord.Member):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                gangs = get_gangs(interaction.guild_id)
+
+                if gang_name not in gangs:
+                    await interaction.response.send_message(f"Банда '{gang_name}' не найдена.", ephemeral=True)
+                    return
+
+                if member.bot:
+                    await interaction.response.send_message("Нельзя передать лидерство боту.", ephemeral=True)
+                    return
+
+                target_account = get_account(member.id)
+                old_gang = user_in_gang(target_account)
+                
+                # Если игрок в другой банде, убираем его оттуда
+                if old_gang and old_gang != gang_name and old_gang in gangs:
+                    if member.id in gangs[old_gang]["members"]:
+                        gangs[old_gang]["members"].remove(member.id)
+                
+                target_account["gang_name"] = gang_name
+                if member.id not in gangs[gang_name]["members"]:
+                    gangs[gang_name]["members"].append(member.id)
+                
+                old_leader_id = gangs[gang_name].get("leader")
+                if old_leader_id == member.id:
+                    await interaction.response.send_message("Этот игрок уже является лидером данной банды.", ephemeral=True)
+                    return
+
+                gangs[gang_name]["leader"] = member.id
+                
+                leader_role_id = gangs[gang_name].get("discord_leader_role_id")
+                member_role_id = gangs[gang_name].get("discord_role_id")
+                save_economy()
+                
+            if member_role_id:
+                m_role = interaction.guild.get_role(member_role_id)
+                if m_role:
+                    try:
+                        await member.add_roles(m_role)
+                    except discord.Forbidden:
+                        pass
+                        
+            if leader_role_id:
+                l_role = interaction.guild.get_role(leader_role_id)
+                if l_role:
+                    try:
+                        if old_leader_id:
+                            old_leader = interaction.guild.get_member(old_leader_id)
+                            if old_leader:
+                                await old_leader.remove_roles(l_role)
+                        await member.add_roles(l_role)
+                    except discord.Forbidden:
+                        pass
+                        
+            await interaction.response.send_message(f"✅ {member.mention} теперь является лидером банды **{gang_name}**!", ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+
+    @app_commands.command(name="admin-add-gang-member", description="Админ: Добавить игрока в банду без приглашения")
+    @app_commands.describe(gang_name="Название банды", member="Кого добавить")
+    @app_commands.default_permissions(administrator=True)
+    async def admin_add_gang_member(self, interaction: discord.Interaction, gang_name: str, member: discord.Member):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                gangs = get_gangs(interaction.guild_id)
+
+                if gang_name not in gangs:
+                    await interaction.response.send_message(f"Банда '{gang_name}' не найдена.", ephemeral=True)
+                    return
+
+                if member.bot:
+                    await interaction.response.send_message("Нельзя добавить ботов в банду.", ephemeral=True)
+                    return
+
+                target_account = get_account(member.id)
+                old_gang = user_in_gang(target_account)
+                
+                if old_gang == gang_name:
+                    await interaction.response.send_message("Этот игрок уже состоит в выбранной банде.", ephemeral=True)
+                    return
+
+                # Если игрок в другой банде, убираем его оттуда
+                if old_gang and old_gang != gang_name and old_gang in gangs:
+                    if member.id in gangs[old_gang]["members"]:
+                        gangs[old_gang]["members"].remove(member.id)
+                    if gangs[old_gang].get("leader") == member.id:
+                        await interaction.response.send_message(f"⚠️ Игрок {member.mention} является лидером банды **{old_gang}**. Вы не можете просто перевести его. Сначала смените лидера той банды или распустите её.", ephemeral=True)
+                        return
+                
+                target_account["gang_name"] = gang_name
+                if member.id not in gangs[gang_name]["members"]:
+                    gangs[gang_name]["members"].append(member.id)
+                
+                role_id = gangs[gang_name].get("discord_role_id")
+                save_economy()
+                
+            if role_id:
+                role = interaction.guild.get_role(role_id)
+                if role:
+                    try:
+                        await member.add_roles(role)
+                    except discord.Forbidden:
+                        pass
+                        
+            await interaction.response.send_message(f"✅ Игрок {member.mention} принудительно добавлен в банду **{gang_name}**!", ephemeral=True)
         finally:
             reset_economy_guild_id(token)
 
