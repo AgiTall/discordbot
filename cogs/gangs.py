@@ -39,10 +39,11 @@ class GangSetupModal(discord.ui.Modal, title='Данные для агитаци
     description = discord.ui.TextInput(label='Что мы предлагаем? (Описание)', style=discord.TextStyle.paragraph, max_length=1000, required=True)
     criteria = discord.ui.TextInput(label='Критерии отбора', style=discord.TextStyle.paragraph, max_length=1000, required=True)
 
-    def __init__(self, gang_name: str, hex_color: str):
+    def __init__(self, gang_name: str, hex_color: str, leader_title: str):
         super().__init__()
         self.gang_name = gang_name
         self.hex_color = hex_color
+        self.leader_title = leader_title
 
     async def on_submit(self, interaction: discord.Interaction):
         embed = discord.Embed(
@@ -53,12 +54,12 @@ class GangSetupModal(discord.ui.Modal, title='Данные для агитаци
         view = GangCreateConfirmView(
             interaction.guild_id, interaction.user, self.gang_name, 
             self.hex_color, self.logo_url.value, self.bg_url.value, 
-            self.description.value, self.criteria.value
+            self.description.value, self.criteria.value, self.leader_title
         )
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 class GangCreateConfirmView(discord.ui.View):
-    def __init__(self, guild_id, member, gang_name, hex_color, logo_url, bg_url, description, criteria):
+    def __init__(self, guild_id, member, gang_name, hex_color, logo_url, bg_url, description, criteria, leader_title):
         super().__init__(timeout=120)
         self.guild_id = guild_id
         self.member = member
@@ -68,6 +69,7 @@ class GangCreateConfirmView(discord.ui.View):
         self.bg_url = bg_url
         self.description = description
         self.criteria = criteria
+        self.leader_title = leader_title
         for child in self.children:
             if getattr(child, "custom_id", None) == "confirm_gang_create":
                 child.label = f"Подтвердить покупку 50 {get_gold_emoji()}"
@@ -114,7 +116,8 @@ class GangCreateConfirmView(discord.ui.View):
                 leader_role = None
                 member_role = None
                 try:
-                    leader_role = await interaction.guild.create_role(name=f"Лидер {self.gang_name}", color=discord.Color(dark_color_int))
+                    role_title = self.leader_title if self.leader_title else "Лидер"
+                    leader_role = await interaction.guild.create_role(name=f"{role_title} {self.gang_name}", color=discord.Color(dark_color_int))
                     member_role = await interaction.guild.create_role(name=self.gang_name, color=discord.Color(color_int))
                     await interaction.user.add_roles(leader_role, member_role)
                 except discord.Forbidden:
@@ -147,7 +150,7 @@ class GangCreateConfirmView(discord.ui.View):
                     "gold": 0.0,
                     "level": 1,
                     "influence": 0,
-                    "leader_role_name": "Лидер",
+                    "leader_role_name": role_title,
                     "member_role_name": "Участник",
                     "created_at": now_local().isoformat(timespec="seconds"),
                     "last_rob_at": None,
@@ -203,7 +206,16 @@ class GangsCog(commands.Cog):
             reset_economy_guild_id(token)
 
     @app_commands.command(name="gang-create", description="Создать банду (Цена: 50 Золота)")
-    async def gang_create(self, interaction: discord.Interaction, name: str, hex_color: str):
+    @app_commands.describe(name="Название банды", hex_color="Цвет (например #FF0000)", leader_title="Название роли лидера")
+    @app_commands.choices(leader_title=[
+        app_commands.Choice(name="Лидер", value="Лидер"),
+        app_commands.Choice(name="Главарь", value="Главарь"),
+        app_commands.Choice(name="Предводитель", value="Предводитель"),
+        app_commands.Choice(name="Босс", value="Босс"),
+        app_commands.Choice(name="Дон", value="Дон"),
+        app_commands.Choice(name="Барон", value="Барон")
+    ])
+    async def gang_create(self, interaction: discord.Interaction, name: str, hex_color: str, leader_title: Optional[app_commands.Choice[str]] = None):
         token = set_economy_guild_id(interaction.guild_id)
         try:
             name = name.strip()
@@ -232,7 +244,8 @@ class GangsCog(commands.Cog):
                     await interaction.response.send_message(f"Для создания банды нужно {GANG_CREATE_COST} золота.", ephemeral=True)
                     return
                     
-            await interaction.response.send_modal(GangSetupModal(name, hex_color))
+            title_val = leader_title.value if leader_title else "Лидер"
+            await interaction.response.send_modal(GangSetupModal(name, hex_color, title_val))
             
         finally:
             reset_economy_guild_id(token)
@@ -417,6 +430,70 @@ class GangsCog(commands.Cog):
                     except: pass
                 
             await interaction.response.send_message(f"{member.mention} был исключен из банды **{gang_name}**.")
+        finally:
+            reset_economy_guild_id(token)
+
+    @app_commands.command(name="gang-transfer", description="Передать лидерство в банде другому участнику (только для лидера)")
+    @app_commands.describe(member="Участник, которому передается лидерство", leader_title="Новое название роли лидера")
+    @app_commands.choices(leader_title=[
+        app_commands.Choice(name="Лидер", value="Лидер"),
+        app_commands.Choice(name="Главарь", value="Главарь"),
+        app_commands.Choice(name="Предводитель", value="Предводитель"),
+        app_commands.Choice(name="Босс", value="Босс"),
+        app_commands.Choice(name="Дон", value="Дон"),
+        app_commands.Choice(name="Барон", value="Барон")
+    ])
+    async def gang_transfer(self, interaction: discord.Interaction, member: discord.Member, leader_title: Optional[app_commands.Choice[str]] = None):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                gang_name = user_in_gang(account)
+                gangs = get_gangs(interaction.guild_id)
+                
+                if not gang_name or gang_name not in gangs:
+                    await interaction.response.send_message("Вы не состоите в банде.", ephemeral=True)
+                    return
+                    
+                if gangs[gang_name]["leader"] != interaction.user.id:
+                    await interaction.response.send_message("Только лидер может передать лидерство.", ephemeral=True)
+                    return
+                    
+                if member.id == interaction.user.id:
+                    await interaction.response.send_message("Вы уже являетесь лидером.", ephemeral=True)
+                    return
+                    
+                if member.bot:
+                    await interaction.response.send_message("Нельзя передать лидерство боту.", ephemeral=True)
+                    return
+                    
+                target_account = get_account(member.id)
+                if user_in_gang(target_account) != gang_name:
+                    await interaction.response.send_message("Этот игрок не состоит в вашей банде.", ephemeral=True)
+                    return
+                    
+                gangs[gang_name]["leader"] = member.id
+                
+                title_val = leader_title.value if leader_title else gangs[gang_name].get("leader_role_name", "Лидер")
+                gangs[gang_name]["leader_role_name"] = title_val
+                
+                leader_role_id = gangs[gang_name].get("discord_leader_role_id")
+                save_economy()
+                
+            if leader_role_id:
+                role = interaction.guild.get_role(leader_role_id)
+                if role:
+                    try:
+                        await interaction.user.remove_roles(role)
+                        await member.add_roles(role)
+                        if leader_title:
+                            await role.edit(name=f"{title_val} {gang_name}")
+                    except discord.Forbidden:
+                        pass
+                    except discord.HTTPException:
+                        pass
+                        
+            await interaction.response.send_message(f"👑 Вы успешно передали лидерство банды **{gang_name}** игроку {member.mention}! Теперь он **{title_val}**.")
         finally:
             reset_economy_guild_id(token)
 
