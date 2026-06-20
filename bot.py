@@ -3145,6 +3145,7 @@ async def help_command(interaction: discord.Interaction):
 
 @bot.tree.command(name="roles", description="Показать игровые роли и купить доступные")
 async def roles_command(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     async with economy_lock:
         remove_expired_role_discounts()
         account = get_account(interaction.user.id)
@@ -3154,11 +3155,11 @@ async def roles_command(interaction: discord.Interaction):
 
     role_image = get_role_image_file()
     if role_image:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=embed, view=view, file=role_image, ephemeral=True
         )
     else:
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 @bot.tree.command(name="send", description="Отправить личное сообщение участнику")
@@ -3403,6 +3404,7 @@ async def balance_command(interaction: discord.Interaction):
 
 @bot.tree.command(name="work", description="Заработать случайную сумму денег")
 async def work_command(interaction: discord.Interaction):
+    await interaction.response.defer()
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
@@ -3414,7 +3416,7 @@ async def work_command(interaction: discord.Interaction):
                 "Вы недавно работали. "
                 f"Вы сможете снова работать через **{format_duration(cooldown)}**."
             )
-            await interaction.response.send_message(message, ephemeral=True)
+            await interaction.followup.send(message, ephemeral=True)
             return
 
         reward = random_work_reward()
@@ -3424,7 +3426,7 @@ async def work_command(interaction: discord.Interaction):
         save_economy()
 
     message_template = get_custom_message("work_success")
-    await interaction.response.send_message(
+    await interaction.followup.send(
         message_template.format(
             mention=interaction.user.mention,
             reward=format_money(reward),
@@ -3436,9 +3438,10 @@ async def work_command(interaction: discord.Interaction):
 @bot.tree.command(name="dice", description="Сыграть в кости с ботом")
 @app_commands.describe(bet="Ставка деньгами. 0 — без ставки")
 async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
+    await interaction.response.defer(ephemeral=True)
     bet, error = validate_bet(bet)
     if error:
-        await interaction.response.send_message(error, ephemeral=True)
+        await interaction.followup.send(error, ephemeral=True)
         return
 
     player_roll = random.randint(1, 6)
@@ -3448,7 +3451,7 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
         account = get_account(interaction.user.id)
         if account["cash"] + 0.0001 < bet:
             save_economy()
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"Недостаточно денег для ставки **{format_money(bet)}**. "
                 f"У вас **{format_money(account['cash'])}**.",
                 ephemeral=True,
@@ -3466,7 +3469,7 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
 
         save_economy()
 
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"🎲 {interaction.user.mention}: **{player_roll}**\n"
         f"🎲 Бот: **{bot_roll}**\n"
         f"{result}",
@@ -3481,9 +3484,10 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
 @bot.tree.command(name="poker", description="Сыграть 5-карточный покер с ботом")
 @app_commands.describe(bet="Ставка деньгами. 0 — без ставки")
 async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
+    await interaction.response.defer(ephemeral=True)
     bet, error = validate_bet(bet)
     if error:
-        await interaction.response.send_message(error, ephemeral=True)
+        await interaction.followup.send(error, ephemeral=True)
         return
 
     deck = build_card_deck()
@@ -3497,7 +3501,7 @@ async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
         account = get_account(interaction.user.id)
         if account["cash"] + 0.0001 < bet:
             save_economy()
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"Недостаточно денег для ставки **{format_money(bet)}**. "
                 f"У вас **{format_money(account['cash'])}**.",
                 ephemeral=True,
@@ -3515,7 +3519,7 @@ async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
 
         save_economy()
 
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"🃏 {interaction.user.mention}: **{format_cards(player_hand)}** — {player_name}\n"
         f"🃏 Бот: **{format_cards(bot_hand)}** — {bot_name}\n"
         f"{result}",
