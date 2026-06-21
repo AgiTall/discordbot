@@ -37,8 +37,8 @@ def create_bot() -> commands.Bot:
     """Get the discord.py bot instance from bot.py and configure it."""
     from bot import bot
 
-    @bot.event
-    async def on_ready():
+    @bot.listen("on_ready")
+    async def on_ready_runner():
         logger.info("Bot is ready as %s (ID: %s)", bot.user, bot.user.id)
         logger.info("Connected to %d guilds", len(bot.guilds))
 
@@ -51,13 +51,6 @@ def create_bot() -> commands.Bot:
             created = await sync_bot_guilds(db, bot_guilds)
             if created:
                 logger.info("Registered %d new guilds with lifetime_free=True", created)
-
-        # Sync slash commands
-        try:
-            synced = await bot.tree.sync()
-            logger.info("Synced %d application commands", len(synced))
-        except Exception as e:
-            logger.error("Failed to sync commands: %s", e)
 
     return bot
 
