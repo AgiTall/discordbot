@@ -2935,13 +2935,8 @@ async def sync_commands():
     """Register slash commands so they appear in Discord's input suggestions."""
     guilds = bot.guilds
 
-    # Очищаем глобальные команды, чтобы не было дубликатов
-    try:
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()
-        logging.info("Глобальные команды очищены (используем локальную синхронизацию для моментального обновления).")
-    except Exception as e:
-        logging.error(f"Очистка глобальных команд не удалась: {e}")
+    # Мы убрали очистку глобальных команд, так как bot.tree.clear_commands 
+    # удаляет их из локальной памяти бота, из-за чего copy_global_to копировал 0 команд!
 
     # Копируем команды на каждый сервер (появляются моментально)
     for guild in guilds:
