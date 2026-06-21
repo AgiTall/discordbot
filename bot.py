@@ -3673,7 +3673,7 @@ class TreasureHuntView(discord.ui.View):
             reset_economy_guild_id(token)
 
         ingredients_text = ", ".join(
-            f"{ingredient} x{amount}"
+            f"{get_ingredient_emoji(ingredient)} {ingredient} x{amount}"
             for ingredient, amount in sorted(ingredients_reward.items())
         ) or "нет"
         return cash_reward, gold_reward, ingredients_text, remaining_maps, extra_map_granted

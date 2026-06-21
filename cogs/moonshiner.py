@@ -639,12 +639,18 @@ def build_moonshine_special_embed(moonshine):
         star_emoji = get_moonshine_star_emoji(stars)
         payout_str = format_money(recipe['payout'])
         
+        ingredients_reqs = []
+        for ing_name, amount in recipe["ingredients"].items():
+            ing_emoji = get_ingredient_emoji(ing_name)
+            ingredients_reqs.append(f"{ing_emoji} x{amount}")
+        req_str = ", ".join(ingredients_reqs)
+        
         # Разбиваем длинную строку на логические блоки для читаемости
         line = (
             f"{special_emoji} **{recipe['name']}** {star_emoji}{lock}:\n"
             f"└ Основа: бражка {stars} ур. | "
             f"Выручка: {payout_str}\n"
-            f"└ Ингредиенты: **{status}**"
+            f"└ Ингредиенты: {req_str} (**{status}**)"
         )
         lines.append(line)
 
