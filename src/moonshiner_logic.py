@@ -49,6 +49,20 @@ DEFAULT_MOONSHINE_BUTTON_EMOJIS = {
 }
 
 
+DEFAULT_MOONSHINE_PROD_EMOJI = "<:moonshinejug:1518335449599578247>"
+DEFAULT_MOONSHINE_LVL_EMOJI = "<:product_moonshine:1518335733738377247>"
+DEFAULT_MOONSHINE_ACCESS_EMOJI = "<:consumable_moonshine2:1518337636526330069>"
+DEFAULT_MOONSHINE_BOTTLES_EMOJI = "<:blip_product_moonshine:1518335733738377247>"
+DEFAULT_MOONSHINE_WAGON_EMOJI = "<:wheel:1518269437176713418>"
+DEFAULT_MOONSHINE_BREWING_EMOJI = "<:provision_folder_watches:1518338347452465162>"
+DEFAULT_MOONSHINE_KETTLE_EMOJI = "<:kotel:1518337831477575891>"
+DEFAULT_MOONSHINE_EQUIP_EMOJI = "<:update:1518269540012789860>"
+DEFAULT_MOONSHINE_SKILL_EMOJI = "<:kit_player_pocketwatch:1518338632136527932>"
+DEFAULT_MOONSHINE_STOR_FULL_EMOJI = "<:sklad:1518337220585455849>"
+DEFAULT_MOONSHINE_STOR_EMPTY_EMOJI = "<:sklad:1518337220585455849>"
+DEFAULT_MOONSHINE_FINANCE_EMOJI = "<:moneyclip:1518336190921703454>"
+
+
 MOONSHINE_STRENGTHS = {
     "weak": {"name": "Слабый", "duration_skill": 24 * 60, "duration_no_skill": 30 * 60},
     "medium": {"name": "Средний", "duration_skill": 36 * 60, "duration_no_skill": 45 * 60},
@@ -244,6 +258,14 @@ def get_moonshine_button_emoji(button_key):
     return str(emoji)
 
 
+def get_moonshine_ui_emoji(key, default_value):
+    from bot import economy_data
+    emoji = economy_data.get(key)
+    if not emoji:
+        return default_value
+    return str(emoji)
+
+
 def default_moonshine_data():
     return {
         "upgrade_level": 1,
@@ -387,9 +409,17 @@ def get_moonshine_bottles(moonshine):
 
 
 def format_moonshine_bottles(moonshine):
-    bottles = get_moonshine_bottles(moonshine)
-    percent = bottles / 20 * 100
-    return f"{format_progress_bar(percent)} {format_number(percent, 1)}% {bottles}/20 бутылок"
+    bottles = moonshine.get("bottles", 0)
+    bottle_emoji = get_moonshine_ui_emoji("moonshine_ui_bottles", DEFAULT_MOONSHINE_BOTTLES_EMOJI)
+    percent = (bottles / 20.0) * 100
+    bars = int((bottles / 20.0) * 10)
+    
+    # Иконки для полосы прогресса
+    filled_block = "▓"
+    empty_block = "░"
+    
+    progress = filled_block * bars + empty_block * (10 - bars)
+    return f"{progress} {percent:.1f}% {bottles}/20 бутылок"
 
 
 INGREDIENT_EMOJIS = {
@@ -525,42 +555,56 @@ def build_moonshine_embed(guild, account):
     skill = "активен" if moonshine.get("skill") else "нет"
     batch = moonshine.get("batch")
     storage = format_moonshine_ingredients(moonshine.get("ingredients", {}))
-    storage_icon = "📦" if storage != "пусто" else "🫙"
+    stor_full = get_moonshine_ui_emoji("moonshine_ui_stor_full", DEFAULT_MOONSHINE_STOR_FULL_EMOJI)
+    stor_empty = get_moonshine_ui_emoji("moonshine_ui_stor_empty", DEFAULT_MOONSHINE_STOR_EMPTY_EMOJI)
+    storage_icon = stor_full if storage != "пусто" else stor_empty
+    
+    b_emoji = get_moonshine_ui_emoji("moonshine_ui_bottles", DEFAULT_MOONSHINE_BOTTLES_EMOJI)
+    w_emoji = get_moonshine_ui_emoji("moonshine_ui_wagon", DEFAULT_MOONSHINE_WAGON_EMOJI)
+    br_emoji = get_moonshine_ui_emoji("moonshine_ui_brewing", DEFAULT_MOONSHINE_BREWING_EMOJI)
+    k_emoji = get_moonshine_ui_emoji("moonshine_ui_kettle", DEFAULT_MOONSHINE_KETTLE_EMOJI)
 
     if batch:
         ready_at = parse_local_datetime(batch.get("ready_at"))
         seconds_left = (ready_at - now_local()).total_seconds()
         if seconds_left <= 0:
             progress_line = (
-                f"├─ 🍾 Бутылки: {format_moonshine_bottles(moonshine)}\n"
-                f"└─ 📦 Повозка: готова к отправке за {format_money(batch.get('payout', 0))}"
+                f"├─ {b_emoji} Бутылки: {format_moonshine_bottles(moonshine)}\n"
+                f"└─ {w_emoji} Повозка: готова к отправке за {format_money(batch.get('payout', 0))}"
             )
         else:
             progress_line = (
-                f"├─ 🍾 Бутылки: {format_moonshine_bottles(moonshine)}\n"
-                f"└─ ⏳ Варка: осталось {format_duration(seconds_left)}"
+                f"├─ {b_emoji} Бутылки: {format_moonshine_bottles(moonshine)}\n"
+                f"└─ {br_emoji} Варка: осталось {format_duration(seconds_left)}"
             )
     else:
         progress_line = (
-            f"├─ 🍾 Бутылки: {format_moonshine_bottles(moonshine)}\n"
-            "└─ 🧊 Котёл свободен"
+            f"├─ {b_emoji} Бутылки: {format_moonshine_bottles(moonshine)}\n"
+            f"└─ {k_emoji} Котёл свободен"
         )
+
+    prod_emoji = get_moonshine_ui_emoji("moonshine_ui_prod", DEFAULT_MOONSHINE_PROD_EMOJI)
+    lvl_emoji = get_moonshine_ui_emoji("moonshine_ui_lvl", DEFAULT_MOONSHINE_LVL_EMOJI)
+    acc_emoji = get_moonshine_ui_emoji("moonshine_ui_access", DEFAULT_MOONSHINE_ACCESS_EMOJI)
+    eq_emoji = get_moonshine_ui_emoji("moonshine_ui_equip", DEFAULT_MOONSHINE_EQUIP_EMOJI)
+    sk_emoji = get_moonshine_ui_emoji("moonshine_ui_skill", DEFAULT_MOONSHINE_SKILL_EMOJI)
+    fin_emoji = get_moonshine_ui_emoji("moonshine_ui_finance", DEFAULT_MOONSHINE_FINANCE_EMOJI)
 
     embed = discord.Embed(
         title=f"{icon} Предприятие самогонщика",
         description=(
             f"**Марсель:** {random.choice(MARCEL_GREETINGS)}\n\n"
-            "🥃 Производство\n"
-            f"├─ 🏷️ Уровень аппарата: **{level}**\n"
-            f"├─ ⭐ Доступ: **{get_moonshine_star_emoji(level)}**\n"
+            f"{prod_emoji} Производство\n"
+            f"├─ {lvl_emoji} Уровень аппарата: **{level}**\n"
+            f"├─ {acc_emoji} Доступ: **{get_moonshine_star_emoji(level)}**\n"
             f"{progress_line}\n\n"
-            "⚙️ Оборудование\n"
+            f"{eq_emoji} Оборудование\n"
             f"├─ {get_moonshine_condenser_emoji()} Конденсатор: **{condenser}**\n"
             f"├─ {get_moonshine_distiller_emoji()} Медный дистиллятор: **{distiller}**\n"
-            f"└─ ⏱️ Навык самогонщика: **{skill}**\n\n"
+            f"└─ {sk_emoji} Навык самогонщика: **{skill}**\n\n"
             f"{storage_icon} Склад ингредиентов\n"
             f"└─ {storage}\n\n"
-            "💵 Финансы\n"
+            f"{fin_emoji} Финансы\n"
             f"├─ Наличные: **{format_money(account['cash'])}**\n"
             f"├─ Стоимость производства: **{format_money(MOONSHINE_BATCH_COST)}**\n"
             f"├─ Конденсатор: **{format_money(MOONSHINE_CONDENSER_PRICE)}**\n"

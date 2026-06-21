@@ -88,7 +88,7 @@ DEFAULT_MAP_EMOJI = "<:map:1518186072369008680>"
 DEFAULT_INVESTMENT_EMOJI = "📈"
 DEFAULT_STATS_EMOJI = "<:person:1518285493249507348>"
 DEFAULT_SAFE_EMOJI = "<:blip_chest:1518323257781129397>"
-DEFAULT_LOCK_EMOJI = "🔒"
+DEFAULT_LOCK_EMOJI = "<:lock:1518334966440923237>"
 TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
 ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
@@ -435,6 +435,20 @@ def normalize_economy_data(data):
         data["moonshine_condenser_emoji"] = DEFAULT_MOONSHINE_CONDENSER_EMOJI
     if not data.get("moonshine_distiller_emoji"):
         data["moonshine_distiller_emoji"] = DEFAULT_MOONSHINE_DISTILLER_EMOJI
+        
+    data.setdefault("moonshine_ui_prod", DEFAULT_MOONSHINE_PROD_EMOJI)
+    data.setdefault("moonshine_ui_lvl", DEFAULT_MOONSHINE_LVL_EMOJI)
+    data.setdefault("moonshine_ui_access", DEFAULT_MOONSHINE_ACCESS_EMOJI)
+    data.setdefault("moonshine_ui_bottles", DEFAULT_MOONSHINE_BOTTLES_EMOJI)
+    data.setdefault("moonshine_ui_wagon", DEFAULT_MOONSHINE_WAGON_EMOJI)
+    data.setdefault("moonshine_ui_brewing", DEFAULT_MOONSHINE_BREWING_EMOJI)
+    data.setdefault("moonshine_ui_kettle", DEFAULT_MOONSHINE_KETTLE_EMOJI)
+    data.setdefault("moonshine_ui_equip", DEFAULT_MOONSHINE_EQUIP_EMOJI)
+    data.setdefault("moonshine_ui_skill", DEFAULT_MOONSHINE_SKILL_EMOJI)
+    data.setdefault("moonshine_ui_stor_full", DEFAULT_MOONSHINE_STOR_FULL_EMOJI)
+    data.setdefault("moonshine_ui_stor_empty", DEFAULT_MOONSHINE_STOR_EMPTY_EMOJI)
+    data.setdefault("moonshine_ui_finance", DEFAULT_MOONSHINE_FINANCE_EMOJI)
+
     if not isinstance(data["moonshine_button_emojis"], dict):
         data["moonshine_button_emojis"] = DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy()
     for key, emoji in DEFAULT_MOONSHINE_BUTTON_EMOJIS.items():
@@ -1739,6 +1753,18 @@ EMOJI_TARGETS = [
     ("Кнопка: улучшения", "moonshine_button_upgrades"),
     ("Кнопка: доставка", "moonshine_button_delivery"),
     ("Кнопка: обновить самогон", "moonshine_button_refresh"),
+    ("Интерфейс: производство", "moonshine_ui_prod"),
+    ("Интерфейс: уровень аппарата", "moonshine_ui_lvl"),
+    ("Интерфейс: доступ", "moonshine_ui_access"),
+    ("Интерфейс: бутылки", "moonshine_ui_bottles"),
+    ("Интерфейс: повозка", "moonshine_ui_wagon"),
+    ("Интерфейс: варка", "moonshine_ui_brewing"),
+    ("Интерфейс: котёл", "moonshine_ui_kettle"),
+    ("Интерфейс: оборудование", "moonshine_ui_equip"),
+    ("Интерфейс: навык самогонщика", "moonshine_ui_skill"),
+    ("Интерфейс: склад полон", "moonshine_ui_stor_full"),
+    ("Интерфейс: склад пуст", "moonshine_ui_stor_empty"),
+    ("Интерфейс: финансы", "moonshine_ui_finance"),
     ("Натуралист: взять образец", "naturalist_button_sample"),
     ("Натуралист: сдать образцы", "naturalist_button_sell"),
     ("Натуралист: справочник", "naturalist_button_collection"),

@@ -32,6 +32,27 @@ def update_version():
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
+        import re
+        import glob
+        
+        # Обновляем версию во всех HTML файлах в папке docs
+        docs_updated = 0
+        html_files = glob.glob("docs/*.html")
+        
+        for html_file in html_files:
+            try:
+                with open(html_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                # Ищем старую версию в HTML и заменяем на новую
+                new_content = content.replace(old_version, NEW_VERSION)
+                if new_content != content:
+                    with open(html_file, "w", encoding="utf-8") as f:
+                        f.write(new_content)
+                    docs_updated += 1
+            except Exception as e:
+                print(f"⚠️ Не удалось обновить {html_file}: {e}")
+
         print(f"✅ Успех! Версия бота обновлена:")
         print(f"   Было:  {old_version}")
         print(f"   Стало: {NEW_VERSION}")
