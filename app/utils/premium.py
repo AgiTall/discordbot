@@ -18,6 +18,7 @@ from discord import app_commands
 
 from app.database import async_session
 from app.services.guild_service import get_or_create_guild
+from bot import get_lock_emoji
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def premium_required():
                 return True
 
         embed = discord.Embed(
-            title="🔒 Доступ ограничен",
+            title=f"{get_lock_emoji()} Доступ ограничен",
             description=(
                 "**БОТ НЕ ПРИОБРЕТЕН.**\n"
                 "Купите доступ на [pchev.me](https://pchev.me)"

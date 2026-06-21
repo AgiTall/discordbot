@@ -4,6 +4,7 @@ from discord import app_commands
 import random
 import time
 import math
+from bot import get_lock_emoji
 
 class MoonshinerCog(commands.Cog):
     def __init__(self, bot):
@@ -402,12 +403,39 @@ def format_moonshine_bottles(moonshine):
     return f"{format_progress_bar(percent)} {format_number(percent, 1)}% {bottles}/20 бутылок"
 
 
+INGREDIENT_EMOJIS = {
+    "Яблоко": "<:Apple:1518324095211667667>",
+    "Груша": "<:pear:1518323459468300508>",
+    "Персик": "<:Persik:1518324112928407562>",
+    "Консервированные персики": "<:Persiki:1518324114891341924>",
+    "Консервированные абрикосы": "<:apricots:1518324098701328474>",
+    "Консервированные ананасы": "<:Pineapple:1518324116665405600>",
+    "Консервированная клубника": "<:Strawberry:1518324125892870316>",
+    "Ежевика": "<:blackberry:1518324101809176616>",
+    "Малина": "<:Raspberry:1518324120234758306>",
+    "Черника овальнолистная": "<:blueberry:1518324103931629598>",
+    "Смородина": "<:Smorodina:1518324123988660476>",
+    "Слива поручейная": "<:sliva:1518328310378270800>",
+    "Магония": "<:magonia:1518328307161239602>",
+    "Мята": "<:Mint:1518324107668754594>",
+    "Женьшень": "<:ZhenShen:1518324129902624788>",
+    "Гаультерия": "<:gaul:1518324106007941270>",
+    "Цветок ванили": "<:Vanille:1518324127549882369>",
+    "Пустынный мак": "<:Poppy:1518324118536323122>",
+    "Олеандр": "<:Oleader:1518324109380030646>",
+    "Абсент": "<:absinthe:1518324093248606331>",
+    "Карибский ром": "<:Rum:1518324122122321981>"
+}
+
+def get_ingredient_emoji(ingredient_name):
+    return INGREDIENT_EMOJIS.get(ingredient_name, "🌿")
+
 def format_moonshine_ingredients(ingredients):
     if not ingredients:
         return "пусто"
 
     lines = [
-        f"{ingredient} x{amount}"
+        f"{get_ingredient_emoji(ingredient)} {ingredient} x{amount}"
         for ingredient, amount in sorted(ingredients.items())
         if amount > 0
     ]
@@ -566,7 +594,7 @@ def build_moonshine_mash_embed(moonshine):
         duration = get_moonshine_duration_seconds(
             recipe, skill=bool(moonshine.get("skill"))
         )
-        lock = "" if required_level <= level else " 🔒"
+        lock = "" if required_level <= level else f" {get_lock_emoji()}"
         lines.append(
             f"Бражка {strength['name']} —  "
             f"{get_moonshine_star_emoji(recipe['stars'])}{lock}: "
@@ -603,7 +631,7 @@ def build_moonshine_special_embed(moonshine):
         stars = recipe["stars"]
         
         # Понятные и лаконичные тернарные операторы
-        lock = "" if stars <= level else " 🔒"
+        lock = "" if stars <= level else f" {get_lock_emoji()}"
         status = "есть" if has_moonshine_ingredients(moonshine, recipe) else "не хватает"
         
         star_emoji = get_moonshine_star_emoji(stars)

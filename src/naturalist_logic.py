@@ -5,6 +5,7 @@ import json
 import discord
 from discord import app_commands
 from src.xp_utils import *
+from bot import get_lock_emoji
 
 NATURALIST_IMAGE_FILE = "assets/images/naturalist.png"
 
@@ -310,7 +311,7 @@ def build_naturalist_collection_embed(naturalist):
 def build_naturalist_legendary_embed(naturalist):
     lines = []
     for animal_key, animal in LEGENDARY_ANIMALS.items():
-        lock = "" if naturalist["level"] >= animal["required_level"] else " 🔒"
+        lock = "" if naturalist["level"] >= animal["required_level"] else f" {get_lock_emoji()}"
         lines.append(
             f"**{animal['name']}**{lock} — с {animal['required_level']} ур., "
             f"10 патр., сдача {format_money(animal['cash'])} + {format_gold(animal['gold'])}"

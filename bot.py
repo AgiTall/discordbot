@@ -87,7 +87,8 @@ DEFAULT_GOLD_EMOJI = "<:gold:1518185870379974696>"
 DEFAULT_MAP_EMOJI = "<:map:1518186072369008680>"
 DEFAULT_INVESTMENT_EMOJI = "📈"
 DEFAULT_STATS_EMOJI = "<:person:1518285493249507348>"
-DEFAULT_SAFE_EMOJI = "<:Cash:1518286193161404589>"
+DEFAULT_SAFE_EMOJI = "<:blip_chest:1518323257781129397>"
+DEFAULT_LOCK_EMOJI = "🔒"
 TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
 ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
@@ -319,6 +320,7 @@ def default_economy():
         "investment_emoji": DEFAULT_INVESTMENT_EMOJI,
         "stats_emoji": DEFAULT_STATS_EMOJI,
         "safe_emoji": DEFAULT_SAFE_EMOJI,
+        "lock_emoji": DEFAULT_LOCK_EMOJI,
         "moonshine_star_emojis": DEFAULT_MOONSHINE_STAR_EMOJIS.copy(),
         "moonshine_special_emoji": DEFAULT_MOONSHINE_SPECIAL_EMOJI,
         "moonshine_button_emojis": DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy(),
@@ -376,6 +378,7 @@ def normalize_economy_data(data):
     data.setdefault("investment_emoji", DEFAULT_INVESTMENT_EMOJI)
     data.setdefault("stats_emoji", DEFAULT_STATS_EMOJI)
     data.setdefault("safe_emoji", DEFAULT_SAFE_EMOJI)
+    data.setdefault("lock_emoji", DEFAULT_LOCK_EMOJI)
     data.setdefault("moonshine_star_emojis", DEFAULT_MOONSHINE_STAR_EMOJIS.copy())
     data.setdefault("moonshine_special_emoji", DEFAULT_MOONSHINE_SPECIAL_EMOJI)
     data.setdefault("moonshine_condenser_emoji", DEFAULT_MOONSHINE_CONDENSER_EMOJI)
@@ -658,6 +661,13 @@ def get_safe_emoji():
     return str(emoji)
 
 
+def get_lock_emoji():
+    emoji = economy_data.get("lock_emoji")
+    if not emoji:
+        return str(DEFAULT_LOCK_EMOJI)
+    return str(emoji)
+
+
 
 
 
@@ -763,7 +773,7 @@ def format_role_balance_sections(guild, account):
         elif role_definition["key"] == "collector":
             body = "🖼️ Недоступен"
         else:
-            body = "🔒 Недоступен"
+            body = f"{get_lock_emoji()} Недоступен"
 
         sections.append(f"{branch} {icon} {name}: {body}")
 
@@ -1722,8 +1732,8 @@ EMOJI_TARGETS = [
     ("Самогон: 2 звезды", "moonshine_star_2"),
     ("Самогон: 3 звезды", "moonshine_star_3"),
     ("Особый самогон", "moonshine_special"),
-    ("Самогон: Конденсатор", "moonshine_condenser"),
-    ("Самогон: Медный дистиллятор", "moonshine_distiller"),
+    ("Самогон: Конденсатор", "<:condensator:1518328784867168346>"),
+    ("Самогон: Медный дистиллятор", "<:medni:1518328828064301056>"),
     ("Кнопка: бражка", "moonshine_button_mash"),
     ("Кнопка: особые ингредиенты", "moonshine_button_special"),
     ("Кнопка: улучшения", "moonshine_button_upgrades"),
@@ -1857,19 +1867,22 @@ def build_balance_embed(guild, member, account, rate):
         role_name = gang.get("leader_role_name", "Лидер") if is_leader else gang.get("member_role_name", "Участник")
         gang_str = f"🏴‍☠️ Фракция: **{gang_name}** [#{gang_id}] ({role_name})\n\n"
 
+    has_safe = account.get("inventory", {}).get("safe", 0) > 0
+    safe_icon = "" if has_safe else f"{get_lock_emoji()} "
+
     description = (
         "💰 Финансы\n"
         f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
-        f"├─ {get_safe_emoji()} Сейф {get_cash_emoji()}/{get_gold_emoji()}: {format_number(account.get('safe_cash', 0.0))}{get_cash_emoji()}/{format_number(account.get('safe_gold', 0.0))}{get_gold_emoji()}\n"
         f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
+        f"├─ {safe_icon}{get_safe_emoji()}Сейф: {format_number(account.get('safe_cash', 0.0))}{get_cash_emoji()}/{format_number(account.get('safe_gold', 0.0))}{get_gold_emoji()}\n"
         f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
         f"{gang_str}"
         "🎭 Роли\n"
         f"{role_sections}\n"
         "\n"
         "🏦 Экономика\n"
-        f"├─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
-        "🔒 Недоступные роли\n"
+        f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
+        f"{get_lock_emoji()} Недоступные роли\n"
         f"{unavailable_role_sections}\n"
     )
     embed = discord.Embed(

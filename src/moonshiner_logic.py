@@ -4,6 +4,7 @@ import random
 import json
 import discord
 from discord import app_commands
+from bot import get_lock_emoji
 
 MOONSHINE_IMAGE_FILE = "assets/images/moonshine.png"
 
@@ -391,12 +392,39 @@ def format_moonshine_bottles(moonshine):
     return f"{format_progress_bar(percent)} {format_number(percent, 1)}% {bottles}/20 бутылок"
 
 
+INGREDIENT_EMOJIS = {
+    "Яблоко": "🍎",
+    "Груша": "🍐",
+    "Персик": "🍑",
+    "Консервированные персики": "🥫",
+    "Консервированные абрикосы": "🥫",
+    "Консервированные ананасы": "🥫",
+    "Консервированная клубника": "🥫",
+    "Ежевика": "🫐",
+    "Малина": "🍒",
+    "Черника овальнолистная": "🫐",
+    "Смородина": "🍇",
+    "Слива поручейная": "🫐",
+    "Магония": "🍇",
+    "Мята": "🌿",
+    "Женьшень": "🫚",
+    "Гаультерия": "🌱",
+    "Цветок ванили": "🌼",
+    "Пустынный мак": "🌺",
+    "Олеандр": "🌸",
+    "Абсент": "🍾",
+    "Карибский ром": "🥃"
+}
+
+def get_ingredient_emoji(ingredient_name):
+    return INGREDIENT_EMOJIS.get(ingredient_name, "🌿")
+
 def format_moonshine_ingredients(ingredients):
     if not ingredients:
         return "пусто"
 
     lines = [
-        f"{ingredient} x{amount}"
+        f"{get_ingredient_emoji(ingredient)} {ingredient} x{amount}"
         for ingredient, amount in sorted(ingredients.items())
         if amount > 0
     ]
@@ -555,7 +583,7 @@ def build_moonshine_mash_embed(moonshine):
         duration = get_moonshine_duration_seconds(
             recipe, skill=bool(moonshine.get("skill"))
         )
-        lock = "" if required_level <= level else " 🔒"
+        lock = "" if required_level <= level else f" {get_lock_emoji()}"
         lines.append(
             f"Бражка {strength['name']} —  "
             f"{get_moonshine_star_emoji(recipe['stars'])}{lock}: "
@@ -592,7 +620,7 @@ def build_moonshine_special_embed(moonshine):
         stars = recipe["stars"]
         
         # Понятные и лаконичные тернарные операторы
-        lock = "" if stars <= level else " 🔒"
+        lock = "" if stars <= level else f" {get_lock_emoji()}"
         status = "есть" if has_moonshine_ingredients(moonshine, recipe) else "не хватает"
         
         star_emoji = get_moonshine_star_emoji(stars)
