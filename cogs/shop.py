@@ -11,6 +11,7 @@ from bot import (
     get_account,
     get_gold_emoji,
     get_cash_emoji,
+    get_safe_emoji,
     save_economy,
     format_money_plain,
     now_local,
@@ -25,7 +26,7 @@ ITEMS = {
         "description": "Позволяет надежно хранить деньги и золото от грабителей.",
         "base_price": 30,
         "currency": "gold",
-        "emoji": "🧰"
+        "emoji": get_safe_emoji()
     }
 }
 

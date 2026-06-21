@@ -86,7 +86,8 @@ DEFAULT_CASH_EMOJI = "<:money:1518183921903472701>"
 DEFAULT_GOLD_EMOJI = "<:gold:1518185870379974696>"
 DEFAULT_MAP_EMOJI = "<:map:1518186072369008680>"
 DEFAULT_INVESTMENT_EMOJI = "📈"
-DEFAULT_STATS_EMOJI = "🤠"
+DEFAULT_STATS_EMOJI = "<:person:1518285493249507348>"
+DEFAULT_SAFE_EMOJI = "<:Cash:1518286193161404589>"
 TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
 ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
@@ -317,6 +318,7 @@ def default_economy():
         "map_emoji": DEFAULT_MAP_EMOJI,
         "investment_emoji": DEFAULT_INVESTMENT_EMOJI,
         "stats_emoji": DEFAULT_STATS_EMOJI,
+        "safe_emoji": DEFAULT_SAFE_EMOJI,
         "moonshine_star_emojis": DEFAULT_MOONSHINE_STAR_EMOJIS.copy(),
         "moonshine_special_emoji": DEFAULT_MOONSHINE_SPECIAL_EMOJI,
         "moonshine_button_emojis": DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy(),
@@ -373,6 +375,7 @@ def normalize_economy_data(data):
     data.setdefault("map_emoji", DEFAULT_MAP_EMOJI)
     data.setdefault("investment_emoji", DEFAULT_INVESTMENT_EMOJI)
     data.setdefault("stats_emoji", DEFAULT_STATS_EMOJI)
+    data.setdefault("safe_emoji", DEFAULT_SAFE_EMOJI)
     data.setdefault("moonshine_star_emojis", DEFAULT_MOONSHINE_STAR_EMOJIS.copy())
     data.setdefault("moonshine_special_emoji", DEFAULT_MOONSHINE_SPECIAL_EMOJI)
     data.setdefault("moonshine_condenser_emoji", DEFAULT_MOONSHINE_CONDENSER_EMOJI)
@@ -645,6 +648,13 @@ def get_stats_emoji():
     emoji = economy_data.get("stats_emoji")
     if not emoji:
         return str(DEFAULT_STATS_EMOJI)
+    return str(emoji)
+
+
+def get_safe_emoji():
+    emoji = economy_data.get("safe_emoji")
+    if not emoji:
+        return str(DEFAULT_SAFE_EMOJI)
     return str(emoji)
 
 
@@ -1850,8 +1860,7 @@ def build_balance_embed(guild, member, account, rate):
     description = (
         "💰 Финансы\n"
         f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
-        f"├─ 🧰 Сейф (Деньги): {format_money_plain(account.get('safe_cash', 0.0))}\n"
-        f"├─ 🧰 Сейф (Золото): {format_number(account.get('safe_gold', 0.0))} золота\n"
+        f"├─ {get_safe_emoji()} Сейф {get_cash_emoji()}/{get_gold_emoji()}: {format_number(account.get('safe_cash', 0.0))}{get_cash_emoji()}/{format_number(account.get('safe_gold', 0.0))}{get_gold_emoji()}\n"
         f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
         f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
         f"{gang_str}"
