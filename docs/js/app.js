@@ -1120,7 +1120,6 @@ function updateEmojiPreview(selectEl) {
 function populateEmojiSelects(emojis) {
   const customOptions = emojis.map(e => `<option value="${e.format}">${e.name}</option>`).join('');
   document.querySelectorAll('select.emoji-select').forEach(select => {
-    // Keep the first default option
     const defaultOpt = select.options[0].outerHTML;
     const currentVal = select.value;
     
@@ -1128,16 +1127,46 @@ function populateEmojiSelects(emojis) {
     if (emojis.length > 0) {
       html += `<optgroup label="Эмодзи сервера">${customOptions}</optgroup>`;
     }
+    html += `<optgroup label="Другое"><option value="__custom__">➕ Ввести кастомный эмодзи...</option></optgroup>`;
     select.innerHTML = html;
     
     select.value = currentVal;
-    if (!select.value && currentVal) {
+    if (!select.value && currentVal && currentVal !== '__custom__') {
       select.innerHTML += `<option value="${currentVal}">${currentVal}</option>`;
       select.value = currentVal;
     }
     
+    // Initialize prevVal
+    if (!select.dataset.prevVal) select.dataset.prevVal = select.value;
+    
     updateEmojiPreview(select);
-    select.addEventListener('change', () => updateEmojiPreview(select));
+    
+    if (!select.dataset.customListenerAdded) {
+      select.dataset.customListenerAdded = 'true';
+      select.addEventListener('change', (e) => {
+        const el = e.target;
+        if (el.value === '__custom__') {
+          const prevVal = el.dataset.prevVal || el.options[0].value;
+          const val = prompt('Вставьте код кастомного эмодзи или стикера бота (например: <:emoji_name:123456789> или 🍎):');
+          if (val && val.trim() !== '') {
+            const opt = document.createElement('option');
+            opt.value = val.trim();
+            opt.text = 'Свой эмодзи: ' + val.trim();
+            el.appendChild(opt);
+            el.value = val.trim();
+            el.dataset.prevVal = el.value;
+            // Trigger unsaved indicator manually since this might bypass the other listener
+            const indicator = document.getElementById('unsavedIndicator');
+            if (indicator) indicator.classList.add('visible');
+          } else {
+            el.value = prevVal;
+          }
+        } else {
+          el.dataset.prevVal = el.value;
+        }
+        updateEmojiPreview(el);
+      });
+    }
   });
 }
 

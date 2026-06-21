@@ -60,31 +60,14 @@ def create_app(bot=None) -> FastAPI:
     app.include_router(billing.router)
     app.include_router(gangs.router)
 
-    # ── Static files (dashboard + docs) ───────────────────────
-    # Serve docs/ directory at root for the landing page and static assets
-    app.mount("/static", StaticFiles(directory="docs"), name="static")
-
     @app.get("/health")
     async def health():
         return {"status": "ok"}
 
-    @app.get("/")
-    async def root():
-        """Serve the landing page."""
-        return FileResponse("docs/index.html")
-
-    @app.get("/dashboard.html")
-    async def dashboard():
-        """Serve the dashboard HTML."""
-        return FileResponse("dashboard.html")
-
-    @app.get("/commands.html")
-    async def commands_page():
-        return FileResponse("docs/commands.html")
-
-    @app.get("/levels.html")
-    async def levels_page():
-        return FileResponse("docs/levels.html")
+    # ── Static files (dashboard + docs) ───────────────────────
+    # Mount docs directory at root so that all HTML, CSS, and JS files resolve correctly.
+    # html=True automatically serves index.html for the root route.
+    app.mount("/", StaticFiles(directory="docs", html=True), name="static")
 
     # ── Startup / Shutdown ────────────────────────────────────
 
