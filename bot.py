@@ -89,6 +89,11 @@ DEFAULT_INVESTMENT_EMOJI = "📈"
 DEFAULT_STATS_EMOJI = "<:person:1518285493249507348>"
 DEFAULT_SAFE_EMOJI = "<:blip_chest:1518323257781129397>"
 DEFAULT_LOCK_EMOJI = "<:lock:1518334966440923237>"
+
+DEFAULT_BALANCE_FINANCE_EMOJI = "<:blip_cash_bag:1518341268814692643>"
+DEFAULT_BALANCE_ROLES_EMOJI = "<:roles:1518342174406869093>"
+DEFAULT_BALANCE_ECONOMY_EMOJI = "<:finanse:1518342360260411453>"
+DEFAULT_BALANCE_GANG_EMOJI = "<:gang:1518342529756561698>"
 TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
 ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
@@ -448,6 +453,11 @@ def normalize_economy_data(data):
     data.setdefault("moonshine_ui_stor_full", DEFAULT_MOONSHINE_STOR_FULL_EMOJI)
     data.setdefault("moonshine_ui_stor_empty", DEFAULT_MOONSHINE_STOR_EMPTY_EMOJI)
     data.setdefault("moonshine_ui_finance", DEFAULT_MOONSHINE_FINANCE_EMOJI)
+    
+    data.setdefault("balance_ui_finance", DEFAULT_BALANCE_FINANCE_EMOJI)
+    data.setdefault("balance_ui_roles", DEFAULT_BALANCE_ROLES_EMOJI)
+    data.setdefault("balance_ui_economy", DEFAULT_BALANCE_ECONOMY_EMOJI)
+    data.setdefault("balance_ui_gang", DEFAULT_BALANCE_GANG_EMOJI)
 
     if not isinstance(data["moonshine_button_emojis"], dict):
         data["moonshine_button_emojis"] = DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy()
@@ -1765,6 +1775,10 @@ EMOJI_TARGETS = [
     ("Интерфейс: склад полон", "moonshine_ui_stor_full"),
     ("Интерфейс: склад пуст", "moonshine_ui_stor_empty"),
     ("Интерфейс: финансы", "moonshine_ui_finance"),
+    ("Баланс: финансы", "balance_ui_finance"),
+    ("Баланс: роли", "balance_ui_roles"),
+    ("Баланс: экономика", "balance_ui_economy"),
+    ("Баланс: фракция", "balance_ui_gang"),
     ("Натуралист: взять образец", "naturalist_button_sample"),
     ("Натуралист: сдать образцы", "naturalist_button_sell"),
     ("Натуралист: справочник", "naturalist_button_collection"),
@@ -1885,28 +1899,33 @@ def build_balance_embed(guild, member, account, rate):
 
     gang_name = account.get("gang_name")
     gang_str = ""
+    gang_emoji = economy_data.get("balance_ui_gang", DEFAULT_BALANCE_GANG_EMOJI)
     if gang_name:
         guild_data = economy_data.current()
         gang = guild_data.get("gangs", {}).get(gang_name, {})
         gang_id = gang.get("id", "N/A")
         is_leader = gang.get("leader") == member.id
         role_name = gang.get("leader_role_name", "Лидер") if is_leader else gang.get("member_role_name", "Участник")
-        gang_str = f"🏴‍☠️ Фракция: **{gang_name}** [#{gang_id}] ({role_name})\n\n"
+        gang_str = f"{gang_emoji} Фракция: **{gang_name}** [#{gang_id}] ({role_name})\n\n"
 
     has_safe = account.get("inventory", {}).get("safe", 0) > 0
     safe_icon = "" if has_safe else f"{get_lock_emoji()} "
 
+    fin_emoji = economy_data.get("balance_ui_finance", DEFAULT_BALANCE_FINANCE_EMOJI)
+    roles_emoji = economy_data.get("balance_ui_roles", DEFAULT_BALANCE_ROLES_EMOJI)
+    eco_emoji = economy_data.get("balance_ui_economy", DEFAULT_BALANCE_ECONOMY_EMOJI)
+
     description = (
-        "💰 Финансы\n"
+        f"{fin_emoji} Финансы\n"
         f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
         f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
         f"├─ {safe_icon}{get_safe_emoji()}Сейф: {format_number(account.get('safe_cash', 0.0))}{get_cash_emoji()}/{format_number(account.get('safe_gold', 0.0))}{get_gold_emoji()}\n"
         f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
         f"{gang_str}"
-        "🎭 Роли\n"
+        f"{roles_emoji} Роли\n"
         f"{role_sections}\n"
         "\n"
-        "🏦 Экономика\n"
+        f"{eco_emoji} Экономика\n"
         f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
         f"{get_lock_emoji()} Недоступные роли\n"
         f"{unavailable_role_sections}\n"
