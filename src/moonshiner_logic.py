@@ -40,11 +40,11 @@ DEFAULT_MOONSHINE_DISTILLER_EMOJI = "🟠"
 
 
 DEFAULT_MOONSHINE_BUTTON_EMOJIS = {
-    "mash": "🥣",
-    "special": "🌿",
-    "upgrades": "⚙️",
+    "mash": "<:brajka:1518268615067959358>",
+    "special": "<:ingredient:1518269353001357482>",
+    "upgrades": "<:wheel:1518269437176713418>",
     "delivery": "🛺",
-    "refresh": "🔄",
+    "refresh": "<:update:1518269540012789860>",
 }
 
 

@@ -82,9 +82,9 @@ def run_web():
 MIN_GOLD_RATE = 50.0
 WORK_COOLDOWN_SECONDS = 60 * 60
 DEALER_COOLDOWN_SECONDS = 60 * 60
-DEFAULT_CASH_EMOJI = "💵"
-DEFAULT_GOLD_EMOJI = "🪙"
-DEFAULT_MAP_EMOJI = "🗺️"
+DEFAULT_CASH_EMOJI = "<:money:1518183921903472701>"
+DEFAULT_GOLD_EMOJI = "<:gold:1518185870379974696>"
+DEFAULT_MAP_EMOJI = "<:map:1518186072369008680>"
 DEFAULT_INVESTMENT_EMOJI = "📈"
 DEFAULT_STATS_EMOJI = "🤠"
 TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
@@ -130,7 +130,7 @@ ROLE_DEFINITIONS = [
         "key": "bounty_hunter",
         "name": "Охотник за головами",
         "aliases": [],
-        "emoji": "🎯",
+        "emoji": "<:hunter:1515766696223445053>",
         "available": True,
         "description": (
             "Выслеживает опасные цели, берёт контракты на поимку и получает награды "
@@ -141,7 +141,7 @@ ROLE_DEFINITIONS = [
         "key": "trader",
         "name": "Торговец",
         "aliases": [],
-        "emoji": "🛒",
+        "emoji": "<:dealer:1515766702837731429>",
         "available": True,
         "description": (
             "Развивает собственное дело, наполняет торговую повозку товарами и готовит "
@@ -152,7 +152,7 @@ ROLE_DEFINITIONS = [
         "key": "moonshiner",
         "name": "Самогонщик",
         "aliases": [],
-        "emoji": "🥃",
+        "emoji": "<:moonshine:1515766699402465362>",
         "available": True,
         "description": (
             "Мастер тайного производства: варит крепкий товар, держит сеть поставок "
@@ -163,7 +163,7 @@ ROLE_DEFINITIONS = [
         "key": "naturalist",
         "name": "Натуралист",
         "aliases": [],
-        "emoji": "🌿",
+        "emoji": "<:naturalist:1515766700904284370>",
         "available": True,
         "description": (
             "Изучает природу, выслеживает редких животных и собирает знания там, "
@@ -174,7 +174,7 @@ ROLE_DEFINITIONS = [
         "key": "collector",
         "name": "Коллекционер",
         "aliases": [],
-        "emoji": "💎",
+        "emoji": "<:collector:1515766697913745438>",
         "available": False,
         "description": (
             "Ищет редкие находки, собирает ценные наборы и превращает любопытство "

@@ -14,11 +14,11 @@ NATURALIST_IMAGE_ATTACHMENT_NAME = "naturalist.png"
 
 DEFAULT_NATURALIST_BUTTON_EMOJIS = {
     "sample": "🔬",
-    "sell": "💵",
+    "sell": "<:money:1518183921903472701>",
     "collection": "📖",
     "legendary": "🐾",
     "shop": "🧪",
-    "refresh": "🔄",
+    "refresh": "<:update:1518269540012789860>",
 }
 
 

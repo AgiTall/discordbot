@@ -35,13 +35,13 @@ MOONSHINE_BATCH_COST = 50.0
 
 
 DEFAULT_MOONSHINE_STAR_EMOJIS = {
-    "1": "⭐",
-    "2": "⭐⭐",
-    "3": "⭐⭐⭐",
+    "1": "<:1stars:1515766694386073600>",
+    "2": "<:2stars:1515766692834447554>",
+    "3": "<:3stars:1515766691307458640>",
 }
 
 
-DEFAULT_MOONSHINE_SPECIAL_EMOJI = "🌟🌟🌟"
+DEFAULT_MOONSHINE_SPECIAL_EMOJI = "<:3goldstars:1515766689822675154>"
 
 
 DEFAULT_MOONSHINE_CONDENSER_EMOJI = "🧊"
@@ -51,11 +51,11 @@ DEFAULT_MOONSHINE_DISTILLER_EMOJI = "🟠"
 
 
 DEFAULT_MOONSHINE_BUTTON_EMOJIS = {
-    "mash": "🥣",
-    "special": "🌿",
-    "upgrades": "⚙️",
+    "mash": "<:brajka:1518268615067959358>",
+    "special": "<:ingredient:1518269353001357482>",
+    "upgrades": "<:wheel:1518269437176713418>",
     "delivery": "🛺",
-    "refresh": "🔄",
+    "refresh": "<:update:1518269540012789860>",
 }
 
 
