@@ -4,7 +4,7 @@ import random
 import json
 import discord
 from discord import app_commands
-from bot import get_lock_emoji
+
 
 MOONSHINE_IMAGE_FILE = "assets/images/moonshine.png"
 
@@ -34,18 +34,18 @@ DEFAULT_MOONSHINE_STAR_EMOJIS = {
 DEFAULT_MOONSHINE_SPECIAL_EMOJI = "<:3goldstars:1515766689822675154>"
 
 
-DEFAULT_MOONSHINE_CONDENSER_EMOJI = "🧊"
+DEFAULT_MOONSHINE_CONDENSER_EMOJI = "<:condensator:1518328784867168346>"
 
 
-DEFAULT_MOONSHINE_DISTILLER_EMOJI = "🟠"
+DEFAULT_MOONSHINE_DISTILLER_EMOJI = "<:medni:1518328828064301056>"
 
 
 DEFAULT_MOONSHINE_BUTTON_EMOJIS = {
     "mash": "<:brajka:1518268615067959358>",
     "special": "<:ingredient:1518269353001357482>",
-    "upgrades": "<:wheel:1518269437176713418>",
-    "delivery": "🛺",
-    "refresh": "<:update:1518269540012789860>",
+    "upgrades": "<:update:1518269540012789860>",
+    "delivery": "<:wheel:1518269437176713418>",
+    "refresh": "<:reload:1518330921508667472>",
 }
 
 
@@ -583,6 +583,7 @@ def build_moonshine_mash_embed(moonshine):
         duration = get_moonshine_duration_seconds(
             recipe, skill=bool(moonshine.get("skill"))
         )
+        from bot import get_lock_emoji
         lock = "" if required_level <= level else f" {get_lock_emoji()}"
         lines.append(
             f"Бражка {strength['name']} —  "
@@ -620,6 +621,7 @@ def build_moonshine_special_embed(moonshine):
         stars = recipe["stars"]
         
         # Понятные и лаконичные тернарные операторы
+        from bot import get_lock_emoji
         lock = "" if stars <= level else f" {get_lock_emoji()}"
         status = "есть" if has_moonshine_ingredients(moonshine, recipe) else "не хватает"
         
