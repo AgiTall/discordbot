@@ -41,7 +41,7 @@ class Base(AsyncAttrs, DeclarativeBase):
 # Import models to ensure they are registered with Base.metadata
 from app.models.guild import Guild
 from app.models.guild_settings import GuildSettings
-from app.models.user import User
+from app.models.user import UserSession
 from app.models.gang import Gang, GangMember
 
 
