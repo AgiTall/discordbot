@@ -42,18 +42,18 @@ const COMMANDS = [
   { name: 'sell-gold',    emoji: '💰', category: 'econ', tag: 'econ', desc: 'Продать золото за деньги по текущему курсу.', args: '<количество>' },
   { name: 'deposit',      emoji: '🏦', category: 'econ', tag: 'econ', desc: 'Положить деньги на вклад (3% в сутки).', args: '<сумма>' },
   { name: 'withdraw',     emoji: '💸', category: 'econ', tag: 'econ', desc: 'Снять деньги с вклада. 0 — снять всё.', args: '[сумма]' },
-  { name: 'work',         emoji: '⛏️', category: 'econ', tag: 'econ', desc: 'Поработать и получить деньги (перезарядка 1 час).' },
+  { name: 'work',         emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'econ', tag: 'econ', desc: 'Поработать и получить деньги (перезарядка 1 час).' },
   { name: 'balance',      emoji: '👤', category: 'econ', tag: 'econ', desc: 'Показать баланс вашего аккаунта.' },
 
   // ── Профессии ─────────────────────────────
   { name: 'roles',           emoji: '🎭', category: 'role', tag: 'role', desc: 'Просмотреть и купить доступные профессиональные роли за золото.' },
-  { name: 'dealer',          emoji: '🛒', category: 'role', tag: 'role', desc: 'Торговец: заполнить повозку товарами (10–35% в час).' },
+  { name: 'dealer',          emoji: '<img src="https://cdn.discordapp.com/emojis/1515766702837731429.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Торговец: заполнить повозку товарами (10–35% в час).' },
   { name: 'dealer-delivery', emoji: '📦', category: 'role', tag: 'role', desc: 'Торговец: доставить полную повозку и получить 500–625 $.' },
-  { name: 'moonshine',       emoji: '🥃', category: 'role', tag: 'role', desc: 'Самогонщик: открыть меню предприятия (бражка, ингредиенты, улучшения).' },
-  { name: 'bounty',          emoji: '🎯', category: 'role', tag: 'role', desc: 'Охотник за головами: открыть меню контрактов (лёгкий/средний/сложный).' },
+  { name: 'moonshine',       emoji: '<img src="https://cdn.discordapp.com/emojis/1515766699402465362.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Самогонщик: открыть меню предприятия (бражка, ингредиенты, улучшения).' },
+  { name: 'bounty',          emoji: '<img src="https://cdn.discordapp.com/emojis/1515766696223445053.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Охотник за головами: открыть меню контрактов (лёгкий/средний/сложный).' },
   { name: 'bounty-leaderboard', emoji: '🏆', category: 'role', tag: 'role', desc: 'Топ охотников за головами по уровню и количеству поимок.' },
-  { name: 'naturalist',      emoji: '🌿', category: 'role', tag: 'role', desc: 'Натуралист: образцы, справочник животных и магазин транквилизаторов.' },
-  { name: 'excavation',      emoji: '⛏️', category: 'role', tag: 'role', desc: 'Использовать карту сокровищ для раскопок — найдите клад!' },
+  { name: 'naturalist',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766700904284370.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Натуралист: образцы, справочник животных и магазин транквилизаторов.' },
+  { name: 'excavation',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Использовать карту сокровищ для раскопок — найдите клад!' },
 
   // ── Игры ──────────────────────────────────
   { name: 'poker',      emoji: '🃏', category: 'game', tag: 'game', desc: 'Сыграть в покер с ботом. Попробуйте обыграть дилера!', args: '[ставка]' },

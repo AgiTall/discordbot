@@ -68,9 +68,9 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
         "logVoice": bool(econ.get("log_voice")),
         "logCommands": bool(econ.get("log_commands")),
         "goldRate": float(econ.get("gold_rate") or 0),
-        "cashEmoji": str(econ.get("cash_emoji") or "$"),
-        "goldEmoji": str(econ.get("gold_emoji") or "🪙"),
-        "mapEmoji": str(econ.get("map_emoji") or "🗺️"),
+        "cashEmoji": str(econ.get("cash_emoji") or "<:money:1518183921903472701>"),
+        "goldEmoji": str(econ.get("gold_emoji") or "<:gold:1518185870379974696>"),
+        "mapEmoji": str(econ.get("map_emoji") or "<:map:1518186072369008680>"),
         "investmentEmoji": str(econ.get("investment_emoji") or "📈"),
         "statsEmoji": str(econ.get("stats_emoji") or "👤"),
     }
