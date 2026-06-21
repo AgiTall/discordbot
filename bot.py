@@ -130,7 +130,7 @@ ROLE_DEFINITIONS = [
         "key": "bounty_hunter",
         "name": "Охотник за головами",
         "aliases": [],
-        "emoji": "🎯",
+        "emoji": "<:hunter:1515766696223445053>",
         "available": True,
         "description": (
             "Выслеживает опасные цели, берёт контракты на поимку и получает награды "
@@ -141,7 +141,7 @@ ROLE_DEFINITIONS = [
         "key": "trader",
         "name": "Торговец",
         "aliases": [],
-        "emoji": "🛒",
+        "emoji": "<:dealer:1515766702837731429>",
         "available": True,
         "description": (
             "Развивает собственное дело, наполняет торговую повозку товарами и готовит "
@@ -152,7 +152,7 @@ ROLE_DEFINITIONS = [
         "key": "moonshiner",
         "name": "Самогонщик",
         "aliases": [],
-        "emoji": "🥃",
+        "emoji": "<:moonshine:1515766699402465362>",
         "available": True,
         "description": (
             "Мастер тайного производства: варит крепкий товар, держит сеть поставок "
@@ -163,7 +163,7 @@ ROLE_DEFINITIONS = [
         "key": "naturalist",
         "name": "Натуралист",
         "aliases": [],
-        "emoji": "🌿",
+        "emoji": "<:naturalist:1515766700904284370>",
         "available": True,
         "description": (
             "Изучает природу, выслеживает редких животных и собирает знания там, "
