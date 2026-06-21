@@ -34,13 +34,8 @@ logger = logging.getLogger("run")
 
 
 def create_bot() -> commands.Bot:
-    """Create the discord.py bot instance (same intents as the original bot.py)."""
-    intents = discord.Intents.default()
-    intents.messages = True
-    intents.message_content = True
-    intents.members = True
-
-    bot = commands.Bot(command_prefix="!", intents=intents)
+    """Get the discord.py bot instance from bot.py and configure it."""
+    from bot import bot
 
     @bot.event
     async def on_ready():
