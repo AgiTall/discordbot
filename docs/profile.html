@@ -169,7 +169,7 @@
       }
       
       // Показываем сервера, где бот ПРИСУТСТВУЕТ (даже если юзер не админ)
-      const botGuilds = (authState.guilds || []).filter(g => g.bot_present);
+      const botGuilds = (authState.guilds || []).filter(g => g.bot_present || g.botPresent);
       
       if (botGuilds.length === 0) {
         document.getElementById('guildPickerEmpty').removeAttribute('hidden');
@@ -222,7 +222,7 @@
         document.getElementById('myGangRole').textContent = data.my_role === 'leader' ? 'Лидер (Глава)' : 'Участник';
         document.getElementById('myGangBalance').textContent = '$' + data.gang.balance.toLocaleString('ru-RU');
         document.getElementById('myGangMembers').textContent = data.gang.member_count;
-        document.getElementById('myGangUpgrades').textContent = Object.keys(data.gang.camp_upgrades).length;
+        document.getElementById('myGangUpgrades').textContent = Object.keys(data.gang.camp_upgrades || {}).length;
         
         loading.setAttribute('hidden', '');
         content.removeAttribute('hidden');

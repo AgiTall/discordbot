@@ -7,6 +7,7 @@ at import-time so that typos and missing keys surface immediately.
 from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -20,6 +21,17 @@ class Settings(BaseSettings):
 
     # ── Database ──────────────────────────────────────────────
     database_url: str = "postgresql+asyncpg://pchevbot:pchevbot_secret@localhost:5432/pchevbot"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: str | None) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return v
+        return "postgresql+asyncpg://pchevbot:pchevbot_secret@localhost:5432/pchevbot"
 
     # ── Discord ───────────────────────────────────────────────
     discord_client_id: str
