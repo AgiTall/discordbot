@@ -85,7 +85,6 @@ DEALER_COOLDOWN_SECONDS = 60 * 60
 DEFAULT_CASH_EMOJI = "<:money:1518183921903472701>"
 DEFAULT_GOLD_EMOJI = "<:gold:1518185870379974696>"
 DEFAULT_MAP_EMOJI = "<:map:1518186072369008680>"
-DEFAULT_INVESTMENT_EMOJI = "📈"
 DEFAULT_STATS_EMOJI = "<:person:1518285493249507348>"
 DEFAULT_SAFE_EMOJI = "<:blip_chest:1518323257781129397>"
 DEFAULT_LOCK_EMOJI = "<:lock:1518344642339410093>"
@@ -93,6 +92,9 @@ DEFAULT_BALANCE_FINANCE_EMOJI = "<:blip_cash_bag:1518341268814692643>"
 DEFAULT_BALANCE_ROLES_EMOJI = "<:roles:1518342174406869093>"
 DEFAULT_BALANCE_ECONOMY_EMOJI = "<:finanse:1518342360260411453>"
 DEFAULT_BALANCE_GANG_EMOJI = "<:gang:1518342529756561698>"
+DEFAULT_TREASURE_DIG_EMOJI = "<:shovel:1518547808012079114>"
+DEFAULT_TREASURE_FOUND_EMOJI = "<:blip_cash_bag:1518341268814692643>"
+DEFAULT_TREASURE_EXTRA_EMOJI = "<:shine:1518548007232999424>"
 DEFAULT_MOONSHINE_INGREDIENT_EMOJIS = {
     "Яблоко": "<:Apple:1518324095211667667>",
     "Груша": "<:pear:1518323459468300508>",
@@ -344,7 +346,6 @@ def default_economy():
         "cash_emoji": DEFAULT_CASH_EMOJI,
         "gold_emoji": DEFAULT_GOLD_EMOJI,
         "map_emoji": DEFAULT_MAP_EMOJI,
-        "investment_emoji": DEFAULT_INVESTMENT_EMOJI,
         "stats_emoji": DEFAULT_STATS_EMOJI,
         "safe_emoji": DEFAULT_SAFE_EMOJI,
         "lock_emoji": DEFAULT_LOCK_EMOJI,
@@ -356,6 +357,9 @@ def default_economy():
         "bounty_button_emojis": DEFAULT_BOUNTY_BUTTON_EMOJIS.copy(),
         "role_key_icons": DEFAULT_ROLE_EMOJIS.copy(),
         "custom_messages": DEFAULT_CUSTOM_MESSAGES.copy(),
+        "treasure_dig_emoji": DEFAULT_TREASURE_DIG_EMOJI,
+        "treasure_found_emoji": DEFAULT_TREASURE_FOUND_EMOJI,
+        "treasure_extra_emoji": DEFAULT_TREASURE_EXTRA_EMOJI,
         "treasure_channel_id": None,
         "news_channel_id": None,
         "thread_channel_ids": [],
@@ -403,7 +407,6 @@ def normalize_economy_data(data):
     data.setdefault("cash_emoji", DEFAULT_CASH_EMOJI)
     # other defaults
     data.setdefault("map_emoji", DEFAULT_MAP_EMOJI)
-    data.setdefault("investment_emoji", DEFAULT_INVESTMENT_EMOJI)
     data.setdefault("stats_emoji", DEFAULT_STATS_EMOJI)
     data.setdefault("safe_emoji", DEFAULT_SAFE_EMOJI)
     data.setdefault("lock_emoji", DEFAULT_LOCK_EMOJI)
@@ -417,6 +420,9 @@ def normalize_economy_data(data):
     data.setdefault("bounty_button_emojis", DEFAULT_BOUNTY_BUTTON_EMOJIS.copy())
     data.setdefault("role_key_icons", DEFAULT_ROLE_EMOJIS.copy())
     data.setdefault("custom_messages", DEFAULT_CUSTOM_MESSAGES.copy())
+    data.setdefault("treasure_dig_emoji", DEFAULT_TREASURE_DIG_EMOJI)
+    data.setdefault("treasure_found_emoji", DEFAULT_TREASURE_FOUND_EMOJI)
+    data.setdefault("treasure_extra_emoji", DEFAULT_TREASURE_EXTRA_EMOJI)
     data.setdefault("treasure_channel_id", None)
     data.setdefault("news_channel_id", None)
     data.setdefault("thread_channel_ids", [])
@@ -690,13 +696,6 @@ def get_map_emoji():
     emoji = economy_data.get("map_emoji")
     if not emoji:
         return str(DEFAULT_MAP_EMOJI)
-    return str(emoji)
-
-
-def get_investment_emoji():
-    emoji = economy_data.get("investment_emoji")
-    if not emoji:
-        return str(DEFAULT_INVESTMENT_EMOJI)
     return str(emoji)
 
 
@@ -1591,7 +1590,7 @@ async def setup_hook():
     try:
         await bot.add_cog(leveling.LevelingCog(bot))
         await bot.load_extension("cogs.casino")
-        await bot.load_extension("cogs.shop")
+        await bot.load_extension("cogs.catalog")
         await bot.load_extension("cogs.gangs")
         await bot.load_extension("cogs.robbery")
     except Exception as e:
@@ -1779,7 +1778,6 @@ EMOJI_TARGETS = [
     ("Деньги", "cash"),
     ("Золото", "gold"),
     ("Карта сокровищ", "map"),
-    ("Инвестиции", "investment"),
     ("Статистика", "stats"),
     ("Самогон: 1 звезда", "moonshine_star_1"),
     ("Самогон: 2 звезды", "moonshine_star_2"),
@@ -2176,7 +2174,7 @@ def build_help_pages(is_admin):
     economy.add_field(
         name="Магазин и Взаимодействия",
         value=(
-            "`/shop` — открыть магазин предметов.\n"
+            "`/catalog` — открыть каталог товаров Wheeler, Rawson & Co.\n"
             "`/safe-money` / `/safe-take-money` — использование личного сейфа.\n"
             "`/rob` — ограбить другого игрока (риск штрафа, кулдаун 2 часа).\n"
             "`/send` — отправить личное сообщение через бота."
@@ -3670,10 +3668,11 @@ def build_treasure_result_embed(user, title, description):
 
 class TreasureDigButton(discord.ui.Button):
     def __init__(self, index):
+        emoji = economy_data.get("treasure_dig_emoji", DEFAULT_TREASURE_DIG_EMOJI)
         super().__init__(
             label=f"Место {index + 1}",
             style=discord.ButtonStyle.primary,
-            emoji="⛏️",
+            emoji=emoji,
             row=0,
         )
         self.index = index
@@ -3716,9 +3715,10 @@ class TreasureHuntView(discord.ui.View):
             item.disabled = True
 
     def reveal_treasure(self):
+        found_emoji = economy_data.get("treasure_found_emoji", DEFAULT_TREASURE_FOUND_EMOJI)
         for item in self.children:
             if item.index == self.treasure_index:
-                item.emoji = "💰"
+                item.emoji = found_emoji
                 item.style = discord.ButtonStyle.success
             elif item.disabled:
                 item.style = discord.ButtonStyle.danger
@@ -3788,9 +3788,11 @@ class TreasureHuntView(discord.ui.View):
             await asyncio.sleep(2)
 
             if button.index == self.treasure_index:
+                found_emoji = economy_data.get("treasure_found_emoji", DEFAULT_TREASURE_FOUND_EMOJI)
+                extra_emoji = economy_data.get("treasure_extra_emoji", DEFAULT_TREASURE_EXTRA_EMOJI)
                 self.finished = True
                 self.disable_all()
-                button.emoji = "💰"
+                button.emoji = found_emoji
                 button.style = discord.ButtonStyle.success
                 cash_reward, gold_reward, ingredients_text, remaining_maps, extra_map_granted = await self.grant_reward(interaction)
                 
@@ -3800,12 +3802,12 @@ class TreasureHuntView(discord.ui.View):
                     f"Ингредиенты самогонщика: **{ingredients_text}**.\n"
                 )
                 if extra_map_granted:
-                    result_text += "✨ **Вам повезло! Вы нашли дополнительную карту сокровищ!** ✨\n"
+                    result_text += f"{extra_emoji} **Вам повезло! Вы нашли дополнительную карту сокровищ!** {extra_emoji}\n"
                 result_text += f"Карт осталось: **{format_treasure_maps(remaining_maps)}**."
                 
                 embed = build_treasure_result_embed(
                     interaction.user,
-                    "💰 Клад найден!",
+                    f"{found_emoji} Клад найден!",
                     result_text,
                 )
                 await interaction.edit_original_response(embed=embed, view=self)
@@ -4971,12 +4973,6 @@ async def admin_set_emoji_command(
         elif currency == "map":
             economy_data["map_emoji"] = emoji
             message = f"Эмодзи для карты установлено: **{format_treasure_maps(3)}**"
-        elif currency == "investment":
-            economy_data["investment_emoji"] = emoji
-            message = (
-                f"Эмодзи для инвестиций установлено: "
-                f"**{get_investment_emoji()} Вклад: {format_money_plain(3)}**"
-            )
         elif currency == "stats":
             economy_data["stats_emoji"] = emoji
             message = f"Эмодзи для статистики установлено: **{get_stats_emoji()}Статистика**"

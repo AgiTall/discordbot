@@ -71,8 +71,10 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
         "cashEmoji": str(econ.get("cash_emoji") or "💵"),
         "goldEmoji": str(econ.get("gold_emoji") or "🪙"),
         "mapEmoji": str(econ.get("map_emoji") or "🗺️"),
-        "investmentEmoji": str(econ.get("investment_emoji") or "📈"),
         "statsEmoji": str(econ.get("stats_emoji") or "🤠"),
+        "treasureDigEmoji": str(econ.get("treasure_dig_emoji") or "⛏️"),
+        "treasureFoundEmoji": str(econ.get("treasure_found_emoji") or "💰"),
+        "treasureExtraEmoji": str(econ.get("treasure_extra_emoji") or "✨"),
     }
 
 
@@ -168,8 +170,10 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
         ("cashEmoji", "cash_emoji"),
         ("goldEmoji", "gold_emoji"),
         ("mapEmoji", "map_emoji"),
-        ("investmentEmoji", "investment_emoji"),
-        ("statsEmoji", "stats_emoji")
+        ("statsEmoji", "stats_emoji"),
+        ("treasureDigEmoji", "treasure_dig_emoji"),
+        ("treasureFoundEmoji", "treasure_found_emoji"),
+        ("treasureExtraEmoji", "treasure_extra_emoji")
     ]:
         if field in data:
             val = str(data[field]).strip()
