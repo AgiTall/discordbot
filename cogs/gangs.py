@@ -424,32 +424,13 @@ class GangInviteView(discord.ui.View):
                     
                 gang = gangs[gang_name]
                 if gang["leader"] == interaction.user.id:
-                    # Leader leaves -> disband gang
-                    members = gang["members"]
-                    member_role_id = gang.get("discord_member_role_id")
-                    leader_role_id = gang.get("discord_leader_role_id")
-                    
-                    # Remove gang from all members
-                    guild_data = economy_data.current()
-                    for mem_id in members:
-                        mem_account = guild_data["users"].get(str(mem_id))
-                        if mem_account and mem_account.get("gang_name") == gang_name:
-                            mem_account["gang_name"] = None
-                    del gangs[gang_name]
-                    save_economy()
-                    
-                    if member_role_id:
-                        role = interaction.guild.get_role(member_role_id)
-                        if role:
-                            try: await role.delete()
-                            except: pass
-                    if leader_role_id:
-                        role = interaction.guild.get_role(leader_role_id)
-                        if role:
-                            try: await role.delete()
-                            except: pass
-                            
-                    await interaction.response.send_message(f"Лидер покинул банду. Банда **{gang_name}** была распущена, общак сгорел.")
+                    await interaction.response.send_message(
+                        "Вы лидер банды и не можете просто покинуть её.\n"
+                        "Используйте `/gang-transfer` чтобы передать лидерство, "
+                        "или `/gang-disband` чтобы распустить банду.",
+                        ephemeral=True
+                    )
+                    return
                 else:
                     gang["members"].remove(interaction.user.id)
                     account["gang_name"] = None
@@ -912,6 +893,564 @@ class GangInviteView(discord.ui.View):
             await interaction.response.send_message(f"✅ Игрок {member.mention} принудительно добавлен в банду **{gang_name}**!", ephemeral=True)
         finally:
             reset_economy_guild_id(token)
+
+    # ── LEADER: gang-edit ──
+
+    @app_commands.command(name="gang-edit", description="Редактировать данные вашей банды (название, цвет, лого, описание)")
+    @app_commands.describe(bg_url="Новый фон (URL). Оставьте пустым, чтобы не менять.")
+    async def gang_edit(self, interaction: discord.Interaction, bg_url: Optional[str] = None):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                gang_name = user_in_gang(account)
+                gangs = get_gangs(interaction.guild_id)
+
+                if not gang_name or gang_name not in gangs:
+                    await interaction.response.send_message("Вы не состоите в банде.", ephemeral=True)
+                    return
+
+                if gangs[gang_name]["leader"] != interaction.user.id:
+                    await interaction.response.send_message("Только лидер банды может её редактировать.", ephemeral=True)
+                    return
+
+                gang_data = gangs[gang_name]
+
+            await interaction.response.send_modal(
+                GangEditModal(gang_name, gang_data, interaction.guild_id, bg_url)
+            )
+        finally:
+            reset_economy_guild_id(token)
+
+    # ── LEADER: gang-disband ──
+
+    @app_commands.command(name="gang-disband", description="Распустить вашу банду (необратимо, общак сгорает)")
+    async def gang_disband(self, interaction: discord.Interaction):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                gang_name = user_in_gang(account)
+                gangs = get_gangs(interaction.guild_id)
+
+                if not gang_name or gang_name not in gangs:
+                    await interaction.response.send_message("Вы не состоите в банде.", ephemeral=True)
+                    return
+
+                if gangs[gang_name]["leader"] != interaction.user.id:
+                    await interaction.response.send_message("Только лидер банды может её распустить.", ephemeral=True)
+                    return
+
+                members_count = len(gangs[gang_name]["members"])
+                cash = gangs[gang_name].get("cash", 0.0)
+                gold = gangs[gang_name].get("gold", 0.0)
+
+            embed = discord.Embed(
+                title="⚠️ Роспуск банды",
+                description=(
+                    f"Вы действительно хотите распустить банду **{gang_name}**?\n\n"
+                    f"👥 Участников: **{members_count}**\n"
+                    f"💰 Общак: **{format_money_plain(cash)}** {get_cash_emoji()} / **{gold}** {get_gold_emoji()}\n\n"
+                    "**Это действие необратимо!** Общак будет уничтожен, Discord-роли удалены."
+                ),
+                color=discord.Color.red()
+            )
+            view = GangDisbandConfirmView(interaction.guild_id, interaction.user.id, gang_name)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+    # ── ADMIN: admin-gang-edit ──
+
+    GANG_EDIT_FIELDS = [
+        app_commands.Choice(name="Название", value="name"),
+        app_commands.Choice(name="Цвет (HEX)", value="hex_color"),
+        app_commands.Choice(name="Логотип (URL)", value="logo_url"),
+        app_commands.Choice(name="Фон (URL)", value="bg_url"),
+        app_commands.Choice(name="Описание", value="description"),
+        app_commands.Choice(name="Критерии отбора", value="criteria"),
+        app_commands.Choice(name="Название роли лидера", value="leader_role_name"),
+        app_commands.Choice(name="Название роли участника", value="member_role_name"),
+    ]
+
+    @app_commands.command(name="admin-gang-edit", description="Админ: Изменить любое поле банды")
+    @app_commands.describe(gang_name="Название банды", field="Что изменить", value="Новое значение")
+    @app_commands.choices(field=GANG_EDIT_FIELDS)
+    @app_commands.default_permissions(administrator=True)
+    async def admin_gang_edit(self, interaction: discord.Interaction, gang_name: str, field: app_commands.Choice[str], value: str):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            value = value.strip()
+            if not value:
+                await interaction.response.send_message("Значение не может быть пустым.", ephemeral=True)
+                return
+
+            async with economy_lock:
+                gangs = get_gangs(interaction.guild_id)
+
+                if gang_name not in gangs:
+                    await interaction.response.send_message(f"Банда **{gang_name}** не найдена.", ephemeral=True)
+                    return
+
+                gang = gangs[gang_name]
+                field_key = field.value
+
+                if field_key == "name":
+                    new_name = value
+                    if len(new_name) < 3 or len(new_name) > 32:
+                        await interaction.response.send_message("Название должно быть от 3 до 32 символов.", ephemeral=True)
+                        return
+                    if new_name.lower() in (g.lower() for g in gangs.keys() if g != gang_name):
+                        await interaction.response.send_message(f"Банда с именем **{new_name}** уже существует.", ephemeral=True)
+                        return
+                    # Переименование
+                    gangs[new_name] = gangs.pop(gang_name)
+                    guild_data = economy_data.current()
+                    for mem_id in gang["members"]:
+                        mem_account = guild_data["users"].get(str(mem_id))
+                        if mem_account and mem_account.get("gang_name") == gang_name:
+                            mem_account["gang_name"] = new_name
+                    # Обновить Discord-роли
+                    member_role_id = gang.get("discord_member_role_id")
+                    leader_role_id = gang.get("discord_leader_role_id")
+                    leader_title = gang.get("leader_role_name", "Лидер")
+                    save_economy()
+
+                    if member_role_id:
+                        role = interaction.guild.get_role(member_role_id)
+                        if role:
+                            try: await role.edit(name=new_name)
+                            except: pass
+                    if leader_role_id:
+                        role = interaction.guild.get_role(leader_role_id)
+                        if role:
+                            try: await role.edit(name=f"{leader_title} {new_name}")
+                            except: pass
+
+                elif field_key == "hex_color":
+                    if not value.startswith('#') or len(value) not in (4, 7):
+                        await interaction.response.send_message("Цвет должен быть в формате HEX (#FF0000).", ephemeral=True)
+                        return
+                    gang["hex_color"] = value
+                    try:
+                        color_int = int(value.lstrip('#'), 16)
+                    except ValueError:
+                        color_int = 0
+                    # Обновить Discord-роли
+                    member_role_id = gang.get("discord_member_role_id")
+                    leader_role_id = gang.get("discord_leader_role_id")
+                    save_economy()
+                    if member_role_id:
+                        role = interaction.guild.get_role(member_role_id)
+                        if role:
+                            try: await role.edit(color=discord.Color(color_int))
+                            except: pass
+                    if leader_role_id:
+                        r = (color_int >> 16) & 255
+                        g = (color_int >> 8) & 255
+                        b = color_int & 255
+                        dark_color_int = (int(r * 0.7) << 16) + (int(g * 0.7) << 8) + int(b * 0.7)
+                        role = interaction.guild.get_role(leader_role_id)
+                        if role:
+                            try: await role.edit(color=discord.Color(dark_color_int))
+                            except: pass
+
+                elif field_key == "leader_role_name":
+                    if len(value) > 30:
+                        await interaction.response.send_message("Максимум 30 символов.", ephemeral=True)
+                        return
+                    gang["leader_role_name"] = value
+                    leader_role_id = gang.get("discord_leader_role_id")
+                    save_economy()
+                    if leader_role_id:
+                        role = interaction.guild.get_role(leader_role_id)
+                        if role:
+                            try: await role.edit(name=f"{value} {gang_name}")
+                            except: pass
+
+                elif field_key == "member_role_name":
+                    if len(value) > 30:
+                        await interaction.response.send_message("Максимум 30 символов.", ephemeral=True)
+                        return
+                    gang["member_role_name"] = value
+                    save_economy()
+
+                else:
+                    # logo_url, bg_url, description, criteria
+                    gang[field_key] = value
+                    save_economy()
+
+            await interaction.response.send_message(
+                f"✅ Поле **{field.name}** банды **{gang_name}** обновлено на: `{value[:100]}`",
+                ephemeral=True
+            )
+        finally:
+            reset_economy_guild_id(token)
+
+    # ── ADMIN: admin-gang-disband ──
+
+    @app_commands.command(name="admin-gang-disband", description="Админ: Принудительно распустить банду")
+    @app_commands.describe(gang_name="Название банды")
+    @app_commands.default_permissions(administrator=True)
+    async def admin_gang_disband(self, interaction: discord.Interaction, gang_name: str):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                gangs = get_gangs(interaction.guild_id)
+                if gang_name not in gangs:
+                    await interaction.response.send_message(f"Банда **{gang_name}** не найдена.", ephemeral=True)
+                    return
+
+            embed = discord.Embed(
+                title="⚠️ Принудительный роспуск банды",
+                description=f"Вы действительно хотите распустить банду **{gang_name}**?\n\n**Это действие необратимо!**",
+                color=discord.Color.red()
+            )
+            view = GangDisbandConfirmView(interaction.guild_id, interaction.user.id, gang_name)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+    # ── ADMIN: admin-gang-list ──
+
+    @app_commands.command(name="admin-gang-list", description="Админ: Список всех банд на сервере")
+    @app_commands.default_permissions(administrator=True)
+    async def admin_gang_list(self, interaction: discord.Interaction):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                gangs = get_gangs(interaction.guild_id)
+                if not gangs:
+                    await interaction.response.send_message("На сервере нет банд.", ephemeral=True)
+                    return
+
+                embed = discord.Embed(
+                    title="🏴‍☠️ Список банд",
+                    color=discord.Color.dark_red()
+                )
+
+                for name, gang in gangs.items():
+                    gang_id = gang.get("id", "?")
+                    leader_id = gang.get("leader")
+                    leader = interaction.guild.get_member(leader_id) if leader_id else None
+                    leader_name = leader.display_name if leader else f"ID:{leader_id}"
+                    members_count = len(gang.get("members", []))
+                    cash = gang.get("cash", 0.0)
+                    gold = gang.get("gold", 0.0)
+                    leader_title = gang.get("leader_role_name", "Лидер")
+
+                    embed.add_field(
+                        name=f"#{gang_id} — {name}",
+                        value=(
+                            f"👑 {leader_title}: **{leader_name}**\n"
+                            f"👥 Участников: **{members_count}**\n"
+                            f"💰 Общак: **{format_money_plain(cash)}** / **{gold}** зол.\n"
+                            f"⚔️ Влияние: **{gang.get('influence', 0)}**"
+                        ),
+                        inline=False
+                    )
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+    # ── ADMIN: admin-gang-treasury ──
+
+    @app_commands.command(name="admin-gang-treasury", description="Админ: Добавить или снять средства из общака банды")
+    @app_commands.describe(
+        gang_name="Название банды",
+        action="Действие",
+        currency="Валюта",
+        amount="Сумма"
+    )
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="Добавить", value="add"),
+            app_commands.Choice(name="Снять", value="remove"),
+        ]
+    )
+    @app_commands.default_permissions(administrator=True)
+    async def admin_gang_treasury(
+        self, interaction: discord.Interaction,
+        gang_name: str,
+        action: app_commands.Choice[str],
+        currency: Literal["Деньги", "Золото"],
+        amount: float
+    ):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            if amount <= 0:
+                await interaction.response.send_message("Сумма должна быть больше нуля.", ephemeral=True)
+                return
+
+            async with economy_lock:
+                gangs = get_gangs(interaction.guild_id)
+                if gang_name not in gangs:
+                    await interaction.response.send_message(f"Банда **{gang_name}** не найдена.", ephemeral=True)
+                    return
+
+                gang = gangs[gang_name]
+                curr_key = "cash" if currency == "Деньги" else "gold"
+                emoji = get_cash_emoji() if currency == "Деньги" else get_gold_emoji()
+
+                if action.value == "add":
+                    gang[curr_key] = gang.get(curr_key, 0.0) + amount
+                    save_economy()
+                    await interaction.response.send_message(
+                        f"✅ В общак **{gang_name}** добавлено **{amount}** {emoji}. Итого: **{format_money_plain(gang[curr_key])}** {emoji}.",
+                        ephemeral=True
+                    )
+                else:
+                    current = gang.get(curr_key, 0.0)
+                    if current < amount:
+                        await interaction.response.send_message(
+                            f"В общаке только **{format_money_plain(current)}** {emoji}.",
+                            ephemeral=True
+                        )
+                        return
+                    gang[curr_key] -= amount
+                    save_economy()
+                    await interaction.response.send_message(
+                        f"✅ Из общака **{gang_name}** снято **{amount}** {emoji}. Остаток: **{format_money_plain(gang[curr_key])}** {emoji}.",
+                        ephemeral=True
+                    )
+        finally:
+            reset_economy_guild_id(token)
+
+# ─── Вспомогательная функция роспуска банды ───
+
+async def disband_gang(guild, gang_name, gangs):
+    """Роспуск банды: очистка данных участников и удаление Discord-ролей."""
+    gang = gangs[gang_name]
+    members = gang.get("members", [])
+    member_role_id = gang.get("discord_member_role_id")
+    leader_role_id = gang.get("discord_leader_role_id")
+
+    # Убираем банду у всех участников
+    guild_data = economy_data.current()
+    for mem_id in members:
+        mem_account = guild_data["users"].get(str(mem_id))
+        if mem_account and mem_account.get("gang_name") == gang_name:
+            mem_account["gang_name"] = None
+    del gangs[gang_name]
+    save_economy()
+
+    # Удаляем Discord-роли
+    if member_role_id and guild:
+        role = guild.get_role(member_role_id)
+        if role:
+            try: await role.delete()
+            except: pass
+    if leader_role_id and guild:
+        role = guild.get_role(leader_role_id)
+        if role:
+            try: await role.delete()
+            except: pass
+
+
+# ─── Modal для редактирования банды ───
+
+class GangEditModal(discord.ui.Modal, title='Редактирование банды'):
+    gang_name_input = discord.ui.TextInput(
+        label='Название банды',
+        placeholder='Новое название (или оставьте текущее)',
+        max_length=32,
+        required=True
+    )
+    hex_color_input = discord.ui.TextInput(
+        label='Цвет (HEX)',
+        placeholder='#FF0000',
+        max_length=7,
+        required=False
+    )
+    logo_url_input = discord.ui.TextInput(
+        label='Логотип (URL)',
+        placeholder='https://...',
+        required=False
+    )
+    description_input = discord.ui.TextInput(
+        label='Описание',
+        style=discord.TextStyle.paragraph,
+        max_length=1000,
+        required=False
+    )
+    criteria_input = discord.ui.TextInput(
+        label='Критерии отбора',
+        style=discord.TextStyle.paragraph,
+        max_length=1000,
+        required=False
+    )
+
+    def __init__(self, current_gang_name: str, gang_data: dict, guild_id: int, bg_url: Optional[str] = None):
+        super().__init__()
+        self.current_gang_name = current_gang_name
+        self.guild_id = guild_id
+        self.new_bg_url = bg_url  # bg_url передаётся как параметр команды
+
+        # Заполняем текущими значениями
+        self.gang_name_input.default = current_gang_name
+        self.hex_color_input.default = gang_data.get("hex_color", "")
+        self.logo_url_input.default = gang_data.get("logo_url", "")
+        self.description_input.default = gang_data.get("description", "")
+        self.criteria_input.default = gang_data.get("criteria", "")
+
+    async def on_submit(self, interaction: discord.Interaction):
+        token = set_economy_guild_id(self.guild_id)
+        try:
+            new_name = self.gang_name_input.value.strip()
+            new_color = self.hex_color_input.value.strip() if self.hex_color_input.value else None
+            new_logo = self.logo_url_input.value.strip() if self.logo_url_input.value else None
+            new_desc = self.description_input.value.strip() if self.description_input.value else None
+            new_criteria = self.criteria_input.value.strip() if self.criteria_input.value else None
+
+            if len(new_name) < 3 or len(new_name) > 32:
+                await interaction.response.send_message("Название банды должно быть от 3 до 32 символов.", ephemeral=True)
+                return
+
+            if new_color and (not new_color.startswith('#') or len(new_color) not in (4, 7)):
+                await interaction.response.send_message("Цвет должен быть в формате HEX (например #FF0000).", ephemeral=True)
+                return
+
+            async with economy_lock:
+                gangs = get_gangs(self.guild_id)
+
+                if self.current_gang_name not in gangs:
+                    await interaction.response.send_message("Банда больше не существует.", ephemeral=True)
+                    return
+
+                gang = gangs[self.current_gang_name]
+
+                # Проверка уникальности нового имени
+                name_changed = new_name != self.current_gang_name
+                if name_changed:
+                    if new_name.lower() in (g.lower() for g in gangs.keys() if g != self.current_gang_name):
+                        await interaction.response.send_message(f"Банда с именем **{new_name}** уже существует.", ephemeral=True)
+                        return
+
+                # Обновляем данные
+                if new_logo is not None:
+                    gang["logo_url"] = new_logo
+                if new_desc is not None:
+                    gang["description"] = new_desc
+                if new_criteria is not None:
+                    gang["criteria"] = new_criteria
+                if self.new_bg_url is not None:
+                    gang["bg_url"] = self.new_bg_url
+
+                color_changed = False
+                color_int = 0
+                if new_color:
+                    gang["hex_color"] = new_color
+                    try:
+                        color_int = int(new_color.lstrip('#'), 16)
+                    except ValueError:
+                        color_int = 0
+                    color_changed = True
+
+                # Переименование: перенос данных в новый ключ
+                if name_changed:
+                    gangs[new_name] = gangs.pop(self.current_gang_name)
+                    # Обновить gang_name у всех участников
+                    guild_data = economy_data.current()
+                    for mem_id in gang["members"]:
+                        mem_account = guild_data["users"].get(str(mem_id))
+                        if mem_account and mem_account.get("gang_name") == self.current_gang_name:
+                            mem_account["gang_name"] = new_name
+
+                member_role_id = gang.get("discord_member_role_id")
+                leader_role_id = gang.get("discord_leader_role_id")
+                leader_title = gang.get("leader_role_name", "Лидер")
+                save_economy()
+
+            # Обновить Discord-роли
+            changes = []
+            if name_changed:
+                if member_role_id:
+                    role = interaction.guild.get_role(member_role_id)
+                    if role:
+                        try: await role.edit(name=new_name)
+                        except: pass
+                if leader_role_id:
+                    role = interaction.guild.get_role(leader_role_id)
+                    if role:
+                        try: await role.edit(name=f"{leader_title} {new_name}")
+                        except: pass
+                changes.append(f"Название: **{new_name}**")
+
+            if color_changed:
+                if member_role_id:
+                    role = interaction.guild.get_role(member_role_id)
+                    if role:
+                        try: await role.edit(color=discord.Color(color_int))
+                        except: pass
+                if leader_role_id:
+                    r = (color_int >> 16) & 255
+                    g = (color_int >> 8) & 255
+                    b = color_int & 255
+                    dark_color_int = (int(r * 0.7) << 16) + (int(g * 0.7) << 8) + int(b * 0.7)
+                    role = interaction.guild.get_role(leader_role_id)
+                    if role:
+                        try: await role.edit(color=discord.Color(dark_color_int))
+                        except: pass
+                changes.append(f"Цвет: **{new_color}**")
+
+            if new_logo is not None:
+                changes.append("Логотип обновлён")
+            if new_desc is not None:
+                changes.append("Описание обновлено")
+            if new_criteria is not None:
+                changes.append("Критерии обновлены")
+            if self.new_bg_url is not None:
+                changes.append("Фон обновлён")
+
+            summary = "\n".join(f"• {c}" for c in changes) if changes else "Ничего не изменено."
+            await interaction.response.send_message(f"✅ Банда обновлена:\n{summary}", ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+
+# ─── View для подтверждения роспуска ───
+
+class GangDisbandConfirmView(discord.ui.View):
+    def __init__(self, guild_id, user_id, gang_name):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.gang_name = gang_name
+
+    @discord.ui.button(label="Подтвердить роспуск", style=discord.ButtonStyle.danger, emoji="💀")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Это не ваш запрос!", ephemeral=True)
+            return
+
+        token = set_economy_guild_id(self.guild_id)
+        try:
+            async with economy_lock:
+                gangs = get_gangs(self.guild_id)
+                if self.gang_name not in gangs:
+                    await interaction.response.send_message("Банда уже не существует.", ephemeral=True)
+                    return
+
+                await disband_gang(interaction.guild, self.gang_name, gangs)
+
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(view=self)
+            await interaction.response.send_message(f"💀 Банда **{self.gang_name}** распущена. Общак сгорел.")
+        finally:
+            reset_economy_guild_id(token)
+
+    @discord.ui.button(label="Отмена", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Это не ваш запрос!", ephemeral=True)
+            return
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+        await interaction.response.send_message("Роспуск отменён.", ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(GangsCog(bot))

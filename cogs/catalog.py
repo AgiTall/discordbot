@@ -20,42 +20,88 @@ from bot import (
     reset_economy_guild_id,
 )
 
+# ─── Дефолтные эмодзи каталога ───
+
+DEFAULT_CATALOG_TITLE_EMOJI = "📖"
+DEFAULT_CATALOG_COMING_SOON_EMOJI = "🔜"
+DEFAULT_CATALOG_BOUGHT_EMOJI = "✅"
+DEFAULT_CATALOG_BUY_SUCCESS_EMOJI = "✅"
+
+DEFAULT_CATALOG_CATEGORY_EMOJIS = {
+    "weapons": "🔫",
+    "hunting": "🎣",
+    "ammo": "💥",
+    "horses": "🐴",
+    "weapon_equipment": "⚔️",
+    "provisions": "🍖",
+    "tonics": "🧪",
+}
+
+# ─── Геттеры эмодзи каталога ───
+
+
+def get_catalog_emoji(key, default=None):
+    """Получить кастомный эмодзи каталога из economy_data."""
+    val = economy_data.get(f"catalog_{key}")
+    if val:
+        return str(val)
+    return str(default) if default else ""
+
+
+def get_catalog_title_emoji():
+    return get_catalog_emoji("title", DEFAULT_CATALOG_TITLE_EMOJI)
+
+
+def get_catalog_coming_soon_emoji():
+    return get_catalog_emoji("coming_soon", DEFAULT_CATALOG_COMING_SOON_EMOJI)
+
+
+def get_catalog_bought_emoji():
+    return get_catalog_emoji("bought", DEFAULT_CATALOG_BOUGHT_EMOJI)
+
+
+def get_catalog_buy_success_emoji():
+    return get_catalog_emoji("buy_success", DEFAULT_CATALOG_BUY_SUCCESS_EMOJI)
+
+
+def get_catalog_category_emoji(category_key):
+    """Получить эмодзи категории каталога."""
+    # Пробуем кастомный из economy_data
+    val = economy_data.get(f"catalog_cat_{category_key}")
+    if val:
+        return str(val)
+    return DEFAULT_CATALOG_CATEGORY_EMOJIS.get(category_key, "📦")
+
+
 # ─── Категории каталога (в стиле Wheeler, Rawson & Co.) ───
 
 CATALOG_CATEGORIES = {
     "weapons": {
         "name": "Оружие",
-        "emoji": "🔫",
         "description": "Огнестрельное и холодное оружие для защиты и нападения.",
     },
     "hunting": {
         "name": "Охота и рыбалка",
-        "emoji": "🎣",
         "description": "Снаряжение для охотника и рыбака.",
     },
     "ammo": {
         "name": "Боеприпасы",
-        "emoji": "💥",
         "description": "Патроны, стрелы и порох для любого оружия.",
     },
     "horses": {
         "name": "Лошади и сбруя",
-        "emoji": "🐴",
         "description": "Лошади, сёдла, уздечки и аксессуары для ваших скакунов.",
     },
     "weapon_equipment": {
         "name": "Оружейное снаряжение",
-        "emoji": "⚔️",
         "description": "Кобуры, ремни, патронташи и улучшения для оружия.",
     },
     "provisions": {
         "name": "Провиант",
-        "emoji": "🍖",
         "description": "Еда, табак и предметы повседневного потребления.",
     },
     "tonics": {
         "name": "Тоники",
-        "emoji": "🧪",
         "description": "Лечебные и укрепляющие тоники, эликсиры.",
     },
 }
@@ -119,15 +165,19 @@ def build_catalog_embed(category_key, account, guild_id):
     guild_data = economy_data.current()
     discounts = guild_data.get("shop_discounts", {})
 
+    cat_emoji = get_catalog_category_emoji(category_key)
+    title_emoji = get_catalog_title_emoji()
+
     embed = discord.Embed(
-        title=f"📖 Каталог — {cat['emoji']} {cat['name']}",
+        title=f"{title_emoji} Каталог — {cat_emoji} {cat['name']}",
         description=cat["description"],
         color=discord.Color.from_rgb(139, 109, 68),  # Тёплый коричневый, стиль RDR2
     )
 
     if not items:
+        coming_soon = get_catalog_coming_soon_emoji()
         embed.add_field(
-            name="Скоро в продаже",
+            name=f"{coming_soon} Скоро в продаже",
             value="*Товары этой категории пока не завезли. Следите за обновлениями!*",
             inline=False,
         )
@@ -149,7 +199,8 @@ def build_catalog_embed(category_key, account, guild_id):
             if item_data["type"] == "unique":
                 inventory = account.get("inventory", {})
                 if inventory.get(item_key, 0) > 0:
-                    status = " ✅ *Куплено*"
+                    bought_emoji = get_catalog_bought_emoji()
+                    status = f" {bought_emoji} *Куплено*"
 
             embed.add_field(
                 name=f"{item_emoji} {item_data['name']}{status}",
@@ -157,9 +208,13 @@ def build_catalog_embed(category_key, account, guild_id):
                 inline=False,
             )
 
-    # Навигация
-    cat_names = [f"{c['emoji']} {c['name']}" for c in CATALOG_CATEGORIES.values()]
-    embed.set_footer(text=f"Wheeler, Rawson & Co. • {' · '.join(cat_names)}")
+    # Навигация — столбиком
+    nav_lines = []
+    for key, c in CATALOG_CATEGORIES.items():
+        c_emoji = get_catalog_category_emoji(key)
+        marker = "▸ " if key == category_key else "  "
+        nav_lines.append(f"{marker}{c_emoji} {c['name']}")
+    embed.set_footer(text="Wheeler, Rawson & Co.\n" + "\n".join(nav_lines))
 
     return embed
 
@@ -214,8 +269,9 @@ class CatalogBuyButton(discord.ui.Button):
             save_economy()
 
             emoji = get_gold_emoji() if self.item_data["currency"] == "gold" else get_cash_emoji()
+            success_emoji = get_catalog_buy_success_emoji()
             await interaction.response.send_message(
-                f"✅ Вы успешно купили **{self.item_data['name']}** за {self.price} {emoji}!",
+                f"{success_emoji} Вы успешно купили **{self.item_data['name']}** за {self.price} {emoji}!",
                 ephemeral=True,
             )
 
@@ -233,11 +289,12 @@ class CatalogCategorySelect(discord.ui.Select):
     def __init__(self, current_category):
         options = []
         for key, cat in CATALOG_CATEGORIES.items():
+            cat_emoji = get_catalog_category_emoji(key)
             options.append(
                 discord.SelectOption(
                     label=cat["name"],
                     value=key,
-                    emoji=cat["emoji"],
+                    emoji=cat_emoji,
                     description=cat["description"][:100],
                     default=(key == current_category),
                 )
@@ -316,7 +373,7 @@ class CatalogCog(commands.Cog):
             embed = build_catalog_embed(current_category, account, interaction.guild_id)
             view = CatalogView(interaction.guild_id, interaction.user, account, current_category)
 
-            await interaction.response.send_message(embed=embed, view=view)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         finally:
             reset_economy_guild_id(token)
 

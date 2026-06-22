@@ -1823,6 +1823,17 @@ EMOJI_TARGETS = [
     ("Роль: самогонщик", "role_icon_moonshiner"),
     ("Роль: натуралист", "role_icon_naturalist"),
     ("Роль: коллекционер", "role_icon_collector"),
+    ("Каталог: заголовок", "catalog_title"),
+    ("Каталог: скоро в продаже", "catalog_coming_soon"),
+    ("Каталог: куплено", "catalog_bought"),
+    ("Каталог: покупка", "catalog_buy_success"),
+    ("Каталог: оружие", "catalog_cat_weapons"),
+    ("Каталог: охота и рыбалка", "catalog_cat_hunting"),
+    ("Каталог: боеприпасы", "catalog_cat_ammo"),
+    ("Каталог: лошади и сбруя", "catalog_cat_horses"),
+    ("Каталог: оружейное снаряжение", "catalog_cat_weapon_equipment"),
+    ("Каталог: провиант", "catalog_cat_provisions"),
+    ("Каталог: тоники", "catalog_cat_tonics"),
 ]
 
 
@@ -5006,6 +5017,9 @@ async def admin_set_emoji_command(
                 role_key = currency.replace("role_icon_", "", 1)
                 economy_data["role_key_icons"][role_key] = emoji
                 message = f"Эмодзи роли установлено: **{emoji}**"
+            elif currency.startswith("catalog_"):
+                economy_data[currency] = emoji
+                message = f"Эмодзи каталога установлено: **{emoji}**"
             else:
                 message = "Настройка эмодзи обновлена."
         save_economy()
