@@ -23,7 +23,7 @@ _routes_registered = False
 def _http_request(url, method="GET", data=None, headers=None, timeout=15):
     req_headers = dict(headers or {})
     # Discord API требует User-Agent, иначе банит запросы с серверов (403 Forbidden)
-    req_headers.setdefault("User-Agent", "DiscordBot (https://pchev.me, 0.6.1.2)")
+    req_headers.setdefault("User-Agent", "DiscordBot (https://pchev.me, 0.6.4.0)")
     
     body = None
     if data is not None:

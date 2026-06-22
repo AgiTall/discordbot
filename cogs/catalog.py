@@ -28,7 +28,11 @@ DEFAULT_CATALOG_BOUGHT_EMOJI = "✅"
 DEFAULT_CATALOG_BUY_SUCCESS_EMOJI = "✅"
 
 DEFAULT_CATALOG_CATEGORY_EMOJIS = {
-    "weapons": "🔫",
+    "revolvers": "🔫",
+    "pistols": "🔫",
+    "carbines": "💥",
+    "rifles": "🎯",
+    "shotguns": "💥",
     "hunting": "🎣",
     "ammo": "💥",
     "horses": "🐴",
@@ -76,9 +80,25 @@ def get_catalog_category_emoji(category_key):
 # ─── Категории каталога (в стиле Wheeler, Rawson & Co.) ───
 
 CATALOG_CATEGORIES = {
-    "weapons": {
-        "name": "Оружие",
-        "description": "Огнестрельное и холодное оружие для защиты и нападения.",
+    "revolvers": {
+        "name": "Револьверы",
+        "description": "Классические шестизарядные револьверы для Дикого Запада.",
+    },
+    "pistols": {
+        "name": "Пистолеты",
+        "description": "Современные самозарядные и рычажные пистолеты.",
+    },
+    "carbines": {
+        "name": "Карабины",
+        "description": "Многозарядные винтовки рычажного действия (Repeater).",
+    },
+    "rifles": {
+        "name": "Винтовки",
+        "description": "Мощные дальнобойные винтовки и снайперское оружие.",
+    },
+    "shotguns": {
+        "name": "Дробовики",
+        "description": "Смертоносное оружие для ближнего боя.",
     },
     "hunting": {
         "name": "Охота и рыбалка",
@@ -121,16 +141,245 @@ CATALOG_ITEMS = {
         "category": "weapon_equipment",
         "type": "unique",
     },
-    # === Оружие (заготовки) ===
-    # "revolver_cattleman": {
-    #     "name": "Револьвер Cattleman",
-    #     "description": "Надёжный шестизарядный револьвер.",
-    #     "base_price": 50,
-    #     "currency": "cash",
-    #     "emoji_func": None,
-    #     "category": "weapons",
-    #     "type": "unique",
-    # },
+    # === Револьверы ===
+    "revolver_cattleman": {
+        "name": "Револьвер Cattleman",
+        "description": "Классический шестизарядный револьвер. Надёжный и проверенный временем.",
+        "base_price": 50,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "revolvers",
+        "type": "unique",
+        "image": "ref/guns/weapon_revolver_cattleman.png"
+    },
+    "revolver_doubleaction": {
+        "name": "Револьвер Double-Action",
+        "description": "Скорострельный револьвер двойного действия. Идеально для стрельбы от бедра.",
+        "base_price": 65,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "revolvers",
+        "type": "unique",
+        "image": "ref/guns/weapon_revolver_doubleaction.png"
+    },
+    "revolver_doubleaction_gambler": {
+        "name": "Револьвер Игрока",
+        "description": "Изящный револьвер двойного действия с уникальной гравировкой.",
+        "base_price": 15,
+        "currency": "gold",
+        "emoji_func": None,
+        "category": "revolvers",
+        "type": "unique",
+        "image": "ref/guns/weapon_revolver_doubleaction_gambler.png"
+    },
+    "revolver_lemat": {
+        "name": "Револьвер LeMat",
+        "description": "Тяжёлый 9-зарядный револьвер с дополнительным стволом для дроби.",
+        "base_price": 100,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "revolvers",
+        "type": "unique",
+        "image": "ref/guns/weapon_revolver_lemat.png"
+    },
+    "revolver_schofield": {
+        "name": "Револьвер Schofield",
+        "description": "Мощный револьвер с переломной рамкой для быстрой перезарядки.",
+        "base_price": 84,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "revolvers",
+        "type": "unique",
+        "image": "ref/guns/weapon_revolver_schofield.png"
+    },
+    
+    # === Пистолеты ===
+    "pistol_mauser": {
+        "name": "Пистолет Mauser",
+        "description": "Современный пистолет с высокой скорострельностью и большим магазином.",
+        "base_price": 150,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "pistols",
+        "type": "unique",
+        "image": "ref/guns/weapon_pistol_mauser.png"
+    },
+    "pistol_semiauto": {
+        "name": "Полуавтоматический пистолет",
+        "description": "Пистолет нового поколения с отличным темпом стрельбы.",
+        "base_price": 135,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "pistols",
+        "type": "unique",
+        "image": "ref/guns/weapon_pistol_semiauto.png"
+    },
+    "pistol_volcanic": {
+        "name": "Пистолет Volcanic",
+        "description": "Оружие рычажного действия. Медленное, но очень мощное.",
+        "base_price": 120,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "pistols",
+        "type": "unique",
+        "image": "ref/guns/weapon_pistol_volcanic.png"
+    },
+    
+    # === Карабины ===
+    "repeater_carbine": {
+        "name": "Карабин Repeater",
+        "description": "Надёжный многозарядный карабин. Стандартное оружие многих.",
+        "base_price": 90,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "carbines",
+        "type": "unique",
+        "image": "ref/guns/weapon_repeater_carbine.png"
+    },
+    "repeater_henry": {
+        "name": "Карабин Litchfield (Henry)",
+        "description": "Тяжёлый карабин с высокой убойной силой, но медленной перезарядкой.",
+        "base_price": 110,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "carbines",
+        "type": "unique",
+        "image": "ref/guns/weapon_repeater_henry.png"
+    },
+    "repeater_lancaster": {
+        "name": "Карабин Lancaster",
+        "description": "Самый сбалансированный карабин с отличной скоростью и точностью.",
+        "base_price": 135,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "carbines",
+        "type": "unique",
+        "image": "ref/guns/weapon_repeater_lancaster.png"
+    },
+    
+    # === Винтовки ===
+    "rifle_boltaction": {
+        "name": "Болтовая винтовка",
+        "description": "Мощная и точная винтовка с продольно-скользящим затвором.",
+        "base_price": 150,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "rifles",
+        "type": "unique",
+        "image": "ref/guns/weapon_rifle_boltaction.png"
+    },
+    "rifle_elephant": {
+        "name": "Слонобой",
+        "description": "Невероятно мощное оружие для охоты на самых крупных хищников.",
+        "base_price": 180,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "rifles",
+        "type": "unique",
+        "image": "ref/guns/weapon_rifle_elephant.png"
+    },
+    "rifle_springfield": {
+        "name": "Винтовка Springfield",
+        "description": "Однозарядная винтовка с высокой убойной силой.",
+        "base_price": 120,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "rifles",
+        "type": "unique",
+        "image": "ref/guns/weapon_rifle_springfield.png"
+    },
+    "rifle_varmint": {
+        "name": "Варминт-винтовка",
+        "description": "Мелкокалиберная винтовка для охоты на мелкую дичь.",
+        "base_price": 72,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "rifles",
+        "type": "unique",
+        "image": "ref/guns/weapon_rifle_varmint.png"
+    },
+    "sniperrifle_carcano": {
+        "name": "Винтовка Carcano",
+        "description": "Дальнобойная снайперская винтовка со скользящим затвором.",
+        "base_price": 190,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "rifles",
+        "type": "unique",
+        "image": "ref/guns/weapon_sniperrifle_carcano.png"
+    },
+    "sniperrifle_rollingblock": {
+        "name": "Винтовка Rolling Block",
+        "description": "Классическая однозарядная снайперская винтовка.",
+        "base_price": 175,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "rifles",
+        "type": "unique",
+        "image": "ref/guns/weapon_sniperrifle_rollingblock.png"
+    },
+    
+    # === Дробовики ===
+    "shotgun_doublebarrel": {
+        "name": "Двуствольный дробовик",
+        "description": "Классическая двустволка. Смертоносна на ближней дистанции.",
+        "base_price": 80,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "shotguns",
+        "type": "unique",
+        "image": "ref/guns/weapon_shotgun_doublebarrel.png"
+    },
+    "shotgun_doublebarrel_exotic": {
+        "name": "Редкий дробовик",
+        "description": "Уникальный двуствольный дробовик с гравировками.",
+        "base_price": 20,
+        "currency": "gold",
+        "emoji_func": None,
+        "category": "shotguns",
+        "type": "unique",
+        "image": "ref/guns/weapon_shotgun_doublebarrel_exotic.png"
+    },
+    "shotgun_pump": {
+        "name": "Помповый дробовик",
+        "description": "Современный помповый дробовик, надёжный выбор.",
+        "base_price": 130,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "shotguns",
+        "type": "unique",
+        "image": "ref/guns/weapon_shotgun_pump.png"
+    },
+    "shotgun_repeating": {
+        "name": "Дробовик рычажного действия",
+        "description": "Многозарядный дробовик с механизмом как у карабина.",
+        "base_price": 145,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "shotguns",
+        "type": "unique",
+        "image": "ref/guns/weapon_shotgun_repeating.png"
+    },
+    "shotgun_sawedoff": {
+        "name": "Обрез дробовика",
+        "description": "Укороченный дробовик, который можно носить в кобуре.",
+        "base_price": 75,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "shotguns",
+        "type": "unique",
+        "image": "ref/guns/weapon_shotgun_sawedoff.png"
+    },
+    "shotgun_semiauto": {
+        "name": "Полуавтоматический дробовик",
+        "description": "Самый скорострельный дробовик, выкашивает врагов за секунды.",
+        "base_price": 160,
+        "currency": "cash",
+        "emoji_func": None,
+        "category": "shotguns",
+        "type": "unique",
+        "image": "ref/guns/weapon_shotgun_semiauto.png"
+    },
     # === Охота и рыбалка (заготовки) ===
     # === Боеприпасы (заготовки) ===
     # === Лошади и сбруя (заготовки) ===
@@ -157,8 +406,8 @@ def get_category_items(category_key):
     }
 
 
-def build_catalog_embed(category_key, account, guild_id):
-    """Создать embed для страницы категории каталога."""
+def build_catalog_messages(category_key, account, guild_id):
+    """Создать embeds и файлы для страницы категории каталога."""
     cat = CATALOG_CATEGORIES[category_key]
     items = get_category_items(category_key)
 
@@ -168,15 +417,18 @@ def build_catalog_embed(category_key, account, guild_id):
     cat_emoji = get_catalog_category_emoji(category_key)
     title_emoji = get_catalog_title_emoji()
 
-    embed = discord.Embed(
+    main_embed = discord.Embed(
         title=f"{title_emoji} Каталог — {cat_emoji} {cat['name']}",
         description=cat["description"],
         color=discord.Color.from_rgb(139, 109, 68),  # Тёплый коричневый, стиль RDR2
     )
 
+    embeds = [main_embed]
+    files = []
+
     if not items:
         coming_soon = get_catalog_coming_soon_emoji()
-        embed.add_field(
+        main_embed.add_field(
             name=f"{coming_soon} Скоро в продаже",
             value="*Товары этой категории пока не завезли. Следите за обновлениями!*",
             inline=False,
@@ -202,11 +454,22 @@ def build_catalog_embed(category_key, account, guild_id):
                     bought_emoji = get_catalog_bought_emoji()
                     status = f" {bought_emoji} *Куплено*"
 
-            embed.add_field(
-                name=f"{item_emoji} {item_data['name']}{status}",
-                value=f"{item_data['description']}\nЦена: {price_text}",
-                inline=False,
-            )
+            if "image" in item_data:
+                item_embed = discord.Embed(
+                    title=f"{item_emoji} {item_data['name']}{status}",
+                    description=f"{item_data['description']}\nЦена: {price_text}",
+                    color=discord.Color.from_rgb(139, 109, 68),
+                )
+                filename = item_data["image"].split("/")[-1]
+                files.append(discord.File(item_data["image"], filename=filename))
+                item_embed.set_thumbnail(url=f"attachment://{filename}")
+                embeds.append(item_embed)
+            else:
+                main_embed.add_field(
+                    name=f"{item_emoji} {item_data['name']}{status}",
+                    value=f"{item_data['description']}\nЦена: {price_text}",
+                    inline=False,
+                )
 
     # Навигация — столбиком
     nav_lines = []
@@ -214,9 +477,10 @@ def build_catalog_embed(category_key, account, guild_id):
         c_emoji = get_catalog_category_emoji(key)
         marker = "▸ " if key == category_key else "  "
         nav_lines.append(f"{marker}{c_emoji} {c['name']}")
-    embed.set_footer(text="Wheeler, Rawson & Co.\n" + "\n".join(nav_lines))
+    
+    embeds[-1].set_footer(text="Wheeler, Rawson & Co.\n" + "\n".join(nav_lines))
 
-    return embed
+    return embeds, files
 
 
 # ─── Кнопки покупки ───
@@ -309,15 +573,15 @@ class CatalogCategorySelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         selected = self.values[0]
         account = get_account(interaction.user.id)
-        embed = build_catalog_embed(selected, account, interaction.guild_id)
+        embeds, files = build_catalog_messages(selected, account, interaction.guild_id)
         view = CatalogView(interaction.guild_id, interaction.user, account, selected)
-        await interaction.response.edit_message(embed=embed, view=view)
+        await interaction.response.edit_message(embeds=embeds, attachments=files, view=view)
 
 
 # ─── Главный View каталога ───
 
 class CatalogView(discord.ui.View):
-    def __init__(self, guild_id, member, account, current_category="weapons"):
+    def __init__(self, guild_id, member, account, current_category="revolvers"):
         super().__init__(timeout=300)
         self.guild_id = guild_id
         self.member = member
@@ -368,12 +632,12 @@ class CatalogCog(commands.Cog):
         token = set_economy_guild_id(interaction.guild_id)
         try:
             account = get_account(interaction.user.id)
-            current_category = "weapons"  # Начинаем с оружия
+            current_category = "revolvers"  # Начинаем с револьверов
 
-            embed = build_catalog_embed(current_category, account, interaction.guild_id)
+            embeds, files = build_catalog_messages(current_category, account, interaction.guild_id)
             view = CatalogView(interaction.guild_id, interaction.user, account, current_category)
 
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.response.send_message(embeds=embeds, files=files, view=view, ephemeral=True)
         finally:
             reset_economy_guild_id(token)
 

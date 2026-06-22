@@ -1,5 +1,7 @@
 import json
 import os
+import re
+import glob
 
 # ==========================================
 # ВПИШИТЕ НОВУЮ ВЕРСИЮ СЮДА:
@@ -32,30 +34,36 @@ def update_version():
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        import re
-        import glob
+        # Регулярки для поиска старых версий (вида vX.X.X.X или X.X.X.X)
+        pattern_v = re.compile(r"v\d+\.\d+\.\d+\.\d+")
+        pattern_num = re.compile(r"(?<!v)\b\d+\.\d+\.\d+\.\d+\b")
         
-        # Обновляем версию во всех HTML файлах в папке docs
+        # Ищем все файлы, где нужно обновить версию
+        files_to_update = glob.glob("docs/*.html") + glob.glob("docs/js/*.js") + ["dashboard.html", "src/web_routes.py"]
         docs_updated = 0
-        html_files = glob.glob("docs/*.html")
         
-        for html_file in html_files:
+        for file_path in files_to_update:
+            if not os.path.exists(file_path):
+                continue
             try:
-                with open(html_file, "r", encoding="utf-8") as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 
-                # Ищем старую версию в HTML и заменяем на новую
-                new_content = content.replace(old_version, NEW_VERSION)
+                # Ищем любую старую версию и заменяем на новую
+                new_content = pattern_v.sub(NEW_VERSION, content)
+                new_content = pattern_num.sub(NEW_VERSION.lstrip('v'), new_content)
+                
                 if new_content != content:
-                    with open(html_file, "w", encoding="utf-8") as f:
+                    with open(file_path, "w", encoding="utf-8") as f:
                         f.write(new_content)
                     docs_updated += 1
             except Exception as e:
-                print(f"⚠️ Не удалось обновить {html_file}: {e}")
+                print(f"⚠️ Не удалось обновить {file_path}: {e}")
 
         print(f"✅ Успех! Версия бота обновлена:")
         print(f"   Было:  {old_version}")
         print(f"   Стало: {NEW_VERSION}")
+        print(f"   Обновлено файлов: {docs_updated}")
         print("Бот автоматически загрузит новую версию при следующем запуске.")
 
     except Exception as e:
