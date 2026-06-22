@@ -422,32 +422,13 @@ def format_moonshine_bottles(moonshine):
     return f"{progress} {percent:.1f}% {bottles}/20 бутылок"
 
 
-INGREDIENT_EMOJIS = {
-    "Яблоко": "🍎",
-    "Груша": "🍐",
-    "Персик": "🍑",
-    "Консервированные персики": "🥫",
-    "Консервированные абрикосы": "🥫",
-    "Консервированные ананасы": "🥫",
-    "Консервированная клубника": "🥫",
-    "Ежевика": "🫐",
-    "Малина": "🍒",
-    "Черника овальнолистная": "🫐",
-    "Смородина": "🍇",
-    "Слива поручейная": "🫐",
-    "Магония": "🍇",
-    "Мята": "🌿",
-    "Женьшень": "🫚",
-    "Гаультерия": "🌱",
-    "Цветок ванили": "🌼",
-    "Пустынный мак": "🌺",
-    "Олеандр": "🌸",
-    "Абсент": "🍾",
-    "Карибский ром": "🥃"
-}
-
 def get_ingredient_emoji(ingredient_name):
-    return INGREDIENT_EMOJIS.get(ingredient_name, "🌿")
+    from bot import economy_data, DEFAULT_MOONSHINE_INGREDIENT_EMOJIS
+    emojis = economy_data.get("moonshine_ingredient_emojis", {})
+    emoji = emojis.get(ingredient_name)
+    if not emoji:
+        return str(DEFAULT_MOONSHINE_INGREDIENT_EMOJIS.get(ingredient_name, "🌿"))
+    return str(emoji)
 
 def format_moonshine_ingredients(ingredients):
     if not ingredients:

@@ -425,32 +425,13 @@ def format_moonshine_bottles(moonshine):
     return f"{format_progress_bar(percent)} {format_number(percent, 1)}% {bottles}/20 бутылок"
 
 
-INGREDIENT_EMOJIS = {
-    "Яблоко": "<:Apple:1518324095211667667>",
-    "Груша": "<:pear:1518323459468300508>",
-    "Персик": "<:Persik:1518324112928407562>",
-    "Консервированные персики": "<:Persiki:1518324114891341924>",
-    "Консервированные абрикосы": "<:apricots:1518324098701328474>",
-    "Консервированные ананасы": "<:Pineapple:1518324116665405600>",
-    "Консервированная клубника": "<:Strawberry:1518324125892870316>",
-    "Ежевика": "<:blackberry:1518324101809176616>",
-    "Малина": "<:Raspberry:1518324120234758306>",
-    "Черника овальнолистная": "<:blueberry:1518324103931629598>",
-    "Смородина": "<:Smorodina:1518324123988660476>",
-    "Слива поручейная": "<:sliva:1518328310378270800>",
-    "Магония": "<:magonia:1518328307161239602>",
-    "Мята": "<:Mint:1518324107668754594>",
-    "Женьшень": "<:ZhenShen:1518324129902624788>",
-    "Гаультерия": "<:gaul:1518324106007941270>",
-    "Цветок ванили": "<:Vanille:1518324127549882369>",
-    "Пустынный мак": "<:Poppy:1518324118536323122>",
-    "Олеандр": "<:Oleader:1518324109380030646>",
-    "Абсент": "<:absinthe:1518324093248606331>",
-    "Карибский ром": "<:Rum:1518324122122321981>"
-}
-
 def get_ingredient_emoji(ingredient_name):
-    return INGREDIENT_EMOJIS.get(ingredient_name, "🌿")
+    from bot import economy_data, DEFAULT_MOONSHINE_INGREDIENT_EMOJIS
+    emojis = economy_data.get("moonshine_ingredient_emojis", {})
+    emoji = emojis.get(ingredient_name)
+    if not emoji:
+        return str(DEFAULT_MOONSHINE_INGREDIENT_EMOJIS.get(ingredient_name, "🌿"))
+    return str(emoji)
 
 def format_moonshine_ingredients(ingredients):
     if not ingredients:
@@ -1013,6 +994,11 @@ class MoonshineSpecialView(MoonshineOwnerView):
 
 
 class MoonshineUpgradeView(MoonshineOwnerView):
+    def __init__(self, user_id):
+        super().__init__(user_id)
+        self.condenser_button.emoji = get_moonshine_condenser_emoji()
+        self.distiller_button.emoji = get_moonshine_distiller_emoji()
+
     @discord.ui.button(label="Конденсатор $825", style=discord.ButtonStyle.success)
     async def condenser_button(self, interaction, button):
         async with economy_lock:

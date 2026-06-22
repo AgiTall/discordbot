@@ -93,6 +93,29 @@ DEFAULT_BALANCE_FINANCE_EMOJI = "<:blip_cash_bag:1518341268814692643>"
 DEFAULT_BALANCE_ROLES_EMOJI = "<:roles:1518342174406869093>"
 DEFAULT_BALANCE_ECONOMY_EMOJI = "<:finanse:1518342360260411453>"
 DEFAULT_BALANCE_GANG_EMOJI = "<:gang:1518342529756561698>"
+DEFAULT_MOONSHINE_INGREDIENT_EMOJIS = {
+    "Яблоко": "<:Apple:1518324095211667667>",
+    "Груша": "<:pear:1518323459468300508>",
+    "Персик": "<:Persik:1518324112928407562>",
+    "Консервированные персики": "<:Persiki:1518324114891341924>",
+    "Консервированные абрикосы": "<:apricots:1518324098701328474>",
+    "Консервированные ананасы": "<:Pineapple:1518324116665405600>",
+    "Консервированная клубника": "<:Strawberry:1518324125892870316>",
+    "Ежевика": "<:blackberry:1518324101809176616>",
+    "Малина": "<:Raspberry:1518324120234758306>",
+    "Черника овальнолистная": "<:blueberry:1518324103931629598>",
+    "Смородина": "<:Smorodina:1518324123988660476>",
+    "Слива поручейная": "<:sliva:1518328310378270800>",
+    "Магония": "<:magonia:1518328307161239602>",
+    "Мята": "<:Mint:1518324107668754594>",
+    "Женьшень": "<:ZhenShen:1518324129902624788>",
+    "Гаультерия": "<:gaul:1518324106007941270>",
+    "Цветок ванили": "<:Vanille:1518324127549882369>",
+    "Пустынный мак": "<:Poppy:1518324118536323122>",
+    "Олеандр": "<:Oleader:1518324109380030646>",
+    "Абсент": "<:absinthe:1518324093248606331>",
+    "Карибский ром": "<:Rum:1518324122122321981>"
+}
 TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
 ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
@@ -328,6 +351,7 @@ def default_economy():
         "moonshine_star_emojis": DEFAULT_MOONSHINE_STAR_EMOJIS.copy(),
         "moonshine_special_emoji": DEFAULT_MOONSHINE_SPECIAL_EMOJI,
         "moonshine_button_emojis": DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy(),
+        "moonshine_ingredient_emojis": DEFAULT_MOONSHINE_INGREDIENT_EMOJIS.copy(),
         "naturalist_button_emojis": DEFAULT_NATURALIST_BUTTON_EMOJIS.copy(),
         "bounty_button_emojis": DEFAULT_BOUNTY_BUTTON_EMOJIS.copy(),
         "role_key_icons": DEFAULT_ROLE_EMOJIS.copy(),
@@ -388,6 +412,7 @@ def normalize_economy_data(data):
     data.setdefault("moonshine_condenser_emoji", DEFAULT_MOONSHINE_CONDENSER_EMOJI)
     data.setdefault("moonshine_distiller_emoji", DEFAULT_MOONSHINE_DISTILLER_EMOJI)
     data.setdefault("moonshine_button_emojis", DEFAULT_MOONSHINE_BUTTON_EMOJIS.copy())
+    data.setdefault("moonshine_ingredient_emojis", DEFAULT_MOONSHINE_INGREDIENT_EMOJIS.copy())
     data.setdefault("naturalist_button_emojis", DEFAULT_NATURALIST_BUTTON_EMOJIS.copy())
     data.setdefault("bounty_button_emojis", DEFAULT_BOUNTY_BUTTON_EMOJIS.copy())
     data.setdefault("role_key_icons", DEFAULT_ROLE_EMOJIS.copy())
@@ -439,6 +464,11 @@ def normalize_economy_data(data):
         data["moonshine_condenser_emoji"] = DEFAULT_MOONSHINE_CONDENSER_EMOJI
     if not data.get("moonshine_distiller_emoji"):
         data["moonshine_distiller_emoji"] = DEFAULT_MOONSHINE_DISTILLER_EMOJI
+
+    if not isinstance(data.get("moonshine_ingredient_emojis"), dict):
+        data["moonshine_ingredient_emojis"] = DEFAULT_MOONSHINE_INGREDIENT_EMOJIS.copy()
+    for ingredient, emoji in DEFAULT_MOONSHINE_INGREDIENT_EMOJIS.items():
+        data["moonshine_ingredient_emojis"].setdefault(ingredient, emoji)
         
     data.setdefault("moonshine_ui_prod", DEFAULT_MOONSHINE_PROD_EMOJI)
     data.setdefault("moonshine_ui_lvl", DEFAULT_MOONSHINE_LVL_EMOJI)

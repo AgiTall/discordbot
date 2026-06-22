@@ -49,8 +49,8 @@ class ShopView(discord.ui.View):
             if discount_percent > 0:
                 price = math.floor(price * (1 - discount_percent / 100))
 
-            emoji = get_gold_emoji() if item_data["currency"] == "gold" else get_cash_emoji()
-            label = f"Купить {item_data['name']} ({price} {emoji})"
+            currency_name = "золота" if item_data["currency"] == "gold" else "долларов"
+            label = f"Купить {item_data['name']} ({price} {currency_name})"
             if discount_percent > 0:
                 label += f" [-{discount_percent}%]"
             
