@@ -2240,12 +2240,10 @@ def build_help_pages(is_admin):
     gangs.add_field(
         name="Управление бандой",
         value=(
+            "`/gang` — панель управления бандой (для лидера — полное меню).\n"
             "`/gang-create` — создать банду (цена: 50 золота).\n"
-            "`/gang-info` — статистика банды и состав участников.\n"
-            "`/gang-invite` / `/gang-join` / `/gang-leave` — приглашение и выход.\n"
-            "`/gang-kick` — выгнать участника.\n"
-            "`/gang-transfer` — передать лидерство.\n"
-            "`/gang-set-roles` — настроить названия ролей в банде."
+            "`/gang-info` — статистика банды.\n"
+            "`/gang-join` / `/gang-leave` — вступление и выход."
         ),
         inline=False,
     )
@@ -2304,8 +2302,13 @@ def build_help_pages(is_admin):
             inline=False,
         )
         admin.add_field(
+            name="Банды (Админ)",
+            value="`/gang-admin` — админ-панель управления бандами сервера.",
+            inline=False,
+        )
+        admin.add_field(
             name="Настройки и ивенты",
-            value="`/treasure-event`, `/set-agitation-channel`, `/set-discount-shop`, `/set-rate`, `/set-emoji`, `/set-message`, `/set-icon-roles`, `/set-discounts-roles`",
+            value="`/treasure-event`, `/set-discount-shop`, `/set-rate`, `/set-emoji`, `/set-message`, `/set-icon-roles`, `/set-discounts-roles`",
             inline=False,
         )
     else:
