@@ -22,6 +22,8 @@ _bootstrap_load_env()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 import json
 import sqlite3
+import psycopg2
+import psycopg2.extras
 import random
 import math
 import asyncio
@@ -564,32 +566,34 @@ def with_economy_context(func):
 
 
 class EconomyStore:
-    def __init__(self, db_path=os.path.join(os.environ.get("DATA_DIR", "data"), "economy.db")):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        with self.conn:
-            self.conn.execute("CREATE TABLE IF NOT EXISTS guilds (guild_id TEXT PRIMARY KEY, data TEXT)")
-            self.conn.execute("CREATE TABLE IF NOT EXISTS users (guild_id TEXT, user_id TEXT, data TEXT, PRIMARY KEY(guild_id, user_id))")
+    def __init__(self, db_url=None):
+        if db_url is None:
+            db_url = os.environ.get("DATABASE_URL")
+        self.db_url = db_url
+        self.conn = psycopg2.connect(self.db_url, cursor_factory=psycopg2.extras.DictCursor)
+        self.conn.autocommit = True
+        with self.conn.cursor() as cursor:
+            cursor.execute("CREATE TABLE IF NOT EXISTS guilds (guild_id TEXT PRIMARY KEY, data TEXT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS users (guild_id TEXT, user_id TEXT, data TEXT, PRIMARY KEY(guild_id, user_id))")
         self.guild_cache = {}
 
     def _load_guild(self, guild_id):
-        cursor = self.conn.execute("SELECT data FROM guilds WHERE guild_id = ?", (str(guild_id),))
-        row = cursor.fetchone()
-        if row:
-            data = json.loads(row["data"])
-        else:
-            data = default_economy()
-        
-        # Load users
-        users_cursor = self.conn.execute("SELECT user_id, data FROM users WHERE guild_id = ?", (str(guild_id),))
-        users = {}
-        for u_row in users_cursor:
-            users[u_row["user_id"]] = json.loads(u_row["data"])
-        
-        data["users"] = users
-        return normalize_economy_data(data)
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT data FROM guilds WHERE guild_id = %s", (str(guild_id),))
+            row = cursor.fetchone()
+            if row:
+                data = json.loads(row["data"])
+            else:
+                data = default_economy()
+            
+            # Load users
+            cursor.execute("SELECT user_id, data FROM users WHERE guild_id = %s", (str(guild_id),))
+            users = {}
+            for u_row in cursor:
+                users[u_row["user_id"]] = json.loads(u_row["data"])
+            
+            data["users"] = users
+            return normalize_economy_data(data)
 
     def current(self):
         guild_id = get_current_economy_key()
@@ -614,8 +618,10 @@ class EconomyStore:
         self.save_all()
 
     def configured_treasure_guild_ids(self):
-        cursor = self.conn.execute("SELECT guild_id FROM guilds")
-        for row in cursor:
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT guild_id FROM guilds")
+            rows = cursor.fetchall()
+        for row in rows:
             g_id = row["guild_id"]
             if g_id not in self.guild_cache:
                 self.guild_cache[g_id] = self._load_guild(g_id)
@@ -635,17 +641,17 @@ class EconomyStore:
     def __contains__(self, key): return key in self.current()
 
     def save_all(self):
-        with self.conn:
+        with self.conn.cursor() as cursor:
             for guild_id, data in self.guild_cache.items():
                 data_copy = dict(data)
                 users = data_copy.pop("users", {})
-                self.conn.execute(
-                    "INSERT OR REPLACE INTO guilds (guild_id, data) VALUES (?, ?)", 
+                cursor.execute(
+                    "INSERT INTO guilds (guild_id, data) VALUES (%s, %s) ON CONFLICT (guild_id) DO UPDATE SET data = EXCLUDED.data", 
                     (str(guild_id), json.dumps(data_copy, ensure_ascii=False))
                 )
                 for user_id, user_data in users.items():
-                    self.conn.execute(
-                        "INSERT OR REPLACE INTO users (guild_id, user_id, data) VALUES (?, ?, ?)",
+                    cursor.execute(
+                        "INSERT INTO users (guild_id, user_id, data) VALUES (%s, %s, %s) ON CONFLICT (guild_id, user_id) DO UPDATE SET data = EXCLUDED.data",
                         (str(guild_id), str(user_id), json.dumps(user_data, ensure_ascii=False))
                     )
 
@@ -5070,6 +5076,29 @@ async def admin_set_message_command(
     )
 
 
+@bot.tree.command(name="auto-thread", description="Админ: Включить/выключить авто-ветки в текущем канале")
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+async def admin_auto_thread_command(interaction: discord.Interaction):
+    channel_id = interaction.channel_id
+    channel_ids = get_guild_thread_channel_ids(interaction.guild_id)
+    
+    if channel_id in channel_ids:
+        channel_ids.remove(channel_id)
+        state = "выключено"
+    else:
+        channel_ids.add(channel_id)
+        state = "включено"
+        
+    async with economy_lock:
+        set_guild_thread_channel_ids(interaction.guild_id, channel_ids)
+        
+    await interaction.response.send_message(
+        f"Автоматическое создание веток для канала {interaction.channel.mention} **{state}**.",
+        ephemeral=True
+    )
+
+
 @bot.tree.command(name="version", description="Показать текущую версию бота")
 async def version_command(interaction: discord.Interaction):
     # Read version from config if available, fallback to BOT_VERSION
@@ -5146,6 +5175,7 @@ async def admin_reset_work_command(interaction: discord.Interaction, member: dis
 @admin_set_emoji_command.error
 @admin_set_message_command.error
 @admin_reset_work_command.error
+@admin_auto_thread_command.error
 async def admin_command_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.MissingPermissions):
         message = "У вас недостаточно прав. Требуется роль Администратор."
@@ -5339,7 +5369,7 @@ async def on_message(message):
                     thread = await message.create_thread(
                         name=thread_name, auto_archive_duration=1440
                     )
-                    await thread.send(embed=build_bot_embed("Обсуждение", "Делитесь мыслями."))
+                    await thread.send(embed=build_bot_embed("Обсуждение", "Оставьте Комментарий"))
                 except discord.Forbidden:
                     logging.info(f"Нет прав для создания треда в канале {message.channel.id}")
                 except discord.HTTPException as e:

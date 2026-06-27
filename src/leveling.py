@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import sqlite3
+import psycopg2
+import psycopg2.extras
 import time
 import logging
 import math
@@ -29,13 +31,14 @@ def calculate_total_xp_for_level(level: int) -> int:
 import os
 
 class LevelingDB:
-    def __init__(self, db_path=LEVELING_DB):
-        self.db_path = db_path
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        with self.conn:
-            self.conn.execute("""
+    def __init__(self, db_url=None):
+        if db_url is None:
+            db_url = os.environ.get("DATABASE_URL")
+        self.db_url = db_url
+        self.conn = psycopg2.connect(self.db_url, cursor_factory=psycopg2.extras.DictCursor)
+        self.conn.autocommit = True
+        with self.conn.cursor() as cursor:
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     guild_id TEXT, 
                     user_id TEXT, 
@@ -44,7 +47,7 @@ class LevelingDB:
                     PRIMARY KEY(guild_id, user_id)
                 )
             """)
-            self.conn.execute("""
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS rank_roles (
                     guild_id TEXT, 
                     level INTEGER, 
@@ -54,10 +57,10 @@ class LevelingDB:
                 )
             """)
             try:
-                self.conn.execute("ALTER TABLE rank_roles ADD COLUMN remove_role_id TEXT")
-            except sqlite3.OperationalError:
+                cursor.execute("ALTER TABLE rank_roles ADD COLUMN remove_role_id TEXT")
+            except psycopg2.errors.DuplicateColumn:
                 pass
-            self.conn.execute("""
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS settings (
                     guild_id TEXT, 
                     key TEXT, 
@@ -65,7 +68,7 @@ class LevelingDB:
                     PRIMARY KEY(guild_id, key)
                 )
             """)
-            self.conn.execute("""
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS xp_rates (
                     guild_id TEXT, 
                     source TEXT, 
@@ -75,68 +78,74 @@ class LevelingDB:
             """)
 
     def get_user(self, guild_id: str, user_id: str):
-        cursor = self.conn.execute("SELECT xp, level FROM users WHERE guild_id = ? AND user_id = ?", (str(guild_id), str(user_id)))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return {"xp": 0, "level": 1}
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT xp, level FROM users WHERE guild_id = %s AND user_id = %s", (str(guild_id), str(user_id)))
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            return {"xp": 0, "level": 1}
 
     def set_user(self, guild_id: str, user_id: str, xp: int, level: int):
-        with self.conn:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO users (guild_id, user_id, xp, level) VALUES (?, ?, ?, ?)",
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO users (guild_id, user_id, xp, level) VALUES (%s, %s, %s, %s) ON CONFLICT (guild_id, user_id) DO UPDATE SET xp = EXCLUDED.xp, level = EXCLUDED.level",
                 (str(guild_id), str(user_id), xp, level)
             )
 
     def get_top_users(self, guild_id: str, limit: int = 10):
-        cursor = self.conn.execute("SELECT user_id, xp, level FROM users WHERE guild_id = ? ORDER BY xp DESC LIMIT ?", (str(guild_id), limit))
-        return [dict(row) for row in cursor]
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT user_id, xp, level FROM users WHERE guild_id = %s ORDER BY xp DESC LIMIT %s", (str(guild_id), limit))
+            return [dict(row) for row in cursor]
 
     def get_user_rank_position(self, guild_id: str, user_id: str):
         # Count users with more XP
         user_data = self.get_user(guild_id, user_id)
-        cursor = self.conn.execute("SELECT COUNT(*) as pos FROM users WHERE guild_id = ? AND xp > ?", (str(guild_id), user_data["xp"]))
-        row = cursor.fetchone()
-        return row["pos"] + 1
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) as pos FROM users WHERE guild_id = %s AND xp > %s", (str(guild_id), user_data["xp"]))
+            row = cursor.fetchone()
+            return row["pos"] + 1
 
     def set_rank_role(self, guild_id: str, level: int, role_id: str, remove_role_id: str = None):
-        with self.conn:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO rank_roles (guild_id, level, role_id, remove_role_id) VALUES (?, ?, ?, ?)",
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO rank_roles (guild_id, level, role_id, remove_role_id) VALUES (%s, %s, %s, %s) ON CONFLICT (guild_id, level) DO UPDATE SET role_id = EXCLUDED.role_id, remove_role_id = EXCLUDED.remove_role_id",
                 (str(guild_id), level, str(role_id), str(remove_role_id) if remove_role_id else None)
             )
 
     def remove_rank_role(self, guild_id: str, level: int):
-        with self.conn:
-            self.conn.execute("DELETE FROM rank_roles WHERE guild_id = ? AND level = ?", (str(guild_id), level))
+        with self.conn.cursor() as cursor:
+            cursor.execute("DELETE FROM rank_roles WHERE guild_id = %s AND level = %s", (str(guild_id), level))
 
     def get_rank_roles(self, guild_id: str):
-        cursor = self.conn.execute("SELECT level, role_id, remove_role_id FROM rank_roles WHERE guild_id = ? ORDER BY level ASC", (str(guild_id),))
-        return {row["level"]: {"role_id": row["role_id"], "remove_role_id": row["remove_role_id"]} for row in cursor}
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT level, role_id, remove_role_id FROM rank_roles WHERE guild_id = %s ORDER BY level ASC", (str(guild_id),))
+            return {row["level"]: {"role_id": row["role_id"], "remove_role_id": row["remove_role_id"]} for row in cursor}
 
     def set_setting(self, guild_id: str, key: str, value: str):
-        with self.conn:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO settings (guild_id, key, value) VALUES (?, ?, ?)",
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO settings (guild_id, key, value) VALUES (%s, %s, %s) ON CONFLICT (guild_id, key) DO UPDATE SET value = EXCLUDED.value",
                 (str(guild_id), key, value)
             )
 
     def get_setting(self, guild_id: str, key: str, default=None):
-        cursor = self.conn.execute("SELECT value FROM settings WHERE guild_id = ? AND key = ?", (str(guild_id), key))
-        row = cursor.fetchone()
-        return row["value"] if row else default
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT value FROM settings WHERE guild_id = %s AND key = %s", (str(guild_id), key))
+            row = cursor.fetchone()
+            return row["value"] if row else default
 
     def set_xp_rate(self, guild_id: str, source: str, rate: float):
-        with self.conn:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO xp_rates (guild_id, source, rate) VALUES (?, ?, ?)",
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO xp_rates (guild_id, source, rate) VALUES (%s, %s, %s) ON CONFLICT (guild_id, source) DO UPDATE SET rate = EXCLUDED.rate",
                 (str(guild_id), source, rate)
             )
 
     def get_xp_rate(self, guild_id: str, source: str) -> float:
-        cursor = self.conn.execute("SELECT rate FROM xp_rates WHERE guild_id = ? AND source = ?", (str(guild_id), source))
-        row = cursor.fetchone()
-        return float(row["rate"]) if row else 1.0
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT rate FROM xp_rates WHERE guild_id = %s AND source = %s", (str(guild_id), source))
+            row = cursor.fetchone()
+            return float(row["rate"]) if row else 1.0
 
 
 class AntiFarm:
