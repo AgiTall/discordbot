@@ -21,7 +21,6 @@ _bootstrap_load_env()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 import json
-import sqlite3
 import psycopg2
 import psycopg2.extras
 import random
@@ -565,21 +564,98 @@ def with_economy_context(func):
     return wrapper
 
 
+def _normalize_db_url_for_psycopg2(url):
+    """Нормализует DATABASE_URL для psycopg2 (убирает +asyncpg и другие SQLAlchemy-префиксы)."""
+    if not url:
+        return url
+    url = url.replace("postgresql+asyncpg://", "postgresql://")
+    url = url.replace("postgresql+psycopg2://", "postgresql://")
+    url = url.replace("postgres://", "postgresql://")
+    return url
+
+
 class EconomyStore:
     def __init__(self, db_url=None):
         if db_url is None:
             db_url = os.environ.get("DATABASE_URL")
-        self.db_url = db_url
-        self.conn = psycopg2.connect(self.db_url, cursor_factory=psycopg2.extras.DictCursor)
-        self.conn.autocommit = True
-        with self.conn.cursor() as cursor:
-            cursor.execute("CREATE TABLE IF NOT EXISTS guilds (guild_id TEXT PRIMARY KEY, data TEXT)")
-            cursor.execute("CREATE TABLE IF NOT EXISTS users (guild_id TEXT, user_id TEXT, data TEXT, PRIMARY KEY(guild_id, user_id))")
+        self.db_url = _normalize_db_url_for_psycopg2(db_url)
+        self._connect()
+        self._init_tables()
         self.guild_cache = {}
 
-    def _load_guild(self, guild_id):
+    def _connect(self):
+        """Создать (или пересоздать) соединение с PostgreSQL."""
+        self.conn = psycopg2.connect(self.db_url, cursor_factory=psycopg2.extras.DictCursor)
+        self.conn.autocommit = True
+
+    def _ensure_conn(self):
+        """Проверить что соединение живое, переподключиться если нет."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1")
+        except Exception:
+            logging.warning("EconomyStore: соединение разорвано, переподключаемся...")
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self._connect()
+
+    def _init_tables(self):
+        """Создать таблицы economy_guilds / economy_users и мигрировать данные из старых таблиц."""
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT data FROM guilds WHERE guild_id = %s", (str(guild_id),))
+            # Создаём новые таблицы с уникальными именами
+            cursor.execute("CREATE TABLE IF NOT EXISTS economy_guilds (guild_id TEXT PRIMARY KEY, data TEXT)")
+            cursor.execute("CREATE TABLE IF NOT EXISTS economy_users (guild_id TEXT, user_id TEXT, data TEXT, PRIMARY KEY(guild_id, user_id))")
+
+            # --- Миграция из старой таблицы guilds (если в ней есть колонка data TEXT) ---
+            try:
+                cursor.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'guilds' AND column_name = 'data'
+                """)
+                if cursor.fetchone():
+                    # Старая таблица guilds с колонкой data существует — мигрируем
+                    cursor.execute("SELECT COUNT(*) FROM economy_guilds")
+                    new_count = cursor.fetchone()[0]
+                    if new_count == 0:
+                        cursor.execute("""
+                            INSERT INTO economy_guilds (guild_id, data)
+                            SELECT guild_id, data FROM guilds
+                            ON CONFLICT (guild_id) DO NOTHING
+                        """)
+                        migrated = cursor.rowcount
+                        if migrated > 0:
+                            logging.info(f"EconomyStore: мигрировано {migrated} гильдий из старой таблицы 'guilds' → 'economy_guilds'")
+            except Exception as e:
+                logging.debug(f"EconomyStore: миграция guilds пропущена: {e}")
+
+            # --- Миграция из старой таблицы users (если в ней есть колонка data TEXT) ---
+            try:
+                cursor.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'users' AND column_name = 'data'
+                """)
+                if cursor.fetchone():
+                    cursor.execute("SELECT COUNT(*) FROM economy_users")
+                    new_count = cursor.fetchone()[0]
+                    if new_count == 0:
+                        cursor.execute("""
+                            INSERT INTO economy_users (guild_id, user_id, data)
+                            SELECT guild_id, user_id, data FROM users
+                            WHERE data IS NOT NULL
+                            ON CONFLICT (guild_id, user_id) DO NOTHING
+                        """)
+                        migrated = cursor.rowcount
+                        if migrated > 0:
+                            logging.info(f"EconomyStore: мигрировано {migrated} пользователей из старой таблицы 'users' → 'economy_users'")
+            except Exception as e:
+                logging.debug(f"EconomyStore: миграция users пропущена: {e}")
+
+    def _load_guild(self, guild_id):
+        self._ensure_conn()
+        with self.conn.cursor() as cursor:
+            cursor.execute("SELECT data FROM economy_guilds WHERE guild_id = %s", (str(guild_id),))
             row = cursor.fetchone()
             if row:
                 data = json.loads(row["data"])
@@ -587,7 +663,7 @@ class EconomyStore:
                 data = default_economy()
             
             # Load users
-            cursor.execute("SELECT user_id, data FROM users WHERE guild_id = %s", (str(guild_id),))
+            cursor.execute("SELECT user_id, data FROM economy_users WHERE guild_id = %s", (str(guild_id),))
             users = {}
             for u_row in cursor:
                 users[u_row["user_id"]] = json.loads(u_row["data"])
@@ -618,8 +694,9 @@ class EconomyStore:
         self.save_all()
 
     def configured_treasure_guild_ids(self):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT guild_id FROM guilds")
+            cursor.execute("SELECT guild_id FROM economy_guilds")
             rows = cursor.fetchall()
         for row in rows:
             g_id = row["guild_id"]
@@ -641,17 +718,18 @@ class EconomyStore:
     def __contains__(self, key): return key in self.current()
 
     def save_all(self):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             for guild_id, data in self.guild_cache.items():
                 data_copy = dict(data)
                 users = data_copy.pop("users", {})
                 cursor.execute(
-                    "INSERT INTO guilds (guild_id, data) VALUES (%s, %s) ON CONFLICT (guild_id) DO UPDATE SET data = EXCLUDED.data", 
+                    "INSERT INTO economy_guilds (guild_id, data) VALUES (%s, %s) ON CONFLICT (guild_id) DO UPDATE SET data = EXCLUDED.data", 
                     (str(guild_id), json.dumps(data_copy, ensure_ascii=False))
                 )
                 for user_id, user_data in users.items():
                     cursor.execute(
-                        "INSERT INTO users (guild_id, user_id, data) VALUES (%s, %s, %s) ON CONFLICT (guild_id, user_id) DO UPDATE SET data = EXCLUDED.data",
+                        "INSERT INTO economy_users (guild_id, user_id, data) VALUES (%s, %s, %s) ON CONFLICT (guild_id, user_id) DO UPDATE SET data = EXCLUDED.data",
                         (str(guild_id), str(user_id), json.dumps(user_data, ensure_ascii=False))
                     )
 

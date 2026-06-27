@@ -179,3 +179,4 @@ def build_bounty_embed(guild, account):
         embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
     return embed
 
+ 

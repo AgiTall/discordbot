@@ -1,15 +1,12 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-import sqlite3
 import psycopg2
 import psycopg2.extras
 import time
 import logging
 import math
 import os
-
-LEVELING_DB = os.path.join(os.environ.get("DATA_DIR", "data"), "leveling.db")
 DEFAULT_XP_RATE = 1.0
 
 def calculate_xp_for_level(level: int) -> int:
@@ -30,16 +27,47 @@ def calculate_total_xp_for_level(level: int) -> int:
 
 import os
 
+def _normalize_db_url_for_psycopg2(url):
+    """Нормализует DATABASE_URL для psycopg2 (убирает +asyncpg и другие SQLAlchemy-префиксы)."""
+    if not url:
+        return url
+    url = url.replace("postgresql+asyncpg://", "postgresql://")
+    url = url.replace("postgresql+psycopg2://", "postgresql://")
+    url = url.replace("postgres://", "postgresql://")
+    return url
+
+
 class LevelingDB:
     def __init__(self, db_url=None):
         if db_url is None:
             db_url = os.environ.get("DATABASE_URL")
-        self.db_url = db_url
+        self.db_url = _normalize_db_url_for_psycopg2(db_url)
+        self._connect()
+        self._init_tables()
+
+    def _connect(self):
+        """Создать (или пересоздать) соединение с PostgreSQL."""
         self.conn = psycopg2.connect(self.db_url, cursor_factory=psycopg2.extras.DictCursor)
         self.conn.autocommit = True
+
+    def _ensure_conn(self):
+        """Проверить что соединение живое, переподключиться если нет."""
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1")
+        except Exception:
+            logging.warning("LevelingDB: соединение разорвано, переподключаемся...")
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self._connect()
+
+    def _init_tables(self):
+        """Создать таблицы leveling_users и др., мигрировать данные из старых таблиц."""
         with self.conn.cursor() as cursor:
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
+                CREATE TABLE IF NOT EXISTS leveling_users (
                     guild_id TEXT, 
                     user_id TEXT, 
                     xp INTEGER, 
@@ -77,35 +105,62 @@ class LevelingDB:
                 )
             """)
 
+            # --- Миграция из старой таблицы users (если в ней есть колонка xp) ---
+            try:
+                cursor.execute("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'users' AND column_name = 'xp'
+                """)
+                if cursor.fetchone():
+                    cursor.execute("SELECT COUNT(*) FROM leveling_users")
+                    new_count = cursor.fetchone()[0]
+                    if new_count == 0:
+                        cursor.execute("""
+                            INSERT INTO leveling_users (guild_id, user_id, xp, level)
+                            SELECT guild_id, user_id, xp, level FROM users
+                            WHERE xp IS NOT NULL
+                            ON CONFLICT (guild_id, user_id) DO NOTHING
+                        """)
+                        migrated = cursor.rowcount
+                        if migrated > 0:
+                            logging.info(f"LevelingDB: мигрировано {migrated} пользователей из старой таблицы 'users' → 'leveling_users'")
+            except Exception as e:
+                logging.debug(f"LevelingDB: миграция users пропущена: {e}")
+
     def get_user(self, guild_id: str, user_id: str):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT xp, level FROM users WHERE guild_id = %s AND user_id = %s", (str(guild_id), str(user_id)))
+            cursor.execute("SELECT xp, level FROM leveling_users WHERE guild_id = %s AND user_id = %s", (str(guild_id), str(user_id)))
             row = cursor.fetchone()
             if row:
                 return dict(row)
             return {"xp": 0, "level": 1}
 
     def set_user(self, guild_id: str, user_id: str, xp: int, level: int):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO users (guild_id, user_id, xp, level) VALUES (%s, %s, %s, %s) ON CONFLICT (guild_id, user_id) DO UPDATE SET xp = EXCLUDED.xp, level = EXCLUDED.level",
+                "INSERT INTO leveling_users (guild_id, user_id, xp, level) VALUES (%s, %s, %s, %s) ON CONFLICT (guild_id, user_id) DO UPDATE SET xp = EXCLUDED.xp, level = EXCLUDED.level",
                 (str(guild_id), str(user_id), xp, level)
             )
 
     def get_top_users(self, guild_id: str, limit: int = 10):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT user_id, xp, level FROM users WHERE guild_id = %s ORDER BY xp DESC LIMIT %s", (str(guild_id), limit))
+            cursor.execute("SELECT user_id, xp, level FROM leveling_users WHERE guild_id = %s ORDER BY xp DESC LIMIT %s", (str(guild_id), limit))
             return [dict(row) for row in cursor]
 
     def get_user_rank_position(self, guild_id: str, user_id: str):
         # Count users with more XP
         user_data = self.get_user(guild_id, user_id)
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) as pos FROM users WHERE guild_id = %s AND xp > %s", (str(guild_id), user_data["xp"]))
+            cursor.execute("SELECT COUNT(*) as pos FROM leveling_users WHERE guild_id = %s AND xp > %s", (str(guild_id), user_data["xp"]))
             row = cursor.fetchone()
             return row["pos"] + 1
 
     def set_rank_role(self, guild_id: str, level: int, role_id: str, remove_role_id: str = None):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO rank_roles (guild_id, level, role_id, remove_role_id) VALUES (%s, %s, %s, %s) ON CONFLICT (guild_id, level) DO UPDATE SET role_id = EXCLUDED.role_id, remove_role_id = EXCLUDED.remove_role_id",
@@ -113,15 +168,18 @@ class LevelingDB:
             )
 
     def remove_rank_role(self, guild_id: str, level: int):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute("DELETE FROM rank_roles WHERE guild_id = %s AND level = %s", (str(guild_id), level))
 
     def get_rank_roles(self, guild_id: str):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute("SELECT level, role_id, remove_role_id FROM rank_roles WHERE guild_id = %s ORDER BY level ASC", (str(guild_id),))
             return {row["level"]: {"role_id": row["role_id"], "remove_role_id": row["remove_role_id"]} for row in cursor}
 
     def set_setting(self, guild_id: str, key: str, value: str):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO settings (guild_id, key, value) VALUES (%s, %s, %s) ON CONFLICT (guild_id, key) DO UPDATE SET value = EXCLUDED.value",
@@ -129,12 +187,14 @@ class LevelingDB:
             )
 
     def get_setting(self, guild_id: str, key: str, default=None):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute("SELECT value FROM settings WHERE guild_id = %s AND key = %s", (str(guild_id), key))
             row = cursor.fetchone()
             return row["value"] if row else default
 
     def set_xp_rate(self, guild_id: str, source: str, rate: float):
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO xp_rates (guild_id, source, rate) VALUES (%s, %s, %s) ON CONFLICT (guild_id, source) DO UPDATE SET rate = EXCLUDED.rate",
@@ -142,6 +202,7 @@ class LevelingDB:
             )
 
     def get_xp_rate(self, guild_id: str, source: str) -> float:
+        self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute("SELECT rate FROM xp_rates WHERE guild_id = %s AND source = %s", (str(guild_id), source))
             row = cursor.fetchone()
