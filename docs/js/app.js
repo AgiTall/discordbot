@@ -184,11 +184,11 @@ async function saveGuildSettings(guildId, data) {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify(data),
+    body: JSON.stringify({ data }),  // backend expects {data: {...}}
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to save settings');
+    throw new Error(err.error || err.detail || 'Failed to save settings');
   }
   return res.json();
 }
@@ -816,15 +816,15 @@ async function saveSettings(data) {
   if (!authState.selectedGuildId) {
     throw new Error('Сервер не выбран');
   }
-  // Сохраняем основные настройки и ранговые роли параллельно
   const rankRolesData = data.rankRoles || [];
   const settingsData = { ...data };
-  delete settingsData.rankRoles; // не дублируем в JSONB
+  delete settingsData.rankRoles;
 
-  const [result] = await Promise.all([
-    saveGuildSettings(authState.selectedGuildId, settingsData),
-    saveRankRoles(authState.selectedGuildId, rankRolesData),
-  ]);
+  // Ранговые роли сохраняем без блокировки — ошибка там не ломает основной сейв
+  const result = await saveGuildSettings(authState.selectedGuildId, settingsData);
+  saveRankRoles(authState.selectedGuildId, rankRolesData).catch(e =>
+    console.warn('Rank roles save failed (non-fatal):', e)
+  );
   return result.status === 'ok';
 }
 
