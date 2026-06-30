@@ -21,6 +21,7 @@ _bootstrap_load_env()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 import json
+import signal
 import psycopg2
 import psycopg2.extras
 import random
@@ -685,13 +686,24 @@ class EconomyStore:
 
     def reset_current(self):
         guild_id = get_current_economy_key()
+        # Удаляем данные игроков из БД сразу, чтобы сброс был атомарным.
+        # Без этого: кэш сбрасывается, игроки создают новые пустые аккаунты,
+        # save_all() перезаписывает старые записи нулями — данные теряются.
+        self._delete_guild_users_from_db(guild_id)
         self.guild_cache[guild_id] = default_economy()
         self.save_all()
 
     def reset_guild(self, guild_id):
         guild_key = str(guild_id) if guild_id else ECONOMY_GLOBAL_KEY
+        self._delete_guild_users_from_db(guild_key)
         self.guild_cache[guild_key] = default_economy()
         self.save_all()
+
+    def _delete_guild_users_from_db(self, guild_key):
+        """Полностью удаляет всех игроков гильдии из БД — вызывается только при явном сбросе."""
+        self._ensure_conn()
+        with self.conn.cursor() as cursor:
+            cursor.execute("DELETE FROM economy_users WHERE guild_id = %s", (str(guild_key),))
 
     def configured_treasure_guild_ids(self):
         self._ensure_conn()
@@ -1147,7 +1159,6 @@ def get_account(user_id):
         {
             "cash": 0.0,
             "gold": 0.0,
-            "deposit": 0.0,
             "treasure_maps": 0,
             "owned_roles": [],
             "dealer_wagon": 0.0,
@@ -1156,7 +1167,6 @@ def get_account(user_id):
             "moonshine": default_moonshine_data(),
             "naturalist": default_naturalist_data(),
             "collection_showcase": [],
-            "deposit_updated_at": now_local().isoformat(timespec="seconds"),
             "last_work_at": None,
         },
     )
@@ -1174,7 +1184,6 @@ def get_account(user_id):
 
     account.setdefault("cash", 0.0)
     account.setdefault("gold", 0.0)
-    account.setdefault("deposit", 0.0)
     account.setdefault("treasure_maps", 0)
     account.setdefault("owned_roles", [])
     account.setdefault("dealer_wagon", 0.0)
@@ -1195,11 +1204,7 @@ def get_account(user_id):
         account["dealer_wagon"] = max(0.0, min(100.0, float(account["dealer_wagon"])))
     except (TypeError, ValueError):
         account["dealer_wagon"] = 0.0
-    account.setdefault("deposit_updated_at", now_local().isoformat(timespec="seconds"))
     account.setdefault("last_work_at", None)
-    if "deposit" in account and account["deposit"] > 0:
-        account["cash"] += account["deposit"]
-        account["deposit"] = 0.0
     return account
 
 
@@ -2261,8 +2266,7 @@ def build_help_pages(is_admin):
             "`/balance` — показать ваш баланс, карты, повозку и витрину.\n"
             "`/work` — заработать деньги (кулдаун 2 часа).\n"
             "`/gold-rate` — показать текущий курс золота.\n"
-            "`/buy-gold` / `/sell-gold` — обмен валюты.\n"
-            "`/deposit` / `/withdraw` — управление вкладом в банке."
+            "`/buy-gold` / `/sell-gold` — обмен валюты."
         ),
         inline=False,
     )
@@ -4222,27 +4226,6 @@ async def sell_gold_command(interaction: discord.Interaction, amount: float):
     await interaction.response.send_message(message, ephemeral=True)
 
 
-DEPOSIT_DAILY_RATE = 0.03
-
-def accrue_deposit_interest(account):
-    now = now_local()
-    deposit = float(account.get("deposit", 0.0))
-    last_update = parse_local_datetime(account.get("deposit_updated_at"))
-
-    if deposit <= 0:
-        account["deposit"] = 0.0
-        account["deposit_updated_at"] = now.isoformat(timespec="seconds")
-        return 0.0  
-
-    seconds_passed = max(0.0, (now - last_update).total_seconds())
-    days_passed = seconds_passed / 86400
-    new_deposit = deposit * ((1 + DEPOSIT_DAILY_RATE) ** days_passed)
-
-    account["deposit"] = new_deposit
-    account["deposit_updated_at"] = now.isoformat(timespec="seconds")
-    return new_deposit - deposit
-
-
 
 @bot.tree.command(name="check", description="Админ: показать баланс участника")
 @app_commands.default_permissions(administrator=True)
@@ -4554,30 +4537,6 @@ async def admin_remove_map_command(
                 f"Забрано **{format_treasure_maps(total_taken)}** у {targets[0].mention}.\n"
                 f"{format_account(account)}"
             )
-
-    await interaction.response.send_message(message, ephemeral=True)
-
-
-@bot.tree.command(name="set-deposit", description="Админ: установить вклад участника")
-@app_commands.default_permissions(administrator=True)
-@app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(member="Участник, чей вклад меняется", amount="Новая сумма вклада")
-async def admin_set_deposit_command(
-    interaction: discord.Interaction, member: discord.Member, amount: float
-):
-    if not math.isfinite(amount) or amount < 0:
-        await interaction.response.send_message(
-            "Введите сумму от нуля и выше.", ephemeral=True
-        )
-        return
-
-    async with economy_lock:
-        update_gold_rate()
-        account = get_account(member.id)
-        set_non_negative(account, "deposit", amount)
-        account["deposit_updated_at"] = now_local().isoformat(timespec="seconds")
-        save_economy()
-        message = f"Вклад установлен для {member.mention}.\n{format_account(account)}"
 
     await interaction.response.send_message(message, ephemeral=True)
 
@@ -5236,7 +5195,6 @@ async def admin_reset_work_command(interaction: discord.Interaction, member: dis
 @admin_remove_gold_command.error
 @admin_set_gold_command.error
 @admin_give_map_command.error
-@admin_set_deposit_command.error
 @admin_set_gold_rate_command.error
 @admin_set_treasure_channel_command.error
 @admin_treasure_event_command.error
@@ -5479,6 +5437,21 @@ def main():
     token = (token or "").strip()
     if not token:
         raise RuntimeError("Token not found. Set DISCORD_TOKEN in .env, in the environment, or in config.json")
+
+    # Сохраняем данные при получении SIGTERM (Render/Railway убивают процесс этим сигналом при деплое)
+    def _handle_sigterm(*args):
+        logging.info("SIGTERM получен — сохраняем данные перед завершением...")
+        try:
+            economy_data.save_all()
+            logging.info("Данные успешно сохранены.")
+        except Exception as _e:
+            logging.error("Ошибка при сохранении данных на SIGTERM: %s", _e)
+        raise SystemExit(0)
+
+    try:
+        signal.signal(signal.SIGTERM, _handle_sigterm)
+    except (OSError, ValueError):
+        pass  # Windows или некорректный контекст — пропускаем
 
     Thread(target=run_web, daemon=True).start()
     bot.run(token)

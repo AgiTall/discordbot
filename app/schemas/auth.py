@@ -19,8 +19,8 @@ class GuildBrief(BaseModel):
     id: str
     name: str
     icon: str | None = None
-    can_manage: bool = False
-    bot_present: bool = False
+    canManage: bool = False
+    botPresent: bool = False
 
 
 class MeResponse(BaseModel):
@@ -28,5 +28,5 @@ class MeResponse(BaseModel):
     authenticated: bool
     user: UserResponse | None = None
     guilds: list[GuildBrief] = []
-    client_id: str | None = None
-    invite_url: str | None = None
+    clientId: str | None = None
+    inviteUrl: str | None = None

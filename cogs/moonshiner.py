@@ -1175,7 +1175,6 @@ async def moonshine_command(interaction: discord.Interaction):
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
-        accrue_deposit_interest(account)
 
         if not has_game_role(interaction.user, MOONSHINER_ROLE_KEY, account):
             save_economy()

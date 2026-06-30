@@ -142,8 +142,8 @@ async def api_me(
                 id=str(g["id"]),
                 name=g.get("name", "Сервер"),
                 icon=g.get("icon"),
-                can_manage=g.get("canManage", False),
-                bot_present=str(g["id"]) in bot_guild_ids,
+                canManage=g.get("canManage", False),
+                botPresent=str(g["id"]) in bot_guild_ids,
             ))
 
     return MeResponse(
@@ -156,8 +156,8 @@ async def api_me(
             avatar_url=avatar_url,
         ),
         guilds=guilds,
-        client_id=settings.discord_client_id,
-        invite_url=(
+        clientId=settings.discord_client_id,
+        inviteUrl=(
             f"https://discord.com/oauth2/authorize"
             f"?client_id={settings.discord_client_id}"
             f"&scope=bot%20applications.commands&permissions=8"

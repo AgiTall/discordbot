@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import signal
 import sys
 
 # Ensure .env is loaded before anything else
@@ -68,6 +69,23 @@ async def main():
         log_level="info",
     )
     server = uvicorn.Server(uvi_config)
+
+    # ── Graceful shutdown on SIGTERM (Render/Railway деплой) ──
+    def _handle_sigterm():
+        logger.info("SIGTERM получен — сохраняем данные и завершаем работу...")
+        try:
+            from bot import economy_data
+            economy_data.save_all()
+            logger.info("Данные сохранены успешно.")
+        except Exception as _e:
+            logger.error("Ошибка сохранения данных на SIGTERM: %s", _e)
+        server.should_exit = True
+
+    loop = asyncio.get_event_loop()
+    try:
+        loop.add_signal_handler(signal.SIGTERM, _handle_sigterm)
+    except (NotImplementedError, RuntimeError):
+        pass  # Windows не поддерживает add_signal_handler
 
     # ── Run both concurrently ─────────────────────────────────
     token = settings.discord_token

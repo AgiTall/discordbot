@@ -196,7 +196,6 @@ async def bounty_command(self, interaction: discord.Interaction):
     async with self.bot.economy_lock:
         update_gold_rate()
         account = self.bot.get_account(interaction.user.id)
-        accrue_deposit_interest(account)
         if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
             self.bot.save_economy()
             await interaction.response.send_message(

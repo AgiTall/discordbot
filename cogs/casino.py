@@ -305,7 +305,6 @@ class CasinoCog(commands.Cog):
     
         async with self.bot.economy_lock:
             account = self.bot.get_account(interaction.user.id)
-            self.bot.accrue_deposit_interest(account)
             if account["cash"] + 0.0001 < bet:
                 self.bot.save_economy()
                 await interaction.response.send_message(

@@ -40,8 +40,6 @@ const COMMANDS = [
   { name: 'gold-rate',    emoji: '📈', category: 'econ', tag: 'econ', desc: 'Показать текущий курс золота к деньгам.' },
   { name: 'buy-gold',     emoji: '🪙', category: 'econ', tag: 'econ', desc: 'Купить золото за деньги по текущему курсу.', args: '<количество>' },
   { name: 'sell-gold',    emoji: '💰', category: 'econ', tag: 'econ', desc: 'Продать золото за деньги по текущему курсу.', args: '<количество>' },
-  { name: 'deposit',      emoji: '🏦', category: 'econ', tag: 'econ', desc: 'Положить деньги на вклад (3% в сутки).', args: '<сумма>' },
-  { name: 'withdraw',     emoji: '💸', category: 'econ', tag: 'econ', desc: 'Снять деньги с вклада. 0 — снять всё.', args: '[сумма]' },
   { name: 'work',         emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'econ', tag: 'econ', desc: 'Поработать и получить деньги (перезарядка 1 час).' },
   { name: 'balance',      emoji: '👤', category: 'econ', tag: 'econ', desc: 'Показать баланс вашего аккаунта.' },
 
@@ -69,7 +67,6 @@ const COMMANDS = [
   { name: 'set-gold',    emoji: '🔧', category: 'admin', tag: 'admin', desc: 'Установить баланс золота участника.', args: '<участник> <сумма>' },
   { name: 'give-map',    emoji: '🗺️', category: 'admin', tag: 'admin', desc: 'Выдать карты сокровищ участнику или всем.', args: '<участник|all> [количество]' },
   { name: 'remove-map',  emoji: '🗺️', category: 'admin', tag: 'admin', desc: 'Забрать карты сокровищ у участника или всех.', args: '<участник|all> [количество]' },
-  { name: 'set-deposit', emoji: '🏦', category: 'admin', tag: 'admin', desc: 'Установить вклад участника.', args: '<участник> <сумма>' },
   { name: 'set-rate',    emoji: '📊', category: 'admin', tag: 'admin', desc: 'Установить курс золота вручную.', args: '<курс>' },
   { name: 'reset',       emoji: '⚠️', category: 'admin', tag: 'admin', desc: 'Полный сброс экономики сервера (требует подтверждения).' },
   { name: 'set-channel', emoji: '📡', category: 'admin', tag: 'admin', desc: 'Указать каналы новостей для публикации анонсов.' },
