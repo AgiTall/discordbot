@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from app.config import settings
 from app.schemas.auth import GuildBrief, MeResponse, UserResponse
 from app.services import auth_service
+from app.services import discord_api as _dapi
+from app.services.auth_service import _can_manage_guild, _build_guild_icon_url
 from app.utils.dependencies import CurrentUser, DbSession
 
 logger = logging.getLogger(__name__)
@@ -163,3 +165,58 @@ async def api_me(
             f"&scope=bot%20applications.commands&permissions=8"
         ),
     )
+
+
+@router.post("/api/me/refresh")
+async def api_me_refresh(
+    request: Request,
+    user: CurrentUser,
+    db: DbSession,
+):
+    """Обновить список гильдий пользователя через Discord API.
+
+    Вызывается после добавления бота на сервер, чтобы список серверов
+    обновился без повторного логина.
+    """
+    bot = request.app.state.bot
+    bot_guild_ids = {str(g.id) for g in bot.guilds} if bot else set()
+
+    try:
+        guilds_data = await _dapi.get_user_guilds(user.access_token)
+        manageable = []
+        for g in guilds_data:
+            if not _can_manage_guild(g.get("permissions", 0)):
+                continue
+            gid = str(g["id"])
+            manageable.append({
+                "id": gid,
+                "name": g.get("name", "Сервер"),
+                "icon": _build_guild_icon_url(gid, g.get("icon")),
+                "canManage": True,
+                "botPresent": gid in bot_guild_ids,
+            })
+        user.guilds_json = json.dumps(manageable, ensure_ascii=False)
+        await db.commit()
+    except Exception as e:
+        logger.warning("Не удалось обновить список гильдий: %s", e)
+        # Не падаем — просто вернём текущее с актуальным botPresent
+
+    # Вернём актуальный ответ с обновлёнными данными
+    raw_guilds = []
+    if user.guilds_json:
+        try:
+            raw_guilds = json.loads(user.guilds_json)
+        except Exception:
+            raw_guilds = []
+
+    guilds_out = []
+    for g in raw_guilds:
+        guilds_out.append({
+            "id": str(g["id"]),
+            "name": g.get("name", "Сервер"),
+            "icon": g.get("icon"),
+            "canManage": g.get("canManage", False),
+            "botPresent": str(g["id"]) in bot_guild_ids,
+        })
+
+    return {"status": "ok", "guilds": guilds_out}

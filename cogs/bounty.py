@@ -185,87 +185,6 @@ class BountyTacticView(BountyOwnerView):
             self.add_item(BountyTacticButton(self.bot, tactic_key))
 
 
-@app_commands.command(name="bounty", description="Охотник за головами: открыть контракты")
-async def bounty_command(self, interaction: discord.Interaction):
-    if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message(
-            "Эту команду можно использовать только на сервере.", ephemeral=True
-        )
-        return
-
-    async with self.bot.economy_lock:
-        update_gold_rate()
-        account = self.bot.get_account(interaction.user.id)
-        if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
-            self.bot.save_economy()
-            await interaction.response.send_message(
-                get_custom_message("role_required").format(
-                    role="Охотник за головами"
-                ),
-                ephemeral=True,
-            )
-            return
-        embed = build_bounty_embed(interaction.guild, account)
-        self.bot.save_economy()
-
-    image = get_bounty_image_file()
-    view = BountyMainView(self.bot, interaction.user.id)
-    if image:
-        await interaction.response.send_message(
-            embed=embed, view=view, file=image, ephemeral=True
-        )
-    else:
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
-
-@app_commands.command(name="bounty-leaderboard", description="Топ охотников за головами")
-async def bounty_leaderboard_command(self, interaction: discord.Interaction):
-    async with self.bot.economy_lock:
-        rows = []
-        for user_id, account in economy_data["users"].items():
-            if not isinstance(account, dict):
-                continue
-            bounty = normalize_bounty_data(account.get("bounty"))
-            if bounty["captures"] <= 0 and bounty["xp"] <= 0:
-                continue
-            rows.append((user_id, bounty))
-        rows.sort(
-            key=lambda item: (
-                item[1]["level"],
-                item[1]["captures"],
-                item[1]["xp"],
-            ),
-            reverse=True,
-        )
-        self.bot.save_economy()
-
-    if not rows:
-        description = "Пока никто не закрыл ни одного контракта."
-    else:
-        lines = []
-        for index, (user_id, bounty) in enumerate(rows[:10], start=1):
-            member = interaction.guild.get_member(int(user_id)) if interaction.guild else None
-            name = member.mention if member else f"`{user_id}`"
-            lines.append(
-                f"**{index}.** {name} — ур. {bounty['level']}, "
-                f"поймано {format_integer(bounty['captures'])}, опыт {bounty['xp']}"
-            )
-        description = "\n".join(lines)
-
-    embed = build_bot_embed(
-        "Лучшие охотники за головами",
-        description,
-        color=discord.Color.dark_gold(),
-    )
-    if os.path.exists(BOUNTY_IMAGE_FILE):
-        embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
-    image = get_bounty_image_file()
-    if image:
-        await interaction.response.send_message(embed=embed, file=image, ephemeral=True)
-    else:
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
 class BountyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -276,6 +195,93 @@ class BountyCog(commands.Cog):
         traceback.print_exception(type(error), error, error.__traceback__)
         if not interaction.response.is_done():
             await interaction.response.send_message(f"Произошла ошибка: {error}", ephemeral=True)
+
+    @app_commands.command(name="bounty", description="Охотник за головами: открыть контракты")
+    async def bounty_command(self, interaction: discord.Interaction):
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(
+                "Эту команду можно использовать только на сервере.", ephemeral=True
+            )
+            return
+
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                update_gold_rate()
+                account = self.bot.get_account(interaction.user.id)
+                if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        get_custom_message("role_required").format(
+                            role="Охотник за головами"
+                        ),
+                        ephemeral=True,
+                    )
+                    return
+                embed = build_bounty_embed(interaction.guild, account)
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+
+        image = get_bounty_image_file()
+        view = BountyMainView(self.bot, interaction.user.id)
+        if image:
+            await interaction.response.send_message(
+                embed=embed, view=view, file=image, ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @app_commands.command(name="bounty-leaderboard", description="Топ охотников за головами")
+    async def bounty_leaderboard_command(self, interaction: discord.Interaction):
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                rows = []
+                for user_id, account in economy_data["users"].items():
+                    if not isinstance(account, dict):
+                        continue
+                    bounty = normalize_bounty_data(account.get("bounty"))
+                    if bounty["captures"] <= 0 and bounty["xp"] <= 0:
+                        continue
+                    rows.append((user_id, bounty))
+                rows.sort(
+                    key=lambda item: (
+                        item[1]["level"],
+                        item[1]["captures"],
+                        item[1]["xp"],
+                    ),
+                    reverse=True,
+                )
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+
+        if not rows:
+            description = "Пока никто не закрыл ни одного контракта."
+        else:
+            lines = []
+            for index, (user_id, bounty) in enumerate(rows[:10], start=1):
+                member = interaction.guild.get_member(int(user_id)) if interaction.guild else None
+                name = member.mention if member else f"`{user_id}`"
+                lines.append(
+                    f"**{index}.** {name} — ур. {bounty['level']}, "
+                    f"поймано {format_integer(bounty['captures'])}, опыт {bounty['xp']}"
+                )
+            description = "\n".join(lines)
+
+        embed = build_bot_embed(
+            "Лучшие охотники за головами",
+            description,
+            color=discord.Color.dark_gold(),
+        )
+        if os.path.exists(BOUNTY_IMAGE_FILE):
+            embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
+        image = get_bounty_image_file()
+        if image:
+            await interaction.response.send_message(embed=embed, file=image, ephemeral=True)
+        else:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot):

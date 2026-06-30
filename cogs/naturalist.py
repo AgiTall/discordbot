@@ -489,37 +489,6 @@ class NaturalistShopView(NaturalistOwnerView):
         self.add_item(NaturalistShopButton("max", "Купить максимум"))
 
 
-@app_commands.command(name="naturalist", description="Натуралист: образцы, справочник и магазин")
-async def naturalist_command(self, interaction: discord.Interaction):
-    if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message(
-            "Эту команду можно использовать только на сервере.", ephemeral=True
-        )
-        return
-
-    async with self.bot.economy_lock:
-        update_gold_rate()
-        account = self.bot.get_account(interaction.user.id)
-        if not has_game_role(interaction.user, NATURALIST_ROLE_KEY, account):
-            self.bot.save_economy()
-            await interaction.response.send_message(
-                get_custom_message("role_required").format(role="Натуралист"),
-                ephemeral=True,
-            )
-            return
-        embed = build_naturalist_embed(interaction.guild, account)
-        self.bot.save_economy()
-
-    image = get_naturalist_image_file()
-    view = NaturalistMainView(self.bot, interaction.user.id)
-    if image:
-        await interaction.response.send_message(
-            embed=embed, view=view, file=image, ephemeral=True
-        )
-    else:
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
-
 class NaturalistCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -530,6 +499,40 @@ class NaturalistCog(commands.Cog):
         traceback.print_exception(type(error), error, error.__traceback__)
         if not interaction.response.is_done():
             await interaction.response.send_message(f"Произошла ошибка: {error}", ephemeral=True)
+
+    @app_commands.command(name="naturalist", description="Натуралист: образцы, справочник и магазин")
+    async def naturalist_command(self, interaction: discord.Interaction):
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(
+                "Эту команду можно использовать только на сервере.", ephemeral=True
+            )
+            return
+
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                update_gold_rate()
+                account = self.bot.get_account(interaction.user.id)
+                if not has_game_role(interaction.user, NATURALIST_ROLE_KEY, account):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        get_custom_message("role_required").format(role="Натуралист"),
+                        ephemeral=True,
+                    )
+                    return
+                embed = build_naturalist_embed(interaction.guild, account)
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+
+        image = get_naturalist_image_file()
+        view = NaturalistMainView(self.bot, interaction.user.id)
+        if image:
+            await interaction.response.send_message(
+                embed=embed, view=view, file=image, ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 async def setup(bot):

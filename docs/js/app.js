@@ -193,6 +193,35 @@ async function saveGuildSettings(guildId, data) {
   return res.json();
 }
 
+async function loadRankRoles(guildId) {
+  const res = await fetch(`/api/guilds/${guildId}/rank-roles`, { credentials: 'same-origin' });
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => []);
+  // Конвертируем формат API -> формат фронта
+  return data.map(e => ({ level: String(e.level), role: String(e.role_id), removeRole: e.remove_role_id ? String(e.remove_role_id) : '' }));
+}
+
+async function saveRankRoles(guildId, cards) {
+  const entries = cards
+    .filter(c => c.level && c.role)
+    .map(c => ({
+      level: parseInt(c.level),
+      role_id: String(c.role),
+      remove_role_id: c.removeRole || null,
+    }));
+  const res = await fetch(`/api/guilds/${guildId}/rank-roles`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(entries),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Не удалось сохранить ранговые роли');
+  }
+  return res.json();
+}
+
 async function logout() {
   await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
   authState = { user: null, guilds: [], selectedGuildId: null, inviteUrl: CONFIG.inviteUrl };
@@ -309,7 +338,95 @@ function renderGuildPicker() {
   if (empty) {
     empty.hidden = authState.guilds.length > 0;
   }
+
+  // ── Кнопка «Обновить список» ──────────────────────────
+  let refreshBtn = document.getElementById('refreshGuildListBtn');
+  const picker = document.getElementById('guildPicker');
+  if (!refreshBtn && picker) {
+    refreshBtn = document.createElement('button');
+    refreshBtn.id = 'refreshGuildListBtn';
+    refreshBtn.type = 'button';
+    refreshBtn.className = 'btn btn--sm btn--ghost';
+    refreshBtn.style.cssText = 'margin: 12px auto 0; display: flex; align-items: center; gap: 6px;';
+    refreshBtn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Обновить список серверов`;
+    picker.appendChild(refreshBtn);
+  }
+  refreshBtn?.addEventListener('click', refreshGuildList);
 }
+
+// =============================================
+// ОБНОВЛЕНИЕ СПИСКА СЕРВЕРОВ
+// =============================================
+
+let _guildRefreshInProgress = false;
+
+async function refreshGuildList() {
+  if (_guildRefreshInProgress) return;
+  _guildRefreshInProgress = true;
+
+  const btn = document.getElementById('refreshGuildListBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Обновляем...';
+  }
+
+  try {
+    const res = await fetch('/api/me/refresh', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.guilds) {
+        authState.guilds = data.guilds;
+        renderGuildPicker();
+      }
+    } else {
+      // Если refresh недоступен — просто перечитываем /api/me
+      const me = await fetchMe();
+      if (me?.authenticated) {
+        authState.guilds = me.guilds || [];
+        renderGuildPicker();
+      }
+    }
+  } catch (e) {
+    console.warn('Refresh failed, falling back to /api/me', e);
+    try {
+      const me = await fetchMe();
+      if (me?.authenticated) {
+        authState.guilds = me.guilds || [];
+        renderGuildPicker();
+      }
+    } catch (_) {}
+  } finally {
+    _guildRefreshInProgress = false;
+    const b = document.getElementById('refreshGuildListBtn');
+    if (b) {
+      b.disabled = false;
+      b.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Обновить список серверов`;
+    }
+  }
+}
+
+// Автообновление когда пользователь возвращается на вкладку после приглашения бота
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const picker = document.getElementById('guildPicker');
+    if (picker && !picker.hasAttribute('hidden')) {
+      refreshGuildList();
+    }
+  }
+});
 
 function renderCurrentGuildBadge() {
   const badge = document.getElementById('currentGuildBadge');
@@ -614,7 +731,12 @@ async function selectGuild(guildId) {
   showDashboard();
   showSkeletonLoader();
   try {
-    const settings = await loadGuildSettings(guildId);
+    const [settings, rankRoles] = await Promise.all([
+      loadGuildSettings(guildId),
+      loadRankRoles(guildId),
+    ]);
+    // Подмешиваем ранговые роли из правильной таблицы (rank_roles в PostgreSQL)
+    settings.rankRoles = rankRoles;
     setupDashboardUi(settings);
   } catch (err) {
     console.error(err);
@@ -694,7 +816,15 @@ async function saveSettings(data) {
   if (!authState.selectedGuildId) {
     throw new Error('Сервер не выбран');
   }
-  const result = await saveGuildSettings(authState.selectedGuildId, data);
+  // Сохраняем основные настройки и ранговые роли параллельно
+  const rankRolesData = data.rankRoles || [];
+  const settingsData = { ...data };
+  delete settingsData.rankRoles; // не дублируем в JSONB
+
+  const [result] = await Promise.all([
+    saveGuildSettings(authState.selectedGuildId, settingsData),
+    saveRankRoles(authState.selectedGuildId, rankRolesData),
+  ]);
   return result.status === 'ok';
 }
 

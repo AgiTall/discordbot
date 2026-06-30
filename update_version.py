@@ -5,7 +5,7 @@ import glob
 
 # ==========================================
 # ВПИШИТЕ НОВУЮ ВЕРСИЮ СЮДА:
-NEW_VERSION = "v0.6.5 .0"
+NEW_VERSION = "v0.6.5.2"
 # ==========================================
 
 CONFIG_PATH = "config.json"
@@ -39,7 +39,7 @@ def update_version():
         pattern_num = re.compile(r"(?<!v)\b\d+\.\d+\.\d+\.\d+\b")
         
         # Ищем все файлы, где нужно обновить версию
-        files_to_update = glob.glob("docs/*.html") + glob.glob("docs/js/*.js") + ["dashboard.html", "src/web_routes.py"]
+        files_to_update = glob.glob("docs/*.html") + glob.glob("docs/js/*.js") + ["src/web_routes.py"]
         docs_updated = 0
         
         for file_path in files_to_update:

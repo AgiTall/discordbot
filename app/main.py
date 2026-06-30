@@ -52,13 +52,14 @@ def create_app(bot=None) -> FastAPI:
     )
 
     # ── Routers ───────────────────────────────────────────────
-    from app.routers import auth, billing, guilds, settings as settings_router, gangs
+    from app.routers import auth, billing, guilds, settings as settings_router, gangs, leveling
 
     app.include_router(auth.router)
     app.include_router(guilds.router)
     app.include_router(settings_router.router)
     app.include_router(billing.router)
     app.include_router(gangs.router)
+    app.include_router(leveling.router)
 
     @app.get("/health")
     async def health():

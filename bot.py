@@ -1671,6 +1671,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 async def setup_hook():
     bot.set_economy_guild_id = set_economy_guild_id
+    bot.reset_economy_guild_id = reset_economy_guild_id
     bot.validate_bet = validate_bet
     bot.economy_lock = economy_lock
     bot.get_account = get_account
@@ -1682,6 +1683,8 @@ async def setup_hook():
         await bot.load_extension("cogs.catalog")
         await bot.load_extension("cogs.gangs")
         await bot.load_extension("cogs.robbery")
+        await bot.load_extension("cogs.bounty")
+        await bot.load_extension("cogs.naturalist")
     except Exception as e:
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
@@ -1719,6 +1722,7 @@ ADMIN_COMMAND_NAMES = {
     "set-emoji",
     "set-message",
     "reset-work",
+    "reset-dealer",
 }
 
 
@@ -3152,10 +3156,14 @@ async def on_ready():
     
     # Установка статуса бота
     try:
+        # Читаем версию свежо из config.json при каждом запуске,
+        # чтобы update_version.py сразу давал эффект без правки BOT_VERSION вручную
+        config.sync()
+        live_version = (config.get("version") or BOT_VERSION or "v0.0.0").lstrip("v")
         if hasattr(discord, "CustomActivity"):
-            activity = discord.CustomActivity(name=f"pchev.me {BOT_VERSION.lstrip('v')}")
+            activity = discord.CustomActivity(name=f"pchev.me {live_version}")
         else:
-            activity = discord.Activity(type=discord.ActivityType.custom, name=f"pchev.me {BOT_VERSION.lstrip('v')}")
+            activity = discord.Activity(type=discord.ActivityType.custom, name=f"pchev.me {live_version}")
         await bot.change_presence(status=discord.Status.online, activity=activity)
     except Exception as e:
         logging.error(f"Не удалось установить статус: {e}")
@@ -3948,6 +3956,7 @@ class TreasureHuntView(discord.ui.View):
             return
         self.disable_all()
         self.finished = True
+        self.stop()
 
 
 @bot.tree.command(name="excavation", description="Использовать карту сокровищ для раскопок")
@@ -5185,6 +5194,25 @@ async def admin_reset_work_command(interaction: discord.Interaction, member: dis
     )
 
 
+@bot.tree.command(name="reset-dealer", description="Админ: сбросить кулдаун доставки /dealer у участника")
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(member="Участник, у которого нужно сбросить кулдаун /dealer")
+async def admin_reset_dealer_command(interaction: discord.Interaction, member: discord.Member):
+    token = set_economy_guild_id(interaction.guild_id)
+    try:
+        async with economy_lock:
+            account = get_account(member.id)
+            account["last_dealer_at"] = None
+            save_economy()
+    finally:
+        reset_economy_guild_id(token)
+
+    await interaction.response.send_message(
+        f"Кулдаун торговца сброшен для {member.mention}.", ephemeral=True
+    )
+
+
 @reset_all_command.error
 @delete_role_command.error
 @admin_balance_command.error
@@ -5211,6 +5239,7 @@ async def admin_reset_work_command(interaction: discord.Interaction, member: dis
 @admin_set_emoji_command.error
 @admin_set_message_command.error
 @admin_reset_work_command.error
+@admin_reset_dealer_command.error
 @admin_auto_thread_command.error
 async def admin_command_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.MissingPermissions):
