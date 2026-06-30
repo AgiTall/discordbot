@@ -3,14 +3,27 @@ import os
 import re
 import glob
 
-# ==========================================
-# ВПИШИТЕ НОВУЮ ВЕРСИЮ СЮДА:
-NEW_VERSION = "v0.6.5.2"
-# ==========================================
-
+VERSION_FILE = "VERSION"
 CONFIG_PATH = "config.json"
 
+
 def update_version():
+    # ── Читаем версию из файла VERSION ───────────────────────
+    if not os.path.exists(VERSION_FILE):
+        print(f"❌ Файл {VERSION_FILE} не найден!")
+        return
+
+    with open(VERSION_FILE, "r", encoding="utf-8") as f:
+        NEW_VERSION = f.read().strip()
+
+    if not NEW_VERSION:
+        print("❌ Файл VERSION пустой!")
+        return
+
+    # Убеждаемся, что версия начинается с 'v'
+    if not NEW_VERSION.startswith("v"):
+        NEW_VERSION = "v" + NEW_VERSION
+
     if not os.path.exists(CONFIG_PATH):
         print(f"❌ Ошибка: Файл {CONFIG_PATH} не найден!")
         return
