@@ -221,6 +221,12 @@ DEFAULT_ROLE_EMOJIS = {
     for role_definition in ROLE_DEFINITIONS
 }
 
+# Суффикс из невидимых пробелов (Hangul Filler U+3164) для визуального выравнивания ролей столбиком
+HANGUL_FILLER = "\u3164"
+ROLE_DISPLAY_SUFFIX = HANGUL_FILLER * 5
+WILDWEST_HEADER_ROLE_NAME = "Роли WildWest:" + ROLE_DISPLAY_SUFFIX
+WILDWEST_HEADER_ROLE_COLOR = discord.Color(0x393a41)
+ROLE_DISPLAY_COLOR = discord.Color(0xefe58d)
 
 
 
@@ -1265,7 +1271,8 @@ def get_role_definition_for_role(role):
 
 
 def normalize_role_name(name):
-    return " ".join(str(name).strip().split()).casefold()
+    stripped = str(name).strip(HANGUL_FILLER).strip()
+    return " ".join(stripped.split()).casefold()
 
 
 def role_text_matches(role_text, role_definition):
@@ -1304,6 +1311,103 @@ def find_guild_role_by_name(guild, role_name):
         if normalize_role_name(role.name) == normalized_role_name:
             return role
     return None
+
+
+def get_role_display_name(role_definition):
+    """Возвращает отображаемое имя роли с суффиксом-выравнивателем для Discord."""
+    return role_definition["name"] + ROLE_DISPLAY_SUFFIX
+
+
+async def ensure_guild_roles(guild: discord.Guild) -> dict:
+    """Создаёт/обновляет игровые роли и заголовочную роль 'Роли WildWest:' на сервере.
+
+    Возвращает dict: {'created': [...], 'updated': [...], 'skipped': [...], 'errors': [...]}.
+    """
+    created = []
+    updated = []
+    skipped = []
+    errors = []
+    game_roles = []
+
+    for role_definition in ROLE_DEFINITIONS:
+        display_name = get_role_display_name(role_definition)
+        role = find_guild_role(guild, role_definition)
+
+        if role is None:
+            try:
+                role = await guild.create_role(
+                    name=display_name,
+                    color=ROLE_DISPLAY_COLOR,
+                    reason="WildWest bot: создание игровой роли",
+                )
+                created.append(display_name)
+            except (discord.Forbidden, discord.HTTPException) as e:
+                errors.append(f"'{display_name}': {e}")
+                continue
+        else:
+            needs_edit = role.name != display_name or role.color != ROLE_DISPLAY_COLOR
+            if needs_edit:
+                try:
+                    await role.edit(
+                        name=display_name,
+                        color=ROLE_DISPLAY_COLOR,
+                        reason="WildWest bot: обновление игровой роли",
+                    )
+                    updated.append(display_name)
+                except (discord.Forbidden, discord.HTTPException) as e:
+                    errors.append(f"'{display_name}': {e}")
+            else:
+                skipped.append(display_name)
+
+        game_roles.append(role)
+
+    # Найти или создать заголовочную роль "Роли WildWest:"
+    header_role = discord.utils.find(
+        lambda r: normalize_role_name(r.name) == normalize_role_name(WILDWEST_HEADER_ROLE_NAME),
+        guild.roles,
+    )
+    if header_role is None:
+        try:
+            header_role = await guild.create_role(
+                name=WILDWEST_HEADER_ROLE_NAME,
+                color=WILDWEST_HEADER_ROLE_COLOR,
+                reason="WildWest bot: создание заголовочной роли",
+            )
+            created.append(WILDWEST_HEADER_ROLE_NAME)
+        except (discord.Forbidden, discord.HTTPException) as e:
+            errors.append(f"'{WILDWEST_HEADER_ROLE_NAME}': {e}")
+            header_role = None
+    else:
+        needs_edit = (
+            header_role.name != WILDWEST_HEADER_ROLE_NAME
+            or header_role.color != WILDWEST_HEADER_ROLE_COLOR
+        )
+        if needs_edit:
+            try:
+                await header_role.edit(
+                    name=WILDWEST_HEADER_ROLE_NAME,
+                    color=WILDWEST_HEADER_ROLE_COLOR,
+                    reason="WildWest bot: обновление заголовочной роли",
+                )
+                updated.append(WILDWEST_HEADER_ROLE_NAME)
+            except (discord.Forbidden, discord.HTTPException) as e:
+                errors.append(f"'{WILDWEST_HEADER_ROLE_NAME}': {e}")
+        else:
+            skipped.append(WILDWEST_HEADER_ROLE_NAME)
+
+    # Разместить заголовочную роль выше всех игровых ролей
+    if header_role is not None and game_roles:
+        try:
+            max_pos = max(r.position for r in game_roles)
+            if header_role.position <= max_pos:
+                await guild.edit_role_positions(
+                    positions={header_role: max_pos + 1},
+                    reason="WildWest bot: позиционирование заголовочной роли",
+                )
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+    return {"created": created, "updated": updated, "skipped": skipped, "errors": errors}
 
 
 def resolve_configurable_role(guild, role_name):
@@ -1698,6 +1802,7 @@ ALL_TARGET_ALIASES = {"all", "@everyone", "everyone", "все", "всем", "в�
 ADMIN_COMMAND_NAMES = {
     "reset-all",
     "delete-role",
+    "restart-roles",
     "check",
     "give-money",
     "remove-money",
@@ -2094,12 +2199,19 @@ async def buy_game_role(interaction, role_key):
         member = interaction.user
         role = find_guild_role(interaction.guild, role_definition)
         if role is None:
-            await interaction.followup.send(
-                f"На сервере нет роли **{role_definition['name']}**. "
-                "Администратор должен создать её или переименовать существующую.",
-                ephemeral=True,
-            )
-            return
+            try:
+                role = await interaction.guild.create_role(
+                    name=get_role_display_name(role_definition),
+                    color=ROLE_DISPLAY_COLOR,
+                    reason="WildWest bot: автосоздание игровой роли при покупке",
+                )
+            except (discord.Forbidden, discord.HTTPException) as e:
+                await interaction.followup.send(
+                    f"На сервере нет роли **{role_definition['name']}** и не удалось её создать: {e}. "
+                    "Администратор может использовать `/restart-roles`.",
+                    ephemeral=True,
+                )
+                return
 
         if (
             role not in member.roles
@@ -3173,6 +3285,13 @@ async def on_ready():
     if not periodic_economy_save.is_running():
         periodic_economy_save.start()
 
+    # Создать/обновить игровые роли на всех серверах при запуске бота
+    for guild in bot.guilds:
+        try:
+            await ensure_guild_roles(guild)
+        except Exception as e:
+            logging.error(f"ensure_guild_roles при запуске не удалось для '{guild.name}': {e}")
+
     if COMMANDS_SYNCED:
         return
 
@@ -3597,6 +3716,43 @@ async def delete_role_command(interaction: discord.Interaction, member: discord.
             return
 
     await interaction.followup.send(f"Роль '{role_definition['name']}' удалена у {member.mention} (игровая покупка и Discord-роль обновлены).", ephemeral=True)
+
+
+@bot.tree.command(
+    name="restart-roles",
+    description="Проверить и пересоздать игровые роли WildWest на сервере",
+)
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+async def restart_roles_command(interaction: discord.Interaction):
+    if interaction.guild is None:
+        await interaction.response.send_message("Эта команда доступна только на сервере.", ephemeral=True)
+        return
+
+    if not await ensure_admin_interaction(interaction):
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    try:
+        result = await ensure_guild_roles(interaction.guild)
+    except Exception as e:
+        await interaction.followup.send(f"Ошибка при пересоздании ролей: {e}", ephemeral=True)
+        return
+
+    lines = []
+    if result["created"]:
+        lines.append(f"✅ Создано ({len(result['created'])}): " + ", ".join(f"**{n}**" for n in result["created"]))
+    if result["updated"]:
+        lines.append(f"🔄 Обновлено ({len(result['updated'])}): " + ", ".join(f"**{n}**" for n in result["updated"]))
+    if result["skipped"]:
+        lines.append(f"⏭️ Без изменений: {len(result['skipped'])} шт.")
+    if result["errors"]:
+        lines.append("❌ Ошибки:\n" + "\n".join(result["errors"]))
+    if not lines:
+        lines.append("Все роли уже в порядке.")
+
+    await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 
 @bot.tree.command(name="balance", description="Показать ваш баланс")
@@ -5269,6 +5425,11 @@ async def on_guild_join(guild):
         logging.info(f"Команды синхронизированы моментально для нового сервера '{guild.name}': {len(synced)}")
     except Exception as e:
         logging.error(f"Синхронизация команд не удалась для нового сервера '{guild.name}': {e}")
+
+    try:
+        await ensure_guild_roles(guild)
+    except Exception as e:
+        logging.error(f"ensure_guild_roles при входе на сервер '{guild.name}': {e}")
 
 
 @bot.event
