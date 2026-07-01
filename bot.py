@@ -2467,6 +2467,37 @@ def build_help_pages(is_admin):
         "embed": games
     }
 
+    # 5.5. Miner
+    miner = discord.Embed(
+        title="Справка: Шахтёр",
+        description="Мини-игра «Глубокая жила» — копайте породу, добывайте руду и создавайте украшения.",
+        color=discord.Color.gold(),
+    )
+    miner.add_field(
+        name="Основные команды",
+        value=(
+            "`/mine` — копать один куб породы (лимит 3 в день).\n"
+            "`/mine-status` — глубина, инвентарь, состояние инструмента.\n"
+            "`/mine-buy` — купить расходники и кирки в лавке."
+        ),
+        inline=False,
+    )
+    miner.add_field(
+        name="Торговля и ремесло",
+        value=(
+            "`/mine-sell` — продать руду, слитки, находки, камни, украшения в факторию.\n"
+            "`/mine-smelt` — переплавить руду в слитки у кузнеца.\n"
+            "`/mine-forge` — отдать слиток + камень ювелиру для создания украшения."
+        ),
+        inline=False,
+    )
+    pages["miner"] = {
+        "label": "Шахтёр",
+        "description": "Копка, руда, слитки и украшения",
+        "emoji": "⛏️",
+        "embed": miner
+    }
+
     # 6. Admin
     admin = discord.Embed(
         title="Справка: Админ-команды",

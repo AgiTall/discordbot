@@ -6,6 +6,21 @@ import random
 import json
 from datetime import date
 
+from emoji_config import (
+    EMOJI_ORE_COAL,
+    EMOJI_ORE_IRON,
+    EMOJI_ORE_COPPER,
+    EMOJI_ORE_SILVER,
+    EMOJI_ORE_GOLD,
+    EMOJI_BAR_IRON,
+    EMOJI_BAR_COPPER,
+    EMOJI_BAR_SILVER,
+    EMOJI_GEM_CRYSTAL,
+    EMOJI_GEM_AMETHYST,
+    EMOJI_GEM_EMERALD,
+    EMOJI_GEM_DIAMOND,
+)
+
 MINE_DB_FILE = "data/mine.db"
 DAILY_MINE_LIMIT = 3
 OIL_PER_MINES = 3   # 1 фляга масла расходуется каждые N кубов

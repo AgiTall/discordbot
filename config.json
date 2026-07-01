@@ -1,5 +1,5 @@
 {
-  "version": "v0.7.0",
+  "version": "v0.7.1",
   "version_policy": "Bump major/minor for big updates, patch for bugfixes",
   "token": "",
   "connection": {
