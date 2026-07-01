@@ -19,6 +19,7 @@ from datetime import date
 from src.mine_logic import (
     MineDB,
     MINE_DB_FILE,
+    MINER_ROLE_KEY,
     DAILY_MINE_LIMIT,
     MINE_GOLD_TO_ECONOMY_RATE,
     PICKAXES,
@@ -66,6 +67,8 @@ from bot import (
     save_economy,
     set_economy_guild_id,
     reset_economy_guild_id,
+    has_game_role,
+    get_custom_message,
 )
 
 
@@ -253,6 +256,23 @@ class MinerCog(commands.Cog, name="MinerCog"):
                 "Команда доступна только на сервере.", ephemeral=True
             )
             return
+
+        # ── Проверка роли Шахтёра ────
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                if not has_game_role(interaction.user, MINER_ROLE_KEY, account):
+                    save_economy()
+                    await interaction.response.send_message(
+                        get_custom_message("role_required").format(
+                            role="Шахтёр"
+                        ),
+                        ephemeral=True,
+                    )
+                    return
+        finally:
+            reset_economy_guild_id(token)
 
         await interaction.response.defer()
         gid = self._gid(interaction)

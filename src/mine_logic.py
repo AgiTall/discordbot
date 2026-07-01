@@ -22,6 +22,7 @@ from emoji_config import (
 )
 
 MINE_DB_FILE = "data/mine.db"
+MINER_ROLE_KEY = "miner"
 DAILY_MINE_LIMIT = 3
 OIL_PER_MINES = 3   # 1 фляга масла расходуется каждые N кубов
 STARTING_BALANCE = 3.0  # стартовый баланс новичка (3 рубля)
