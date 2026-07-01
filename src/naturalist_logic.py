@@ -5,22 +5,13 @@ import json
 import discord
 from discord import app_commands
 from src.xp_utils import *
+from emoji_config import *
 
 
 NATURALIST_IMAGE_FILE = "assets/images/naturalist.png"
 
 
 NATURALIST_IMAGE_ATTACHMENT_NAME = "naturalist.png"
-
-
-DEFAULT_NATURALIST_BUTTON_EMOJIS = {
-    "sample": "🔬",
-    "sell": "<:money:1518183921903472701>",
-    "collection": "📖",
-    "legendary": "🐾",
-    "shop": "🧪",
-    "refresh": "<:update:1518269540012789860>",
-}
 
 
 NATURALIST_ROLE_KEY = "naturalist"

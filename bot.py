@@ -1,6 +1,7 @@
 from src.naturalist_logic import *
 from src.bounty_logic import *
 from src.moonshiner_logic import *
+from emoji_config import *
 import os
 import logging
 
@@ -84,42 +85,6 @@ def run_web():
 MIN_GOLD_RATE = 50.0
 WORK_COOLDOWN_SECONDS = 60 * 60
 DEALER_COOLDOWN_SECONDS = 60 * 60
-DEFAULT_CASH_EMOJI = "<:money:1518183921903472701>"
-DEFAULT_GOLD_EMOJI = "<:gold:1518185870379974696>"
-DEFAULT_MAP_EMOJI = "<:map:1518186072369008680>"
-DEFAULT_STATS_EMOJI = "<:person:1518285493249507348>"
-DEFAULT_SAFE_EMOJI = "<:blip_chest:1518323257781129397>"
-DEFAULT_LOCK_EMOJI = "<:lock:1518344642339410093>"
-DEFAULT_BALANCE_FINANCE_EMOJI = "<:blip_cash_bag:1518341268814692643>"
-DEFAULT_BALANCE_ROLES_EMOJI = "<:roles:1518342174406869093>"
-DEFAULT_BALANCE_ECONOMY_EMOJI = "<:finanse:1518342360260411453>"
-DEFAULT_BALANCE_GANG_EMOJI = "<:gang:1518342529756561698>"
-DEFAULT_TREASURE_DIG_EMOJI = "<:shovel:1518547808012079114>"
-DEFAULT_TREASURE_FOUND_EMOJI = "<:blip_cash_bag:1518341268814692643>"
-DEFAULT_TREASURE_EXTRA_EMOJI = "<:shine:1518548007232999424>"
-DEFAULT_MOONSHINE_INGREDIENT_EMOJIS = {
-    "Яблоко": "<:Apple:1518324095211667667>",
-    "Груша": "<:pear:1518323459468300508>",
-    "Персик": "<:Persik:1518324112928407562>",
-    "Консервированные персики": "<:Persiki:1518324114891341924>",
-    "Консервированные абрикосы": "<:apricots:1518324098701328474>",
-    "Консервированные ананасы": "<:Pineapple:1518324116665405600>",
-    "Консервированная клубника": "<:Strawberry:1518324125892870316>",
-    "Ежевика": "<:blackberry:1518324101809176616>",
-    "Малина": "<:Raspberry:1518324120234758306>",
-    "Черника овальнолистная": "<:blueberry:1518324103931629598>",
-    "Смородина": "<:Smorodina:1518324123988660476>",
-    "Слива поручейная": "<:sliva:1518328310378270800>",
-    "Магония": "<:magonia:1518328307161239602>",
-    "Мята": "<:Mint:1518324107668754594>",
-    "Женьшень": "<:ZhenShen:1518324129902624788>",
-    "Гаультерия": "<:gaul:1518324106007941270>",
-    "Цветок ванили": "<:Vanille:1518324127549882369>",
-    "Пустынный мак": "<:Poppy:1518324118536323122>",
-    "Олеандр": "<:Oleader:1518324109380030646>",
-    "Абсент": "<:absinthe:1518324093248606331>",
-    "Карибский ром": "<:Rum:1518324122122321981>"
-}
 TREASURE_BANNER_FILE = "assets/images/goldenmap.png"
 ROLE_IMAGE_FILE = "assets/images/roles.png"
 ROLE_IMAGE_ATTACHMENT_NAME = "roles.png"
@@ -163,7 +128,7 @@ ROLE_DEFINITIONS = [
         "key": "bounty_hunter",
         "name": "Охотник за головами",
         "aliases": [],
-        "emoji": "<:hunter:1515766696223445053>",
+        "emoji": EMOJI_ROLE_BOUNTY_HUNTER,
         "available": True,
         "description": (
             "Выслеживает опасные цели, берёт контракты на поимку и получает награды "
@@ -174,7 +139,7 @@ ROLE_DEFINITIONS = [
         "key": "trader",
         "name": "Торговец",
         "aliases": [],
-        "emoji": "<:dealer:1515766702837731429>",
+        "emoji": EMOJI_ROLE_TRADER,
         "available": True,
         "description": (
             "Развивает собственное дело, наполняет торговую повозку товарами и готовит "
@@ -185,7 +150,7 @@ ROLE_DEFINITIONS = [
         "key": "moonshiner",
         "name": "Самогонщик",
         "aliases": [],
-        "emoji": "<:moonshine:1515766699402465362>",
+        "emoji": EMOJI_ROLE_MOONSHINER,
         "available": True,
         "description": (
             "Мастер тайного производства: варит крепкий товар, держит сеть поставок "
@@ -196,7 +161,7 @@ ROLE_DEFINITIONS = [
         "key": "naturalist",
         "name": "Натуралист",
         "aliases": [],
-        "emoji": "<:naturalist:1515766700904284370>",
+        "emoji": EMOJI_ROLE_NATURALIST,
         "available": True,
         "description": (
             "Изучает природу, выслеживает редких животных и собирает знания там, "
@@ -207,7 +172,7 @@ ROLE_DEFINITIONS = [
         "key": "collector",
         "name": "Коллекционер",
         "aliases": [],
-        "emoji": "<:collector:1515766697913745438>",
+        "emoji": EMOJI_ROLE_COLLECTOR,
         "available": False,
         "description": (
             "Ищет редкие находки, собирает ценные наборы и превращает любопытство "
@@ -1407,7 +1372,20 @@ async def ensure_guild_roles(guild: discord.Guild) -> dict:
         except (discord.Forbidden, discord.HTTPException):
             pass
 
-    return {"created": created, "updated": updated, "skipped": skipped, "errors": errors}
+    # Выдать заголовочную роль всем участникам (не ботам), у кого её ещё нет
+    assigned_count = 0
+    if header_role is not None:
+        for member in guild.members:
+            if member.bot:
+                continue
+            if header_role not in member.roles:
+                try:
+                    await member.add_roles(header_role, reason="WildWest bot: выдача заголовочной роли")
+                    assigned_count += 1
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
+
+    return {"created": created, "updated": updated, "skipped": skipped, "errors": errors, "assigned": assigned_count}
 
 
 def resolve_configurable_role(guild, role_name):
@@ -1789,6 +1767,7 @@ async def setup_hook():
         await bot.load_extension("cogs.robbery")
         await bot.load_extension("cogs.bounty")
         await bot.load_extension("cogs.naturalist")
+        await bot.load_extension("cogs.miner")
     except Exception as e:
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
@@ -3407,7 +3386,7 @@ async def news_command(
         "gray": discord.Color.light_gray()
     }
 
-    embed_color = discord.Color.blurple()
+    embed_color = discord.Color(0xff0000)
     if color:
         c_lower = color.lower().strip()
         if c_lower in color_map:
@@ -3747,6 +3726,8 @@ async def restart_roles_command(interaction: discord.Interaction):
         lines.append(f"🔄 Обновлено ({len(result['updated'])}): " + ", ".join(f"**{n}**" for n in result["updated"]))
     if result["skipped"]:
         lines.append(f"⏭️ Без изменений: {len(result['skipped'])} шт.")
+    if result.get("assigned"):
+        lines.append(f"👤 Выдано заголовочных ролей участникам: **{result['assigned']}**")
     if result["errors"]:
         lines.append("❌ Ошибки:\n" + "\n".join(result["errors"]))
     if not lines:
@@ -5444,6 +5425,17 @@ async def on_member_join(member):
                     await member.add_roles(role, reason="Welcome role")
                 except discord.Forbidden:
                     logging.info(f"No permission to assign welcome role in {member.guild.id}")
+
+        # Выдать заголовочную роль WildWest новому участнику
+        header_role = discord.utils.find(
+            lambda r: normalize_role_name(r.name) == normalize_role_name(WILDWEST_HEADER_ROLE_NAME),
+            member.guild.roles,
+        )
+        if header_role is not None and header_role not in member.roles:
+            try:
+                await member.add_roles(header_role, reason="WildWest bot: выдача заголовочной роли")
+            except (discord.Forbidden, discord.HTTPException):
+                pass
 
         if data.get("welcome_enabled") and data.get("welcome_channel_id"):
             channel = member.guild.get_channel(int(data["welcome_channel_id"]))
