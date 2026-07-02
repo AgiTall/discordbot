@@ -53,7 +53,7 @@ class GangSetupModal(discord.ui.Modal, title='Данные для агитаци
     async def on_submit(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="Создание банды",
-            description="Вы собрали со всего дикого запада бродяг и кочевников чтобы работать сообща? Тогда вашему вниманию предоставлена механика банд, изначальной стоимостью 50 слитков.",
+            description=f"Вы собрали со всего дикого запада бродяг и кочевников чтобы работать сообща? Тогда вашему вниманию предоставлена механика банд, изначальной стоимостью 50 {get_gold_emoji()}.",
             color=discord.Color.dark_gold()
         )
         view = GangCreateConfirmView(

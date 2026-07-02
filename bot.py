@@ -829,19 +829,19 @@ def get_custom_message(message_key):
 
 
 def format_money(value):
-    return f"{format_number(value)} {get_cash_emoji()} долларов"
+    return f"{format_number(value)} {get_cash_emoji()}"
 
 
 def format_money_plain(value):
-    return f"{format_number(value)} долларов"
+    return f"{format_number(value)}"
 
 
 def format_gold(value):
-    return f"{format_number(value)} {get_gold_emoji()} слитков"
+    return f"{format_number(value)} {get_gold_emoji()}"
 
 
 def format_gold_plain(value):
-    return f"{format_number(value)} слитков"
+    return f"{format_number(value)}"
 
 
 def format_exchange_rate(value):
@@ -1506,12 +1506,12 @@ def get_role_command_hint(role_key):
         return (
             "\n\nКоманды торговца:\n"
             "`/dealer` — заполнить повозку на 10–35% раз в час.\n"
-            "`/dealer-delivery` — доставить полную повозку и получить 500–625 долларов."
+            "`/dealer-delivery` — доставить полную повозку и получить 500–625."
         )
     if role_key == MOONSHINER_ROLE_KEY:
         return (
             "\n\nКоманды самогонщика:\n"
-            "`/moonshine` — открыть меню предприятия, выбрать бражку за 50 долларов, "
+            "`/moonshine` — открыть меню предприятия, выбрать бражку за 50, "
             "добавить особые ингредиенты, купить улучшения и отвезти повозку."
         )
     if role_key == "miner":

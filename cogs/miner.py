@@ -45,7 +45,6 @@ from src.mine_logic import (
     ALL_SELLABLE_NAMES,
     ALL_SELL_PRICES,
     ATMOSPHERE_TAGS,
-    format_rubles,
     get_depth_layer,
     inv_get,
     inv_add,
@@ -64,6 +63,8 @@ from bot import (
     economy_data,
     get_account,
     get_gold_emoji,
+    get_cash_emoji,
+    format_money_plain,
     save_economy,
     set_economy_guild_id,
     reset_economy_guild_id,
@@ -89,30 +90,31 @@ def build_mine_embed(
 def format_inventory(player: dict) -> str:
     inv = player.get("inventory", {})
     sections = []
+    cash_e = get_cash_emoji()
 
     ore_lines = [
-        f"  {ORE_EMOJIS.get(k, '')} {ORE_NAMES[k]}: **{inv[k]}** шт. · {format_rubles(ORE_SELL_PRICE[k])}/шт."
+        f"  {ORE_EMOJIS.get(k, '')} {ORE_NAMES[k]}: **{inv[k]}** шт. · {ORE_SELL_PRICE[k]} {cash_e}/шт."
         for k in ORE_NAMES if inv.get(k, 0) > 0
     ]
     if ore_lines:
         sections.append("⚒️ **Руда:**\n" + "\n".join(ore_lines))
 
     bar_lines = [
-        f"  {BAR_EMOJIS.get(k, '')} {BAR_NAMES[k]}: **{inv[k]}** шт. · {format_rubles(BAR_SELL_PRICE[k])}/шт."
+        f"  {BAR_EMOJIS.get(k, '')} {BAR_NAMES[k]}: **{inv[k]}** шт. · {BAR_SELL_PRICE[k]} {cash_e}/шт."
         for k in BAR_NAMES if inv.get(k, 0) > 0
     ]
     if bar_lines:
         sections.append("🧱 **Слитки:**\n" + "\n".join(bar_lines))
 
     gem_lines = [
-        f"  {GEMS[k].get('emoji', '')} {GEMS[k]['name']}: **{inv[k]}** шт. · {format_rubles(GEMS[k]['sell'])}/шт."
+        f"  {GEMS[k].get('emoji', '')} {GEMS[k]['name']}: **{inv[k]}** шт. · {GEMS[k]['sell']} {cash_e}/шт."
         for k in GEMS if inv.get(k, 0) > 0
     ]
     if gem_lines:
         sections.append("💎 **Драгоценные камни:**\n" + "\n".join(gem_lines))
 
     jewel_lines = [
-        f"  {get_jewelry_name(k)}: **{qty}** шт. · {format_rubles(get_jewelry_sell_price(k))}/шт."
+        f"  {get_jewelry_name(k)}: **{qty}** шт. · {get_jewelry_sell_price(k)} {cash_e}/шт."
         for k, qty in inv.items()
         if k.startswith(JEWELRY_KEY_PREFIX) and qty > 0
     ]
@@ -120,7 +122,7 @@ def format_inventory(player: dict) -> str:
         sections.append("✨ **Украшения:**\n" + "\n".join(jewel_lines))
 
     find_lines = [
-        f"  {f['name']}: **{inv[f['key']]}** шт. · {format_rubles(f['sell'])}/шт."
+        f"  {f['name']}: **{inv[f['key']]}** шт. · {f['sell']} {cash_e}/шт."
         for f in RARE_FINDS if inv.get(f["key"], 0) > 0
     ]
     if find_lines:
@@ -159,8 +161,9 @@ class MinerCog(commands.Cog, name="MinerCog"):
 
     async def _ac_buy(self, interaction: discord.Interaction, current: str):
         choices = []
+        cash_e = get_cash_emoji()
         for key, info in SHOP_ITEMS.items():
-            label = f"{info['name']} — {format_rubles(info['price'])}/{info['unit']}"
+            label = f"{info['name']} — {info['price']} {cash_e}/{info['unit']}"
             if current.lower() in label.lower() or current.lower() in key.lower():
                 choices.append(app_commands.Choice(name=label[:100], value=key))
         return choices[:25]
@@ -172,6 +175,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
             return []
         inv = player.get("inventory", {})
         choices = []
+        cash_e = get_cash_emoji()
         for key, qty in inv.items():
             if not isinstance(qty, int) or qty <= 0:
                 continue
@@ -179,7 +183,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
             if not name:
                 continue
             price = get_item_price(key)
-            label = f"{name} ×{qty} — {format_rubles(price)}/шт."
+            label = f"{name} ×{qty} — {price} {cash_e}/шт."
             if current.lower() in label.lower() or current.lower() in key.lower():
                 choices.append(app_commands.Choice(name=label[:100], value=key))
         return choices[:25]
@@ -191,6 +195,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
             return []
         inv = player.get("inventory", {})
         choices = []
+        cash_e = get_cash_emoji()
         for ore_key, recipe in SMELT_RECIPES.items():
             qty = inv.get(ore_key, 0)
             if qty < recipe["ore_per_bar"]:
@@ -201,12 +206,12 @@ class MinerCog(commands.Cog, name="MinerCog"):
                 earned = batches * MINE_GOLD_TO_ECONOMY_RATE
                 label = (
                     f"{ore_name} ×{qty} → {earned:.4g} золота"
-                    f" (такса {format_rubles(recipe['fee'] * batches)})"
+                    f" (такса {recipe['fee'] * batches} {cash_e})"
                 )
             else:
                 label = (
                     f"{ore_name} ×{qty} → {batches}× {recipe['bar_name']}"
-                    f" (такса {format_rubles(recipe['fee'] * batches)})"
+                    f" (такса {recipe['fee'] * batches} {cash_e})"
                 )
             if current.lower() in label.lower() or current.lower() in ore_key.lower():
                 choices.append(app_commands.Choice(name=label[:100], value=ore_key))
@@ -236,11 +241,12 @@ class MinerCog(commands.Cog, name="MinerCog"):
             return []
         inv = player.get("inventory", {})
         choices = []
+        cash_e = get_cash_emoji()
         for gem_key, gem in GEMS.items():
             qty = inv.get(gem_key, 0)
             if qty <= 0:
                 continue
-            label = f"{gem['name']} ×{qty} — {format_rubles(gem['sell'])}/шт."
+            label = f"{gem['name']} ×{qty} — {gem['sell']} {cash_e}/шт."
             if current.lower() in label.lower() or current.lower() in gem_key.lower():
                 choices.append(app_commands.Choice(name=label[:100], value=gem_key))
         return choices
@@ -350,7 +356,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
                 "",
                 f"✨ **Редкая находка: {find['name']}!**",
                 f"_{find['desc']}_",
-                f"Оценка фактории: **{format_rubles(find['sell'])}**",
+                f"Оценка фактории: **{find['sell']} {get_cash_emoji()}**",
                 "Продать: **/mine-sell**",
             ]
             color = discord.Color.gold()
@@ -361,7 +367,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
             ore_name = ORE_NAMES[ore_key]
             ore_emoji = ORE_EMOJIS.get(ore_key, "⛏️")
             qty = result["ore_amount"]
-            sell_direct = format_rubles(ORE_SELL_PRICE[ore_key] * qty)
+            sell_direct = f"{ORE_SELL_PRICE[ore_key] * qty} {get_cash_emoji()}"
             smelt_hint = ""
             if ore_key in SMELT_RECIPES:
                 recipe = SMELT_RECIPES[ore_key]
@@ -384,7 +390,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
             lines += [
                 "",
                 f"{gem_emoji} **{gem_data['name'].capitalize()}!**",
-                f"Цена фактории: **{format_rubles(gem_data['sell'])}**"
+                f"Цена фактории: **{gem_data['sell']} {get_cash_emoji()}**"
                 " · отнести ювелиру: **/mine-forge**",
             ]
             if not found_something and not (result["gas"] and not result["gas_blocked"]):
@@ -432,10 +438,19 @@ class MinerCog(commands.Cog, name="MinerCog"):
         dbar = durability_bar(dur, max_dur)
         inv_text = format_inventory(player)
 
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                cash_balance = account["cash"]
+        finally:
+            reset_economy_guild_id(token)
+
+        cash_e = get_cash_emoji()
         description = (
             f"**Глубина:** {player['current_depth']} м · _{layer['name']}_\n"
             f"**Ствол сервера:** {shaft} м\n\n"
-            f"**Баланс:** {format_rubles(player['balance'])}\n\n"
+            f"**Баланс:** {cash_balance} {cash_e}\n\n"
             f"**Инструмент:** {pickaxe['name']}\n"
             f"`{dbar}`\n\n"
             f"**Расходники:**\n"
@@ -488,6 +503,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
         uid = self._uid(interaction)
         player = self.db.get_player(gid, uid)
         info = SHOP_ITEMS[item]
+        cash_e = get_cash_emoji()
 
         # ── Кирки — заменяют текущую ────
         if item.startswith("pickaxe_"):
@@ -498,39 +514,62 @@ class MinerCog(commands.Cog, name="MinerCog"):
                 return
 
             cost = pickaxe_data["price"]
-            if player["balance"] < cost - 0.001:
-                await interaction.followup.send(
-                    f"Не хватает средств. Нужно **{format_rubles(cost)}**, "
-                    f"у вас **{format_rubles(player['balance'])}**.",
-                    ephemeral=True,
-                )
-                return
+            token = set_economy_guild_id(interaction.guild_id)
+            try:
+                async with economy_lock:
+                    account = get_account(interaction.user.id)
+                    if account["cash"] < cost - 0.001:
+                        await interaction.followup.send(
+                            f"Не хватает средств. Нужно **{cost} {cash_e}**, "
+                            f"у вас **{account['cash']} {cash_e}**.",
+                            ephemeral=True,
+                        )
+                        return
+                    account["cash"] -= cost
+                    save_economy()
+            finally:
+                reset_economy_guild_id(token)
 
-            player["balance"] -= cost
             player["pickaxe_type"] = pickaxe_key
             player["pickaxe_durability"] = pickaxe_data["max_durability"]
             self.db.save_player(gid, uid, player)
+
+            token = set_economy_guild_id(interaction.guild_id)
+            try:
+                async with economy_lock:
+                    account = get_account(interaction.user.id)
+                    bal = account["cash"]
+            finally:
+                reset_economy_guild_id(token)
 
             embed = build_mine_embed(
                 "🛒 Покупка в лавке",
                 f"Куплена **{pickaxe_data['name']}**.\n"
                 f"Прочность: {pickaxe_data['max_durability']} ед.\n"
-                f"Остаток: **{format_rubles(player['balance'])}**.",
+                f"Остаток: **{bal} {cash_e}**.",
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         # ── Расходники ────
         total_cost = info["price"] * quantity
-        if player["balance"] < total_cost - 0.001:
-            await interaction.followup.send(
-                f"Не хватает средств. Нужно **{format_rubles(total_cost)}**, "
-                f"у вас **{format_rubles(player['balance'])}**.",
-                ephemeral=True,
-            )
-            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                if account["cash"] < total_cost - 0.001:
+                    await interaction.followup.send(
+                        f"Не хватает средств. Нужно **{total_cost} {cash_e}**, "
+                        f"у вас **{account['cash']} {cash_e}**.",
+                        ephemeral=True,
+                    )
+                    return
+                account["cash"] -= total_cost
+                save_economy()
+                bal = account["cash"]
+        finally:
+            reset_economy_guild_id(token)
 
-        player["balance"] -= total_cost
         field_map = {
             "oil":      "oil_units",
             "wood":     "wood_count",
@@ -545,8 +584,8 @@ class MinerCog(commands.Cog, name="MinerCog"):
         embed = build_mine_embed(
             "🛒 Покупка в лавке",
             f"Куплено: **{info['name']}** × {quantity} {info['unit']}.\n"
-            f"Потрачено: **{format_rubles(total_cost)}**.\n"
-            f"Остаток: **{format_rubles(player['balance'])}**.\n\n"
+            f"Потрачено: **{total_cost} {cash_e}**.\n"
+            f"Остаток: **{bal} {cash_e}**.\n\n"
             f"_{info['description']}_",
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
@@ -600,15 +639,25 @@ class MinerCog(commands.Cog, name="MinerCog"):
         price_each = ALL_SELL_PRICES[item]
         earned = price_each * qty
         inv_remove(player, item, qty)
-        player["balance"] += earned
         self.db.save_player(gid, uid, player)
 
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                account["cash"] += earned
+                save_economy()
+                bal = account["cash"]
+        finally:
+            reset_economy_guild_id(token)
+
+        cash_e = get_cash_emoji()
         item_name = ALL_SELLABLE_NAMES.get(item, item)
         embed = build_mine_embed(
             "💰 Фактория",
             f"Продано: **{item_name}** × {qty}\n"
-            f"Выручка: **{format_rubles(earned)}**\n"
-            f"Баланс: **{format_rubles(player['balance'])}**",
+            f"Выручка: **{earned} {cash_e}**\n"
+            f"Баланс: **{bal} {cash_e}**",
             color=discord.Color.from_rgb(180, 140, 40),
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
@@ -661,18 +710,26 @@ class MinerCog(commands.Cog, name="MinerCog"):
         batches = max_batches if quantity == 0 else min(quantity, max_batches)
         ore_used = batches * recipe["ore_per_bar"]
         total_fee = recipe["fee"] * batches
+        cash_e = get_cash_emoji()
 
-        if player["balance"] < total_fee - 0.001:
-            await interaction.followup.send(
-                f"Не хватает на оплату кузнецу. Нужно **{format_rubles(total_fee)}**, "
-                f"у вас **{format_rubles(player['balance'])}**.",
-                ephemeral=True,
-            )
-            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                if account["cash"] < total_fee - 0.001:
+                    await interaction.followup.send(
+                        f"Не хватает на оплату кузнецу. Нужно **{total_fee} {cash_e}**, "
+                        f"у вас **{account['cash']} {cash_e}**.",
+                        ephemeral=True,
+                    )
+                    return
+                account["cash"] -= total_fee
+                save_economy()
+        finally:
+            reset_economy_guild_id(token)
 
         ore_name = ORE_NAMES.get(ore, ore)
         inv_remove(player, ore, ore_used)
-        player["balance"] -= total_fee
         self.db.save_player(gid, uid, player)
 
         # Золото: идёт прямо в экономическое золото (не в слиток шахты)
@@ -691,8 +748,8 @@ class MinerCog(commands.Cog, name="MinerCog"):
                 "🔥 Кузнец",
                 f"Переплавлено: **{ore_name}** ×{ore_used}\n"
                 f"Получено: **{earned_gold:.4g}** {gold_emoji} (экономическое золото)\n"
-                f"Такса кузнеца: **{format_rubles(total_fee)}**\n"
-                f"Баланс шахты: **{format_rubles(player['balance'])}**",
+                f"Такса кузнеца: **{total_fee} {cash_e}**\n"
+                f"Баланс: **{account['cash']} {cash_e}**",
                 color=discord.Color.from_rgb(200, 160, 20),
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
@@ -703,13 +760,20 @@ class MinerCog(commands.Cog, name="MinerCog"):
         self.db.save_player(gid, uid, player)
 
         ore_name = ORE_NAMES.get(ore, ore)
-        sell_hint = format_rubles(recipe["bar_sell"] * batches)
+        sell_hint = f"{recipe['bar_sell'] * batches} {cash_e}"
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                bal = account["cash"]
+        finally:
+            reset_economy_guild_id(token)
         embed = build_mine_embed(
             "🔥 Кузнец",
             f"Переплавлено: **{ore_name}** × {ore_used}\n"
             f"Получено: **{recipe['bar_name']}** × {batches}\n"
-            f"Такса кузнеца: **{format_rubles(total_fee)}**\n"
-            f"Баланс: **{format_rubles(player['balance'])}**\n\n"
+            f"Такса кузнеца: **{total_fee} {cash_e}**\n"
+            f"Баланс: **{bal} {cash_e}**\n\n"
             f"Продайте слитки: **/mine-sell** · выручка ~{sell_hint}",
             color=discord.Color.from_rgb(200, 100, 20),
         )
@@ -770,14 +834,24 @@ class MinerCog(commands.Cog, name="MinerCog"):
         bar_val = BAR_SELL_PRICE.get(bar, 0.0)
         gem_val = GEMS[gem]["sell"]
         fee = round((bar_val + gem_val) * JEWELRY_FEE_PCT, 2)
+        cash_e = get_cash_emoji()
 
-        if player["balance"] < fee - 0.001:
-            await interaction.followup.send(
-                f"Не хватает на такса ювелира. Нужно **{format_rubles(fee)}**, "
-                f"у вас **{format_rubles(player['balance'])}**.",
-                ephemeral=True,
-            )
-            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                if account["cash"] < fee - 0.001:
+                    await interaction.followup.send(
+                        f"Не хватает на такса ювелира. Нужно **{fee} {cash_e}**, "
+                        f"у вас **{account['cash']} {cash_e}**.",
+                        ephemeral=True,
+                    )
+                    return
+                account["cash"] -= fee
+                save_economy()
+                bal = account["cash"]
+        finally:
+            reset_economy_guild_id(token)
 
         metal = bar.replace("_bar", "")
         type_key = random.choice(list(FORGE_TEMPLATES.keys()))
@@ -787,7 +861,6 @@ class MinerCog(commands.Cog, name="MinerCog"):
 
         inv_remove(player, bar, 1)
         inv_remove(player, gem, 1)
-        player["balance"] -= fee
         inv_add(player, jewel_key, 1)
         self.db.save_player(gid, uid, player)
 
@@ -798,9 +871,9 @@ class MinerCog(commands.Cog, name="MinerCog"):
             f"_{flavor}_\n\n"
             f"Слиток: **{bar_name}** + камень: **{gem_name}**\n"
             f"Создано: **{jewel_name}**\n"
-            f"Такса ювелира: **{format_rubles(fee)}**\n"
-            f"Баланс: **{format_rubles(player['balance'])}**\n\n"
-            f"Цена продажи: **{format_rubles(jewel_price)}** · **/mine-sell**"
+            f"Такса ювелира: **{fee} {cash_e}**\n"
+            f"Баланс: **{bal} {cash_e}**\n\n"
+            f"Цена продажи: **{jewel_price} {cash_e}** · **/mine-sell**"
         )
         embed = build_mine_embed(
             "💍 Ювелир",

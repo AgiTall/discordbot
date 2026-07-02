@@ -25,7 +25,6 @@ MINE_DB_FILE = "data/mine.db"
 MINER_ROLE_KEY = "miner"
 DAILY_MINE_LIMIT = 3
 OIL_PER_MINES = 3   # 1 фляга масла расходуется каждые N кубов
-STARTING_BALANCE = 3.0  # стартовый баланс новичка (3 рубля)
 
 # ─────────────────────────────────────────────────
 #  КИРКИ
@@ -433,7 +432,6 @@ class MineDB:
             CREATE TABLE IF NOT EXISTS mine_players (
                 guild_id           TEXT NOT NULL,
                 discord_id         TEXT NOT NULL,
-                balance            REAL    DEFAULT 3.0,
                 pickaxe_type       TEXT    DEFAULT 'basic',
                 pickaxe_durability INTEGER DEFAULT 60,
                 oil_units          INTEGER DEFAULT 5,
@@ -482,12 +480,11 @@ class MineDB:
         self.conn.execute(
             """
             INSERT INTO mine_players
-                (guild_id, discord_id, balance, pickaxe_type, pickaxe_durability,
+                (guild_id, discord_id, pickaxe_type, pickaxe_durability,
                  oil_units, wood_count, dynamite_count, canary_count,
                  daily_mines_left, last_mine_date, current_depth, total_mined, inventory)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(guild_id, discord_id) DO UPDATE SET
-                balance            = excluded.balance,
                 pickaxe_type       = excluded.pickaxe_type,
                 pickaxe_durability = excluded.pickaxe_durability,
                 oil_units          = excluded.oil_units,
@@ -502,7 +499,6 @@ class MineDB:
             """,
             (
                 guild_id, discord_id,
-                p.get("balance", STARTING_BALANCE),
                 p.get("pickaxe_type", "basic"),
                 p.get("pickaxe_durability", 60),
                 p.get("oil_units", 5),
@@ -546,13 +542,7 @@ class MineDB:
 # ─────────────────────────────────────────────────
 #  ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ─────────────────────────────────────────────────
-def format_rubles(amount: float) -> str:
-    """Форматировать сумму в царских рублях и копейках."""
-    rubles = int(amount)
-    kopeks = round((abs(amount) - abs(rubles)) * 100)
-    if kopeks == 0:
-        return f"{rubles} руб."
-    return f"{rubles} руб. {kopeks:02d} коп."
+
 
 
 def get_depth_layer(depth: int) -> dict:

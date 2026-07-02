@@ -491,8 +491,8 @@ class CatalogBuyButton(discord.ui.Button):
         self.item_data = item_data
         self.price = price
 
-        currency_name = "золота" if item_data["currency"] == "gold" else "долларов"
-        label = f"Купить {item_data['name']} ({price} {currency_name})"
+        currency_emoji = get_gold_emoji() if item_data["currency"] == "gold" else get_cash_emoji()
+        label = f"Купить {item_data['name']} ({price} {currency_emoji})"
         if discount_percent > 0:
             label += f" [-{discount_percent}%]"
 
@@ -518,9 +518,9 @@ class CatalogBuyButton(discord.ui.Button):
                 return
 
             if account.get(self.item_data["currency"], 0.0) < self.price:
-                currency_name = "золота" if self.item_data["currency"] == "gold" else "долларов"
+                currency_emoji = get_gold_emoji() if self.item_data["currency"] == "gold" else get_cash_emoji()
                 await interaction.response.send_message(
-                    f"Недостаточно средств. Нужно {self.price} {currency_name}.",
+                    f"Недостаточно средств. Нужно {self.price} {currency_emoji}.",
                     ephemeral=True,
                 )
                 return
