@@ -147,7 +147,8 @@ class NaturalistMainView(NaturalistOwnerView):
 
 
 class NaturalistRegionSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, bot):
+        self.bot = bot
         options = [
             discord.SelectOption(
                 label=f"{region['emoji']} {region['name']}",
@@ -272,7 +273,7 @@ class NaturalistAnimalSelect(discord.ui.Select):
 class NaturalistAnimalView(NaturalistOwnerView):
     def __init__(self, bot, user_id, region_key):
         super().__init__(bot, user_id)
-        self.add_item(NaturalistAnimalSelect(region_key))
+        self.add_item(NaturalistAnimalSelect(bot, region_key))
 
 
 class NaturalistCategoryButton(discord.ui.Button):

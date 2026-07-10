@@ -11,12 +11,15 @@ class BountyOwnerView(discord.ui.View):
         self.user_id = user_id
 
     async def interaction_check(self, interaction):
-        self.bot.set_economy_guild_id(interaction.guild_id)
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "Это меню охотника открыто не для вас.", ephemeral=True
-            )
-            return False
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            if interaction.user.id != self.user_id:
+                await interaction.response.send_message(
+                    "Это меню охотника открыто не для вас.", ephemeral=True
+                )
+                return False
+        finally:
+            self.bot.reset_economy_guild_id(token)
         return True
 
 
@@ -78,86 +81,90 @@ class BountyTacticButton(discord.ui.Button):
         difficulty = BOUNTY_DIFFICULTIES[view.difficulty_key]
         tactic = BOUNTY_TACTICS[self.tactic_key]
 
-        async with self.bot.economy_lock:
-            account = self.bot.get_account(interaction.user.id)
-            bounty = get_bounty_account(account)
-            if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
-                self.bot.save_economy()
-                await interaction.response.send_message(
-                    get_custom_message("role_required").format(
-                        role="Охотник за головами"
-                    ),
-                    ephemeral=True,
-                )
-                return
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(interaction.user.id)
+                bounty = get_bounty_account(account)
+                if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        get_custom_message("role_required").format(
+                            role="Охотник за головами"
+                        ),
+                        ephemeral=True,
+                    )
+                    return
 
-            cooldown = get_bounty_cooldown(bounty)
-            if cooldown > 0:
-                self.bot.save_economy()
-                await interaction.response.send_message(
-                    f"Следующий контракт будет доступен через **{format_duration(cooldown)}**.",
-                    ephemeral=True,
-                )
-                return
+                cooldown = get_bounty_cooldown(bounty)
+                if cooldown > 0:
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        f"Следующий контракт будет доступен через **{format_duration(cooldown)}**.",
+                        ephemeral=True,
+                    )
+                    return
 
-            level_mod = bounty["level"] // 5
-            rounds = []
-            player_wins = 0
-            target_wins = 0
-            for round_number in range(1, 4):
-                player_roll = random.randint(1, 20)
-                target_roll = random.randint(1, 20)
-                player_total = player_roll + tactic["mod"] + level_mod
-                target_total = target_roll + difficulty["mod"]
-                if player_total >= target_total:
-                    player_wins += 1
-                    outcome = "успех"
+                level_mod = bounty["level"] // 5
+                rounds = []
+                player_wins = 0
+                target_wins = 0
+                for round_number in range(1, 4):
+                    player_roll = random.randint(1, 20)
+                    target_roll = random.randint(1, 20)
+                    player_total = player_roll + tactic["mod"] + level_mod
+                    target_total = target_roll + difficulty["mod"]
+                    if player_total >= target_total:
+                        player_wins += 1
+                        outcome = "успех"
+                    else:
+                        target_wins += 1
+                        outcome = "провал"
+                    rounds.append(
+                        f"{round_number}. Вы: {player_roll}+{tactic['mod']}+{level_mod} = "
+                        f"**{player_total}**; цель: {target_roll}+{difficulty['mod']} = "
+                        f"**{target_total}** — {outcome}"
+                    )
+                    if self.tactic_key == "ambush" and outcome == "провал":
+                        target_wins = 2
+                        rounds.append("Засада сорвалась: цель сразу ушла от преследования.")
+                        break
+                    if player_wins >= 2 or target_wins >= 2:
+                        break
+
+                bounty["last_bounty_at"] = now_local().isoformat(timespec="seconds")
+                if player_wins >= 2:
+                    reward = random.randint(
+                        difficulty["reward_min"], difficulty["reward_max"]
+                    )
+                    reward = round(reward * tactic["reward_multiplier"], 2)
+                    gold_reward = difficulty["gold"]
+                    xp_reward = difficulty["xp"]
+                    account["cash"] += reward
+                    account["gold"] += gold_reward
+                    bounty["captures"] += 1
+                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
+                    title = "Цель поймана"
+                    result = (
+                        f"Награда: **{self.bot.format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
+                        f"Опыт охотника: **+{xp_reward}**."
+                    )
+                    if levels:
+                        result += f"\nНовый уровень: **{bounty['level']}**."
                 else:
-                    target_wins += 1
-                    outcome = "провал"
-                rounds.append(
-                    f"{round_number}. Вы: {player_roll}+{tactic['mod']}+{level_mod} = "
-                    f"**{player_total}**; цель: {target_roll}+{difficulty['mod']} = "
-                    f"**{target_total}** — {outcome}"
-                )
-                if self.tactic_key == "ambush" and outcome == "провал":
-                    target_wins = 2
-                    rounds.append("Засада сорвалась: цель сразу ушла от преследования.")
-                    break
-                if player_wins >= 2 or target_wins >= 2:
-                    break
+                    xp_reward = max(20, difficulty["xp"] // 5)
+                    bounty["escaped"] += 1
+                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
+                    title = "Цель сбежала"
+                    result = f"Вы получили **+{xp_reward}** опыта за попытку."
+                    if levels:
+                        result += f"\nНовый уровень: **{bounty['level']}**."
 
-            bounty["last_bounty_at"] = now_local().isoformat(timespec="seconds")
-            if player_wins >= 2:
-                reward = random.randint(
-                    difficulty["reward_min"], difficulty["reward_max"]
-                )
-                reward = round(reward * tactic["reward_multiplier"], 2)
-                gold_reward = difficulty["gold"]
-                xp_reward = difficulty["xp"]
-                account["cash"] += reward
-                account["gold"] += gold_reward
-                bounty["captures"] += 1
-                levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
-                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
-                title = "Цель поймана"
-                result = (
-                    f"Награда: **{self.bot.format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
-                    f"Опыт охотника: **+{xp_reward}**."
-                )
-                if levels:
-                    result += f"\nНовый уровень: **{bounty['level']}**."
-            else:
-                xp_reward = max(20, difficulty["xp"] // 5)
-                bounty["escaped"] += 1
-                levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
-                interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
-                title = "Цель сбежала"
-                result = f"Вы получили **+{xp_reward}** опыта за попытку."
-                if levels:
-                    result += f"\nНовый уровень: **{bounty['level']}**."
-
-            self.bot.save_economy()
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
 
         embed = discord.Embed(
             title=title,

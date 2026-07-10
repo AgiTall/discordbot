@@ -704,16 +704,17 @@ async def ensure_moonshiner(interaction):
 
 
 async def deliver_moonshine_batch(interaction):
+    # defer сразу — Discord требует ответ в течение 3 сек
+    await interaction.response.defer(ephemeral=True)
+
     async with economy_lock:
         account = get_account(interaction.user.id)
         moonshine = get_moonshine_account(account)
         batch = moonshine.get("batch")
         if not batch:
             save_economy()
-            await send_embed_response(
-                interaction,
-                "Повозка пустая",
-                random.choice(MARCEL_EMPTY_WAGON),
+            await interaction.followup.send(
+                embed=build_bot_embed("Повозка пустая", random.choice(MARCEL_EMPTY_WAGON)),
                 ephemeral=True,
             )
             return
@@ -722,10 +723,11 @@ async def deliver_moonshine_batch(interaction):
         seconds_left = (ready_at - now_local()).total_seconds()
         if seconds_left > 0:
             save_economy()
-            await send_embed_response(
-                interaction,
-                "Самогон доходит",
-                random.choice(MARCEL_NOT_READY).format(duration=format_duration(seconds_left)),
+            await interaction.followup.send(
+                embed=build_bot_embed(
+                    "Самогон доходит",
+                    random.choice(MARCEL_NOT_READY).format(duration=format_duration(seconds_left)),
+                ),
                 ephemeral=True,
             )
             return
@@ -742,11 +744,7 @@ async def deliver_moonshine_batch(interaction):
         f"**{name}** продан за **{format_money(payout)}**.",
         color=discord.Color.dark_gold(),
     )
-    await send_loading_then_edit(
-        interaction,
-        "Повозка едет...",
-        embed,
-    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class MoonshineOwnerView(discord.ui.View):
@@ -842,12 +840,7 @@ class MoonshineMashSelect(discord.ui.Select):
             f"Выручка: **{format_money(batch['payout'])}**.",
             color=discord.Color.dark_gold(),
         )
-        await send_loading_then_edit(
-            interaction,
-            "Перегонка идёт...",
-            embed,
-            ephemeral=True,
-        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class MoonshineMashView(MoonshineOwnerView):
@@ -857,11 +850,16 @@ class MoonshineMashView(MoonshineOwnerView):
 
 
 class MoonshineSpecialSelect(discord.ui.Select):
-    def __init__(self, moonshine):
+    def __init__(self, moonshine, batch_stars: int = None):
+        """
+        batch_stars: звёзды бражки в котле (если есть). Если None — фильтруем по уровню оборудования.
+        """
         level = get_moonshine_level(moonshine)
+        # Если есть активная бражка — показываем только рецепты до batch_stars звёзд
+        max_stars = batch_stars if batch_stars is not None else level
         options = []
         for recipe in sorted(MOONSHINE_SPECIAL_RECIPES, key=lambda item: (item["stars"], item["name"])):
-            if recipe["stars"] > level:
+            if recipe["stars"] > max_stars:
                 continue
             status = "готово" if has_moonshine_ingredients(moonshine, recipe) else "не хватает"
             options.append(
@@ -880,7 +878,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
                 discord.SelectOption(
                     label="Нет доступных рецептов",
                     value="none",
-                    description="Купите улучшение оборудования",
+                    description="Купите улучшение оборудования" if batch_stars is None else "В котле бражка слишком низкого уровня",
                 )
             )
 
@@ -896,7 +894,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
             await send_embed_response(
                 interaction,
                 "Нет рецептов",
-                "**Марсель:** Пока нет доступных особых рецептов.",
+                "Марсель: Пока нет доступных особых рецептов.",
                 ephemeral=True,
             )
             return
@@ -912,7 +910,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
                 await send_embed_response(
                     interaction,
                     "Нет бражки",
-                    "**Марсель:** Котёл пуст. Сначала поставьте бражку, босс.",
+                    "Марсель: Котёл пуст. Сначала поставьте бражку, босс.",
                     ephemeral=True,
                 )
                 return
@@ -922,7 +920,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
                 await send_embed_response(
                     interaction,
                     "Уже особый",
-                    "**Марсель:** В этот котёл мы уже добавили особые ингредиенты.",
+                    "Марсель: В этот котёл мы уже добавили особые ингредиенты.",
                     ephemeral=True,
                 )
                 return
@@ -933,17 +931,19 @@ class MoonshineSpecialSelect(discord.ui.Select):
                 await send_embed_response(
                     interaction,
                     "Самогон уже готов",
-                    "**Марсель:** Самогон уже готов к продаже, поздно добавлять ингредиенты.",
+                    "Марсель: Самогон уже готов (20 бутылок) — поздно добавлять ингредиенты.",
                     ephemeral=True,
                 )
                 return
 
-            if recipe["stars"] != batch.get("stars", 1):
+            # Особый рецепт N звёзд требует бражку >= N звёзд
+            if recipe["stars"] > batch.get("stars", 1):
                 save_economy()
                 await send_embed_response(
                     interaction,
                     "Не подходит",
-                    f"**Марсель:** Для этого рецепта нужна бражка {recipe['stars']} ур., а в котле {batch.get('stars', 1)} ур.",
+                    f"Марсель: Для рецепта «{recipe['name']}» нужна бражка **{recipe['stars']} ур. или выше**, "
+                    f"а в котле стоит бражка **{batch.get('stars', 1)} ур.**",
                     ephemeral=True,
                 )
                 return
@@ -964,7 +964,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
                 return
 
             consume_moonshine_ingredients(moonshine, recipe)
-            
+
             batch["type"] = "special"
             batch["recipe_key"] = recipe["key"]
             batch["name"] = get_moonshine_recipe_name(recipe)
@@ -973,24 +973,19 @@ class MoonshineSpecialSelect(discord.ui.Select):
 
         embed = build_bot_embed(
             "Ингредиенты добавлены",
-            f"**Марсель:** {random.choice(MARCEL_SPECIAL_SUCCESS)}\n\n"
-            f"Основа: **бражка {recipe['stars']} уровня**.\n"
+            f"Марсель: {random.choice(MARCEL_SPECIAL_SUCCESS)}\n\n"
+            f"Основа: **бражка {recipe['stars']} ур.**\n"
             f"Новая выручка: **{format_money(batch['payout'])}**.\n"
             f"Партия теперь называется: **{batch['name']}**.",
             color=discord.Color.dark_gold(),
         )
-        await send_loading_then_edit(
-            interaction,
-            "Марсель колдует над котлом...",
-            embed,
-            ephemeral=True,
-        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class MoonshineSpecialView(MoonshineOwnerView):
-    def __init__(self, user_id, moonshine):
+    def __init__(self, user_id, moonshine, batch_stars: int = None):
         super().__init__(user_id)
-        self.add_item(MoonshineSpecialSelect(moonshine))
+        self.add_item(MoonshineSpecialSelect(moonshine, batch_stars=batch_stars))
 
 
 class MoonshineUpgradeView(MoonshineOwnerView):
@@ -1100,8 +1095,33 @@ class MoonshineMainView(MoonshineOwnerView):
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
+            batch = moonshine.get("batch")
+
+            # Проверим сразу: если бражка уже готова (20 бут.) — отказываем
+            if batch:
+                bottles = get_moonshine_bottles(moonshine)
+                if bottles >= 20:
+                    save_economy()
+                    await send_embed_response(
+                        interaction,
+                        "Самогон уже готов",
+                        "Марсель: Самогон уже разлит по бутылкам — в готовый нельзя добавить ингредиенты.",
+                        ephemeral=True,
+                    )
+                    return
+                if batch.get("type") == "special":
+                    save_economy()
+                    await send_embed_response(
+                        interaction,
+                        "Уже особый",
+                        "Марсель: Особые ингредиенты уже добавлены в эту партию.",
+                        ephemeral=True,
+                    )
+                    return
+
+            batch_stars = batch.get("stars") if batch else None
             embed = build_moonshine_special_embed(moonshine)
-            view = MoonshineSpecialView(interaction.user.id, moonshine)
+            view = MoonshineSpecialView(interaction.user.id, moonshine, batch_stars=batch_stars)
             save_economy()
 
         image = get_moonshine_image_file()
