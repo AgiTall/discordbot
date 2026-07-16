@@ -1,10 +1,13 @@
 """Логика шахтёрской мини-игры «Глубокая жила» (1898 г., Этап 1)."""
 
-import sqlite3
 import os
 import random
 import json
+import logging
 from datetime import date
+
+import psycopg2
+import psycopg2.extras
 
 from emoji_config import (
     EMOJI_ORE_COAL,
@@ -21,6 +24,9 @@ from emoji_config import (
     EMOJI_GEM_DIAMOND,
 )
 
+# Kept as a compatibility constant for older imports.  MineDB no longer uses a
+# local SQLite file: Render's filesystem is ephemeral, so mine progress must
+# live in the same PostgreSQL instance as the rest of the bot data.
 MINE_DB_FILE = "data/mine.db"
 MINER_ROLE_KEY = "miner"
 DAILY_MINE_LIMIT = 3
@@ -45,7 +51,7 @@ PICKAXES = {
         "break_chance": 0.02,
     },
     "putilov": {
-        "name": "Кирка Путиловского завода",
+        "name": "Кирка Annesburg Mining Co.",
         "max_durability": 300,
         "price": 150.0,
         "ore_bonus": 0.18,
@@ -88,10 +94,10 @@ SHOP_ITEMS = {
         "description": "Прочнее обычной, бьёт точнее. Служит долго.",
     },
     "pickaxe_putilov": {
-        "name": "Кирка Путиловского завода",
+        "name": "Кирка Annesburg Mining Co.",
         "price": 150.0,
         "unit": "штука",
-        "description": "Элитный инструмент с клеймом завода. Самый надёжный.",
+        "description": "Элитный инструмент с клеймом Annesburg Mining Co. Самый надёжный.",
     },
 }
 
@@ -101,7 +107,7 @@ SHOP_ITEMS = {
 DEPTH_LAYERS = [
     {
         "min": 0, "max": 20,
-        "name": "Приповерхностный слой",
+        "name": "Пласт Роанок-Ридж",
         "rock": [
             "жёлтая глина с галькой",
             "мягкий известняк с трещинами",
@@ -118,7 +124,7 @@ DEPTH_LAYERS = [
     },
     {
         "min": 20, "max": 50,
-        "name": "Железный горизонт",
+        "name": "Железная жила Аннесберга",
         "rock": [
             "серый сланец с ржавыми прожилками",
             "твёрдый известняк",
@@ -137,7 +143,7 @@ DEPTH_LAYERS = [
     },
     {
         "min": 50, "max": 100,
-        "name": "Серебряный горизонт",
+        "name": "Серебряный уступ Гриззли",
         "rock": [
             "гранит с кварцевыми жилами",
             "тёмный базальт",
@@ -156,7 +162,7 @@ DEPTH_LAYERS = [
     },
     {
         "min": 100, "max": 150,
-        "name": "Золотой горизонт",
+        "name": "Золотая жила Камберленда",
         "rock": [
             "чёрный базальт в серных кристаллах",
             "кварцевая жила с блёстками",
@@ -174,7 +180,7 @@ DEPTH_LAYERS = [
     },
     {
         "min": 150, "max": 9999,
-        "name": "Адский горизонт",
+        "name": "Чёрный провал Роанок",
         "rock": [
             "обожжённый базальт с красными прожилками",
             "порода в серных натёках",
@@ -286,9 +292,9 @@ GEM_PREP = {  # предлог «с» + творительный падеж
 }
 
 FORGE_DONE_LINES = [
-    "Готово, барин! Перстенёк-то какой вышел — загляденье!",
+    "Готово, приятель. Такая вещь и в Сен-Дени уйдёт мигом.",
     "Ювелир склонился над тиглями… и поднял голову с улыбкой.",
-    "— Держите, — кивнул мастер. — Такое не стыдно и на государев стол.",
+    "— Держите, — кивнул мастер. — Даже у богачей Сен-Дени такого не найдётся.",
     "Пламя горелки стихло. Украшение остыло и засверкало.",
     "— Хорошие материалы дали хорошую работу, — буркнул мастер.",
 ]
@@ -306,21 +312,21 @@ GEM_FIND_LINES = [
 RARE_FINDS = [
     {
         "key": "samorodok",
-        "name": "самородок с орлом",
+        "name": "самородок из Камберленда",
         "sell": 12.0,
-        "desc": "Золотой самородок с вытравленным двуглавым орлом. Тяжёлый.",
+        "desc": "Тяжёлый самородок с насечкой старателя. Роанок-Ридж хранит такие нечасто.",
     },
     {
         "key": "coins_tsar",
-        "name": "дореволюционные монеты",
+        "name": "серебряные доллары 1878 года",
         "sell": 7.0,
-        "desc": "Горсть монет 1874 года чеканки. Профиль Александра II.",
+        "desc": "Горсть потемневших долларов. Похоже, чей-то тайник так и не дождался хозяина.",
     },
     {
         "key": "rail_putilov",
-        "name": "кусок рельса с клеймом Путилова",
+        "name": "обломок рельса Annesburg Mining Co.",
         "sell": 4.0,
-        "desc": "Тяжёлый обломок старого рельса. Клеймо завода ещё читается.",
+        "desc": "Тяжёлый кусок узкоколейки. Фирменное клеймо ещё различимо под угольной пылью.",
     },
     {
         "key": "watch_gold",
@@ -336,15 +342,15 @@ RARE_FINDS = [
     },
     {
         "key": "ingot_kazenny",
-        "name": "казённый слиток",
+        "name": "слиток со штампом Гриззли",
         "sell": 22.0,
-        "desc": "Серебро с клеймом Уральского казённого завода. Откуда он здесь?",
+        "desc": "Серебро со старым штампом старательской артели. Откуда оно в этой выработке?",
     },
     {
         "key": "notebook_miner",
-        "name": "тетрадь старого шахтёра",
+        "name": "дневник шахтёра Аннесберга",
         "sell": 5.0,
-        "desc": "Страницы слиплись от сырости. Карта жил? Слова едва видны.",
+        "desc": "Страницы слиплись от сырости. Внутри — набросок жил и несколько имён, зачёркнутых углём.",
     },
 ]
 
@@ -421,14 +427,57 @@ PICKAXE_HIT_LINES = [
 #  БАЗА ДАННЫХ
 # ─────────────────────────────────────────────────
 class MineDB:
-    def __init__(self, db_path: str = MINE_DB_FILE):
-        os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+    """Persistent mine storage backed by PostgreSQL.
+
+    The public methods intentionally match the former SQLite implementation,
+    so the Discord UI can use the storage without knowing where it lives.
+    """
+
+    def __init__(self, db_url: str | None = None):
+        # Older callers passed ``MINE_DB_FILE``.  Treat a file path as the
+        # legacy value and use DATABASE_URL instead, rather than silently
+        # creating a new non-persistent database.
+        if not db_url or "://" not in db_url:
+            db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            raise RuntimeError("DATABASE_URL is required for mine storage")
+
+        self.db_url = self._normalize_db_url(db_url)
+        self.conn = psycopg2.connect(
+            self.db_url,
+            cursor_factory=psycopg2.extras.DictCursor,
+        )
+        self.conn.autocommit = True
         self._init_tables()
 
+    @staticmethod
+    def _normalize_db_url(url: str) -> str:
+        return (
+            url.replace("postgresql+asyncpg://", "postgresql://")
+            .replace("postgresql+psycopg2://", "postgresql://")
+            .replace("postgres://", "postgresql://")
+        )
+
+    def _ensure_conn(self):
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1")
+        except Exception:
+            logging.warning("MineDB: connection lost, reconnecting")
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self.conn = psycopg2.connect(
+                self.db_url,
+                cursor_factory=psycopg2.extras.DictCursor,
+            )
+            self.conn.autocommit = True
+
     def _init_tables(self):
-        self.conn.executescript("""
+        self._ensure_conn()
+        with self.conn.cursor() as cur:
+            cur.execute("""
             CREATE TABLE IF NOT EXISTS mine_players (
                 guild_id           TEXT NOT NULL,
                 discord_id         TEXT NOT NULL,
@@ -444,30 +493,29 @@ class MineDB:
                 total_mined        INTEGER DEFAULT 0,
                 inventory          TEXT    DEFAULT '{}',
                 PRIMARY KEY (guild_id, discord_id)
-            );
+            )
+            """)
+            cur.execute("""
             CREATE TABLE IF NOT EXISTS mine_guild (
                 guild_id    TEXT PRIMARY KEY,
                 shaft_depth INTEGER DEFAULT 0
-            );
-        """)
-        self.conn.commit()
+            )
+            """)
 
     # ── Игрок ──────────────────────────────────────
     def get_player(self, guild_id: str, discord_id: str) -> dict:
-        row = self.conn.execute(
-            "SELECT * FROM mine_players WHERE guild_id=? AND discord_id=?",
-            (guild_id, discord_id),
-        ).fetchone()
-        if row is None:
-            self.conn.execute(
-                "INSERT OR IGNORE INTO mine_players (guild_id, discord_id) VALUES (?,?)",
-                (guild_id, discord_id),
+        self._ensure_conn()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO mine_players (guild_id, discord_id) VALUES (%s, %s) "
+                "ON CONFLICT (guild_id, discord_id) DO NOTHING",
+                (str(guild_id), str(discord_id)),
             )
-            self.conn.commit()
-            row = self.conn.execute(
-                "SELECT * FROM mine_players WHERE guild_id=? AND discord_id=?",
-                (guild_id, discord_id),
-            ).fetchone()
+            cur.execute(
+                "SELECT * FROM mine_players WHERE guild_id = %s AND discord_id = %s",
+                (str(guild_id), str(discord_id)),
+            )
+            row = cur.fetchone()
         p = dict(row)
         try:
             p["inventory"] = json.loads(p["inventory"] or "{}")
@@ -477,13 +525,14 @@ class MineDB:
 
     def save_player(self, guild_id: str, discord_id: str, p: dict):
         inv_json = json.dumps(p.get("inventory", {}), ensure_ascii=False)
-        self.conn.execute(
-            """
+        self._ensure_conn()
+        with self.conn.cursor() as cur:
+            cur.execute("""
             INSERT INTO mine_players
                 (guild_id, discord_id, pickaxe_type, pickaxe_durability,
                  oil_units, wood_count, dynamite_count, canary_count,
                  daily_mines_left, last_mine_date, current_depth, total_mined, inventory)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT(guild_id, discord_id) DO UPDATE SET
                 pickaxe_type       = excluded.pickaxe_type,
                 pickaxe_durability = excluded.pickaxe_durability,
@@ -496,9 +545,8 @@ class MineDB:
                 current_depth      = excluded.current_depth,
                 total_mined        = excluded.total_mined,
                 inventory          = excluded.inventory
-            """,
-            (
-                guild_id, discord_id,
+            """, (
+                str(guild_id), str(discord_id),
                 p.get("pickaxe_type", "basic"),
                 p.get("pickaxe_durability", 60),
                 p.get("oil_units", 5),
@@ -510,30 +558,32 @@ class MineDB:
                 p.get("current_depth", 0),
                 p.get("total_mined", 0),
                 inv_json,
-            ),
-        )
-        self.conn.commit()
+            ))
 
     # ── Сервер (общий ствол) ────────────────────────
     def get_guild_shaft(self, guild_id: str) -> int:
-        row = self.conn.execute(
-            "SELECT shaft_depth FROM mine_guild WHERE guild_id=?", (guild_id,)
-        ).fetchone()
-        if row is None:
-            self.conn.execute(
-                "INSERT OR IGNORE INTO mine_guild (guild_id) VALUES (?)", (guild_id,)
+        self._ensure_conn()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO mine_guild (guild_id) VALUES (%s) "
+                "ON CONFLICT (guild_id) DO NOTHING",
+                (str(guild_id),),
             )
-            self.conn.commit()
-            return 0
+            cur.execute(
+                "SELECT shaft_depth FROM mine_guild WHERE guild_id = %s",
+                (str(guild_id),),
+            )
+            row = cur.fetchone()
         return row["shaft_depth"]
 
     def set_guild_shaft(self, guild_id: str, depth: int):
-        self.conn.execute(
-            "INSERT INTO mine_guild (guild_id, shaft_depth) VALUES (?,?)"
-            " ON CONFLICT(guild_id) DO UPDATE SET shaft_depth=excluded.shaft_depth",
-            (guild_id, depth),
-        )
-        self.conn.commit()
+        self._ensure_conn()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO mine_guild (guild_id, shaft_depth) VALUES (%s, %s) "
+                "ON CONFLICT(guild_id) DO UPDATE SET shaft_depth = excluded.shaft_depth",
+                (str(guild_id), int(depth)),
+            )
 
     def close(self):
         self.conn.close()

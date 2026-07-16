@@ -47,10 +47,13 @@ async def process_webhook(
 
     Returns dict with result details.
     """
-    # Validate session exists (optional for mock)
+    # A payment session must have been created first and must belong to the
+    # guild in the webhook.  Without this check any public POST could grant
+    # premium to an arbitrary server.
     session_data = _pending_sessions.pop(session_id, None)
-    if session_data:
-        logger.info("Processing webhook for session %s", session_id)
+    if session_data is None or session_data.get("guild_id") != guild_id:
+        raise ValueError("Unknown or mismatched payment session")
+    logger.info("Processing webhook for session %s", session_id)
 
     guild = await guild_service.activate_premium(db, guild_id, days=days)
 

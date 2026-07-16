@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: pchevbot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    healthCheckPath: /health
+    envVars:
+      - key: RENDER
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pchevbot-db
+          property: connectionString
+      # Set these values as secrets in Render before deploying:
+      # DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_TOKEN,
+      # SESSION_SECRET_KEY and OAUTH_REDIRECT_URI.
+
+databases:
+  - name: pchevbot-db
+    databaseName: pchevbot
+    user: pchevbot

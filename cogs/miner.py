@@ -9,7 +9,6 @@ from datetime import date
 
 from src.mine_logic import (
     MineDB,
-    MINE_DB_FILE,
     MINER_ROLE_KEY,
     DAILY_MINE_LIMIT,
     MINE_GOLD_TO_ECONOMY_RATE,
@@ -164,7 +163,7 @@ def build_main_embed(player: dict, account: dict, guild) -> discord.Embed:
         f" · 🐦 Канарейки: **{player.get('canary_count', 0)}** шт.\n\n"
         f"**Попытки сегодня:** {player['daily_mines_left']} / {DAILY_MINE_LIMIT}"
     )
-    return build_mine_embed("⛏️ Шахта «Глубокая жила»", desc, with_image=True)
+    return build_mine_embed("⛏️ Шахта Аннесберга", desc, with_image=True)
 
 
 # ─────────────────────────────────────────────────
@@ -184,39 +183,101 @@ class MinerOwnerView(discord.ui.View):
         set_economy_guild_id(interaction.guild_id)
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
-                "Это меню шахтёра открыто не для вас.", ephemeral=True
+                embed=build_mine_embed(
+                    "⛏️ Чужая выработка",
+                    "Это меню шахтёра открыто не для вас.",
+                    color=discord.Color.dark_red(),
+                ),
+                ephemeral=True,
             )
             return False
         return True
 
 
 # ─────────────────────────────────────────────────
+#  УТИЛИТЫ: «Назад» и «только кнопка назад»
+# ─────────────────────────────────────────────────
+
+async def _go_back_to_main(interaction: discord.Interaction, db: MineDB, gid: str, uid: str, bot):
+    """Редактирует текущее сообщение, заменяя его главным меню шахты."""
+    token = set_economy_guild_id(interaction.guild_id)
+    try:
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            save_economy()
+    finally:
+        reset_economy_guild_id(token)
+
+    player = db.get_player(gid, uid)
+    reset_daily_if_needed(player)
+    db.save_player(gid, uid, player)
+
+    embed = build_main_embed(player, account, interaction.guild)
+    view = MinerMainView(bot, db, interaction.user.id, gid, uid)
+    image = get_miner_image_file()
+    if image:
+        await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
+    else:
+        await interaction.response.edit_message(embed=embed, view=view, attachments=[])
+
+
+class BackToMainButton(discord.ui.Button):
+    def __init__(self, row: int = 4):
+        super().__init__(label="◀️ Назад", style=discord.ButtonStyle.secondary, row=row)
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        await _go_back_to_main(interaction, view.db, view.gid, view.uid, view.bot)
+
+
+def _make_back_only_view(bot, db, user_id, gid, uid):
+    """View только с кнопкой «◀️ Назад»."""
+    view = MinerOwnerView(bot, db, user_id, gid, uid)
+    view.add_item(BackToMainButton(row=0))
+    return view
+
+
+class MineResultView(MinerOwnerView):
+    """Result screen keeps the primary action available without a detour home."""
+
+    @discord.ui.button(label="⛏️ Копать ещё", style=discord.ButtonStyle.primary, row=0)
+    async def dig_again_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _do_mine(interaction, self.db, self.gid, self.uid, self.bot)
+
+    @discord.ui.button(label="◀️ К меню шахты", style=discord.ButtonStyle.secondary, row=0)
+    async def menu_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _go_back_to_main(interaction, self.db, self.gid, self.uid, self.bot)
+
+
+# ─────────────────────────────────────────────────
 #  ЛОГИКА КОПКИ
 # ─────────────────────────────────────────────────
 
-async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: str):
-    """Выполняет одну копку и отвечает embed-ом."""
+async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: str, bot):
+    """Выполняет одну копку и редактирует текущее сообщение."""
     player = db.get_player(gid, uid)
     reset_daily_if_needed(player)
     cash_e = get_cash_emoji()
 
     if player["daily_mines_left"] <= 0:
         embed = build_mine_embed(
-            "⛏️ Дневной лимит исчерпан",
+            "🌒 Смена окончена",
             f"На сегодня отведено **{DAILY_MINE_LIMIT} куба** — всё потрачено.\n"
             "Лимит сбрасывается каждый день по UTC+0.",
             color=discord.Color.dark_grey(),
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = _make_back_only_view(bot, db, interaction.user.id, gid, uid)
+        await interaction.response.edit_message(embed=embed, view=view, attachments=[])
         return
 
     if player["pickaxe_durability"] <= 0:
         embed = build_mine_embed(
-            "⛏️ Кирка пришла в негодность",
+            "🔧 Сломанный инструмент",
             "Инструмент сломан — работать невозможно.\nКупите новую через кнопку **🛒 Купить**.",
             color=discord.Color.dark_red(),
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = _make_back_only_view(bot, db, interaction.user.id, gid, uid)
+        await interaction.response.edit_message(embed=embed, view=view, attachments=[])
         return
 
     has_oil = player.get("oil_units", 0) > 0
@@ -305,8 +366,9 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
     elif oil_left <= 2:
         lines.append(f"🪔 Масло: **{oil_left}** фл. — скоро кончится.")
 
-    embed = build_mine_embed("⛏️ Копка", "\n".join(lines), color=color)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    embed = build_mine_embed("⛏️ Забой Аннесберга", "\n".join(lines), color=color)
+    view = MineResultView(bot, db, interaction.user.id, gid, uid)
+    await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
 
 # ─────────────────────────────────────────────────
@@ -319,53 +381,7 @@ class MinerMainView(MinerOwnerView):
 
     @discord.ui.button(label="⛏️ Копать", style=discord.ButtonStyle.primary, row=0)
     async def dig_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await _do_mine(interaction, self.db, self.gid, self.uid)
-
-    @discord.ui.button(label="📦 Статус", style=discord.ButtonStyle.secondary, row=0)
-    async def status_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        token = set_economy_guild_id(interaction.guild_id)
-        try:
-            async with economy_lock:
-                account = get_account(interaction.user.id)
-                cash_balance = account["cash"]
-                save_economy()
-        finally:
-            reset_economy_guild_id(token)
-
-        player = self.db.get_player(self.gid, self.uid)
-        reset_daily_if_needed(player)
-        self.db.save_player(self.gid, self.uid, player)
-        shaft = self.db.get_guild_shaft(self.gid)
-        layer = get_depth_layer(player["current_depth"])
-        pickaxe = PICKAXES.get(player.get("pickaxe_type", "basic"), PICKAXES["basic"])
-        dur = player.get("pickaxe_durability", 0)
-        max_dur = pickaxe["max_durability"]
-        dbar = durability_bar(dur, max_dur)
-        inv_text = format_inventory(player)
-        cash_e = get_cash_emoji()
-
-        description = (
-            f"**Глубина:** {player['current_depth']} м · _{layer['name']}_\n"
-            f"**Ствол сервера:** {shaft} м\n\n"
-            f"**Баланс:** {cash_balance} {cash_e}\n\n"
-            f"**Инструмент:** {pickaxe['name']}\n"
-            f"`{dbar}`\n\n"
-            f"**Расходники:**\n"
-            f"🪔 Масло: **{player.get('oil_units', 0)}** фл."
-            f" · 🪵 Лес: **{player.get('wood_count', 0)}** бр."
-            f" · 💣 Динамит: **{player.get('dynamite_count', 0)}** пт."
-            f" · 🐦 Канарейки: **{player.get('canary_count', 0)}** шт.\n\n"
-            f"**Попытки сегодня:** {player['daily_mines_left']} / {DAILY_MINE_LIMIT}\n\n"
-            f"**Инвентарь:**\n{inv_text}"
-        )
-        embed = build_mine_embed(
-            f"⛏️ Шахтёр: {interaction.user.display_name}", description, with_image=True
-        )
-        image = get_miner_image_file()
-        if image:
-            await interaction.response.send_message(embed=embed, file=image, ephemeral=True)
-        else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+        await _do_mine(interaction, self.db, self.gid, self.uid, self.bot)
 
     @discord.ui.button(label="🛒 Купить", style=discord.ButtonStyle.secondary, row=0)
     async def buy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -386,9 +402,9 @@ class MinerMainView(MinerOwnerView):
         view = MinerBuyView(self.bot, self.db, self.user_id, self.gid, self.uid, options)
         image = get_miner_image_file()
         if image:
-            await interaction.response.send_message(embed=embed, view=view, file=image, ephemeral=True)
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
         else:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
     @discord.ui.button(label="💰 Продать", style=discord.ButtonStyle.success, row=1)
     async def sell_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -407,9 +423,13 @@ class MinerMainView(MinerOwnerView):
             options.append(discord.SelectOption(label=label[:100], value=key))
 
         if not options:
-            await interaction.response.send_message(
-                "Инвентарь пуст — нечего продавать в факторию.", ephemeral=True
+            embed = build_mine_embed(
+                "💰 Фактория",
+                "Инвентарь пуст — нечего продавать в факторию.",
+                color=discord.Color.dark_grey(),
             )
+            back_view = _make_back_only_view(self.bot, self.db, self.user_id, self.gid, self.uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         embed = build_mine_embed(
@@ -420,9 +440,9 @@ class MinerMainView(MinerOwnerView):
         view = MinerSellView(self.bot, self.db, self.user_id, self.gid, self.uid, options)
         image = get_miner_image_file()
         if image:
-            await interaction.response.send_message(embed=embed, view=view, file=image, ephemeral=True)
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
         else:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
     @discord.ui.button(label="🔥 Кузнец", style=discord.ButtonStyle.secondary, row=1)
     async def smelt_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -451,9 +471,13 @@ class MinerMainView(MinerOwnerView):
             ))
 
         if not options:
-            await interaction.response.send_message(
-                "Нет руды для переплавки.", ephemeral=True
+            embed = build_mine_embed(
+                "🔥 Кузнец",
+                "Нет руды для переплавки.",
+                color=discord.Color.dark_grey(),
             )
+            back_view = _make_back_only_view(self.bot, self.db, self.user_id, self.gid, self.uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         embed = build_mine_embed(
@@ -464,9 +488,9 @@ class MinerMainView(MinerOwnerView):
         view = MinerSmeltView(self.bot, self.db, self.user_id, self.gid, self.uid, options)
         image = get_miner_image_file()
         if image:
-            await interaction.response.send_message(embed=embed, view=view, file=image, ephemeral=True)
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
         else:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
     @discord.ui.button(label="💍 Ювелир", style=discord.ButtonStyle.secondary, row=1)
     async def forge_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -493,14 +517,22 @@ class MinerMainView(MinerOwnerView):
             ))
 
         if not bar_options:
-            await interaction.response.send_message(
-                "Нет золотых или серебряных слитков для ювелира.", ephemeral=True
+            embed = build_mine_embed(
+                "💍 Ювелир",
+                "Нет золотых или серебряных слитков для ювелира.",
+                color=discord.Color.dark_grey(),
             )
+            back_view = _make_back_only_view(self.bot, self.db, self.user_id, self.gid, self.uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
         if not gem_options:
-            await interaction.response.send_message(
-                "Нет драгоценных камней для ювелира.", ephemeral=True
+            embed = build_mine_embed(
+                "💍 Ювелир",
+                "Нет драгоценных камней для ювелира.",
+                color=discord.Color.dark_grey(),
             )
+            back_view = _make_back_only_view(self.bot, self.db, self.user_id, self.gid, self.uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         embed = build_mine_embed(
@@ -515,29 +547,9 @@ class MinerMainView(MinerOwnerView):
         )
         image = get_miner_image_file()
         if image:
-            await interaction.response.send_message(embed=embed, view=view, file=image, ephemeral=True)
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
         else:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
-    @discord.ui.button(label="🔄 Обновить", style=discord.ButtonStyle.secondary, row=2)
-    async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        token = set_economy_guild_id(interaction.guild_id)
-        try:
-            async with economy_lock:
-                account = get_account(interaction.user.id)
-                save_economy()
-        finally:
-            reset_economy_guild_id(token)
-        player = self.db.get_player(self.gid, self.uid)
-        reset_daily_if_needed(player)
-        self.db.save_player(self.gid, self.uid, player)
-        embed = build_main_embed(player, account, interaction.guild)
-        image = get_miner_image_file()
-        if image:
-            await interaction.response.edit_message(embed=embed, attachments=[image])
-        else:
-            await interaction.response.edit_message(embed=embed)
-
+            await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
 # ─────────────────────────────────────────────────
 #  МЕНЮ ПОКУПКИ
@@ -576,10 +588,13 @@ class MinerBuySelect(discord.ui.Select):
                     account = get_account(interaction.user.id)
                     if account["cash"] < cost - 0.001:
                         save_economy()
-                        await interaction.response.send_message(
+                        embed = build_mine_embed(
+                            "🛒 Лавка шахтёра",
                             f"Не хватает средств. Нужно **{cost} {cash_e}**, у вас **{account['cash']} {cash_e}**.",
-                            ephemeral=True,
+                            color=discord.Color.dark_red(),
                         )
+                        back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                        await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
                         return
                     account["cash"] -= cost
                     bal = account["cash"]
@@ -598,7 +613,8 @@ class MinerBuySelect(discord.ui.Select):
                 f"Прочность: {pickaxe_data['max_durability']} ед.\n"
                 f"Остаток: **{bal} {cash_e}**.",
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         quantity = 1
@@ -609,10 +625,13 @@ class MinerBuySelect(discord.ui.Select):
                 account = get_account(interaction.user.id)
                 if account["cash"] < total_cost - 0.001:
                     save_economy()
-                    await interaction.response.send_message(
+                    embed = build_mine_embed(
+                        "🛒 Лавка шахтёра",
                         f"Не хватает средств. Нужно **{total_cost} {cash_e}**, у вас **{account['cash']} {cash_e}**.",
-                        ephemeral=True,
+                        color=discord.Color.dark_red(),
                     )
+                    back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                    await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
                     return
                 account["cash"] -= total_cost
                 bal = account["cash"]
@@ -639,13 +658,15 @@ class MinerBuySelect(discord.ui.Select):
             f"Остаток: **{bal} {cash_e}**.\n\n"
             f"_{info['description']}_",
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+        await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
 
 
 class MinerBuyView(MinerOwnerView):
     def __init__(self, bot, db, user_id, gid, uid, options):
         super().__init__(bot, db, user_id, gid, uid)
         self.add_item(MinerBuySelect(options))
+        self.add_item(BackToMainButton(row=1))
 
 
 # ─────────────────────────────────────────────────
@@ -669,11 +690,23 @@ class MinerSellSelect(discord.ui.Select):
 
         available = inv_get(player, item)
         if available <= 0:
-            await interaction.response.send_message("У вас нет этого предмета в инвентаре.", ephemeral=True)
+            embed = build_mine_embed(
+                "💰 Фактория",
+                "У вас нет этого предмета в инвентаре.",
+                color=discord.Color.dark_red(),
+            )
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         if item not in ALL_SELL_PRICES:
-            await interaction.response.send_message("Фактория не принимает этот предмет.", ephemeral=True)
+            embed = build_mine_embed(
+                "💰 Фактория",
+                "Фактория не принимает этот предмет.",
+                color=discord.Color.dark_red(),
+            )
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         qty = available
@@ -701,13 +734,15 @@ class MinerSellSelect(discord.ui.Select):
             f"Баланс: **{bal} {cash_e}**",
             color=discord.Color.from_rgb(180, 140, 40),
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+        await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
 
 
 class MinerSellView(MinerOwnerView):
     def __init__(self, bot, db, user_id, gid, uid, options):
         super().__init__(bot, db, user_id, gid, uid)
         self.add_item(MinerSellSelect(options))
+        self.add_item(BackToMainButton(row=1))
 
 
 # ─────────────────────────────────────────────────
@@ -732,17 +767,26 @@ class MinerSmeltSelect(discord.ui.Select):
 
         recipe = SMELT_RECIPES.get(ore)
         if recipe is None:
-            await interaction.response.send_message("Эту руду нельзя переплавить.", ephemeral=True)
+            embed = build_mine_embed(
+                "🔥 Кузнец",
+                "Эту руду нельзя переплавить.",
+                color=discord.Color.dark_red(),
+            )
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         available = inv_get(player, ore)
         max_batches = available // recipe["ore_per_bar"]
         if max_batches == 0:
-            await interaction.response.send_message(
+            embed = build_mine_embed(
+                "🔥 Кузнец",
                 f"Недостаточно руды. Нужно минимум **{recipe['ore_per_bar']} шт.** для одной партии, "
                 f"у вас **{available}** шт.",
-                ephemeral=True,
+                color=discord.Color.dark_red(),
             )
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         batches = max_batches
@@ -755,11 +799,14 @@ class MinerSmeltSelect(discord.ui.Select):
                 account = get_account(interaction.user.id)
                 if account["cash"] < total_fee - 0.001:
                     save_economy()
-                    await interaction.response.send_message(
+                    embed = build_mine_embed(
+                        "🔥 Кузнец",
                         f"Не хватает на оплату кузнецу. Нужно **{total_fee} {cash_e}**, "
                         f"у вас **{account['cash']} {cash_e}**.",
-                        ephemeral=True,
+                        color=discord.Color.dark_red(),
                     )
+                    back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                    await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
                     return
                 account["cash"] -= total_fee
                 save_economy()
@@ -789,7 +836,8 @@ class MinerSmeltSelect(discord.ui.Select):
                 f"Баланс: **{account['cash']} {cash_e}**",
                 color=discord.Color.from_rgb(200, 160, 20),
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         inv_add(player, recipe["bar_key"], batches)
@@ -813,13 +861,15 @@ class MinerSmeltSelect(discord.ui.Select):
             f"Продайте слитки через **💰 Продать** · выручка ~{sell_hint}",
             color=discord.Color.from_rgb(200, 100, 20),
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+        await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
 
 
 class MinerSmeltView(MinerOwnerView):
     def __init__(self, bot, db, user_id, gid, uid, options):
         super().__init__(bot, db, user_id, gid, uid)
         self.add_item(MinerSmeltSelect(options))
+        self.add_item(BackToMainButton(row=1))
 
 
 # ─────────────────────────────────────────────────
@@ -889,11 +939,23 @@ class MinerForgeConfirmButton(discord.ui.Button):
 
         if inv_get(player, bar) < 1:
             bar_name = BAR_NAMES.get(bar, bar)
-            await interaction.response.send_message(f"Нет **{bar_name}** в инвентаре.", ephemeral=True)
+            embed = build_mine_embed(
+                "💍 Ювелир",
+                f"Нет **{bar_name}** в инвентаре.",
+                color=discord.Color.dark_red(),
+            )
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
         if inv_get(player, gem) < 1:
             gem_name = GEMS[gem]["name"]
-            await interaction.response.send_message(f"Нет **{gem_name}** в инвентаре.", ephemeral=True)
+            embed = build_mine_embed(
+                "💍 Ювелир",
+                f"Нет **{gem_name}** в инвентаре.",
+                color=discord.Color.dark_red(),
+            )
+            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
         bar_val = BAR_SELL_PRICE.get(bar, 0.0)
@@ -906,11 +968,14 @@ class MinerForgeConfirmButton(discord.ui.Button):
                 account = get_account(interaction.user.id)
                 if account["cash"] < fee - 0.001:
                     save_economy()
-                    await interaction.response.send_message(
+                    embed = build_mine_embed(
+                        "💍 Ювелир",
                         f"Не хватает на такса ювелира. Нужно **{fee} {cash_e}**, "
                         f"у вас **{account['cash']} {cash_e}**.",
-                        ephemeral=True,
+                        color=discord.Color.dark_red(),
                     )
+                    back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                    await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
                     return
                 account["cash"] -= fee
                 save_economy()
@@ -945,7 +1010,8 @@ class MinerForgeConfirmButton(discord.ui.Button):
             desc,
             color=discord.Color.from_rgb(220, 180, 60),
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+        await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
 
 
 class MinerForgeView(MinerOwnerView):
@@ -956,6 +1022,7 @@ class MinerForgeView(MinerOwnerView):
         self.add_item(MinerForgeBarSelect(bar_options))
         self.add_item(MinerForgeGemSelect(gem_options))
         self.add_item(MinerForgeConfirmButton())
+        self.add_item(BackToMainButton(row=3))
 
 
 # ─────────────────────────────────────────────────
@@ -967,7 +1034,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = MineDB(MINE_DB_FILE)
+        self.db = MineDB()
 
     def cog_unload(self):
         self.db.close()

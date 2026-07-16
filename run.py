@@ -61,6 +61,10 @@ async def main():
     bot = create_bot()
     app = create_app(bot)
 
+    # ── Share bot's data stores with FastAPI routers ──────────
+    from bot import economy_data
+    app.state.economy_data = economy_data
+
     # ── Uvicorn config ────────────────────────────────────────
     uvi_config = uvicorn.Config(
         app,

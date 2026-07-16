@@ -192,6 +192,7 @@
                       </svg>
                       Банды
                     </a>
+                  </li>
                   <li class="sidebar-nav__item">
                     <a href="#" data-section="emojis" id="sidebarEmojis">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -255,7 +256,7 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="newsChannelId">ID канала новостей</label>
-                      <select class="form-control channel-select" id="newsChannelId" data-setting="news_channel_id">
+                      <select class="form-control channel-select" id="newsChannelId" data-setting="newsChannelId">
                         <option value="">Выберите канал...</option>
                       </select>
                       <p class="hint">Канал, в который бот публикует анонсы и новости. Настраивается командой
@@ -263,7 +264,7 @@
                     </div>
                     <div class="form-group">
                       <label for="treasureChannelId">ID канала для кладов</label>
-                      <select class="form-control channel-select" id="treasureChannelId" data-setting="treasure_channel_id">
+                      <select class="form-control channel-select" id="treasureChannelId" data-setting="treasureChannelId">
                         <option value="">Выберите канал...</option>
                       </select>
                       <p class="hint">Канал для ежедневной раздачи карт сокровищ в 12:00 МСК.</p>
@@ -276,7 +277,7 @@
                   <div class="form-grid form-grid--single">
                     <div class="form-group">
                       <label for="threadChannelIds">ID каналов для авто-тредов (через запятую)</label>
-                      <input type="text" class="form-control" id="threadChannelIds" data-setting="thread_channel_ids" placeholder="Например: 12345678, 87654321">
+                      <input type="text" class="form-control" id="threadChannelIds" data-setting="threadChannelIds" placeholder="Например: 12345678, 87654321">
                       <p class="hint">Каналы, где бот автоматически создаёт треды к новым сообщениям. Команды:
                         <code>/threads-on</code> и <code>/threads-off</code>.</p>
                     </div>
@@ -288,7 +289,7 @@
                   <div class="form-grid form-grid--single">
                     <div class="form-group">
                       <label for="commandChannelIds">ID каналов для команд (через запятую)</label>
-                      <input type="text" class="form-control" id="commandChannelIds" data-setting="command_channel_ids" placeholder="Например: 12345678, 87654321">
+                      <input type="text" class="form-control" id="commandChannelIds" data-setting="commandChannelIds" placeholder="Например: 12345678, 87654321">
                       <p class="hint">Каналы, где разрешены команды игроков. Добавить:
                         <code>/command-chat #канал</code>. Удалить: <code>/command-chat #канал remove:True</code>.</p>
                     </div>
@@ -322,7 +323,7 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="levelupChannelId">Канал для уведомлений о новом уровне</label>
-                      <select class="form-control channel-select" id="levelupChannelId" data-setting="levelup_channel_id">
+                      <select class="form-control channel-select" id="levelupChannelId" data-setting="levelupChannelId">
                         <option value="">Выберите канал...</option>
                       </select>
                       <p class="hint">Настройте командой <code>/set-levelup-channel #канал</code>.</p>
@@ -540,7 +541,7 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="welcomeChannelId">Канал приветствий</label>
-                      <select class="form-control channel-select" id="welcomeChannelId" data-setting="welcome_channel_id">
+                      <select class="form-control channel-select" id="welcomeChannelId" data-setting="welcomeChannelId">
                         <option value="">Выберите канал...</option>
                       </select>
                     </div>
@@ -594,7 +595,7 @@
                   <div class="form-grid">
                     <div class="form-group">
                       <label for="logsChannelId">ID канала логов</label>
-                      <select class="form-control channel-select" id="logsChannelId" data-setting="logs_channel_id">
+                      <select class="form-control channel-select" id="logsChannelId" data-setting="logsChannelId">
                         <option value="">Выберите канал...</option>
                       </select>
                     </div>

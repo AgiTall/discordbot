@@ -566,7 +566,7 @@ def build_moonshine_mash_embed(moonshine):
     lines = []
     for recipe in MOONSHINE_MASH_RECIPES:
         strength = MOONSHINE_STRENGTHS[recipe["strength_key"]]
-        required_level = gцoonshine_recipe_required_level(recipe)
+        required_level = get_moonshine_recipe_required_level(recipe)
         duration = get_moonshine_duration_seconds(
             recipe, skill=bool(moonshine.get("skill"))
         )

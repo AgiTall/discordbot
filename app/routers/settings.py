@@ -1,27 +1,52 @@
-"""Settings router — CRUD for guild settings grouped by category."""
+"""Settings router — reads/writes guild settings via the bot's own stores.
+
+Instead of PostgreSQL guild_settings tables, this router delegates to
+``src.guild_config`` which writes through ``economy_store`` (psycopg2 JSON)
+and ``leveling_db`` so that every change applied from the dashboard is
+immediately visible to the running bot.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.schemas.settings import AllSettingsResponse, SettingsCategoryResponse, SettingsUpdate
-from app.services import guild_service
-from app.utils.dependencies import CurrentUser, DbSession, require_guild_access
+from app.utils.dependencies import CurrentUser
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/guilds", tags=["settings"])
 
-VALID_CATEGORIES = {"moderation", "economy", "logs", "welcome", "leveling"}
+
+# ── Helpers ───────────────────────────────────────────────────
+
+def _get_bot(request: Request):
+    bot = getattr(request.app.state, "bot", None)
+    if not bot:
+        raise HTTPException(status_code=503, detail="Bot offline")
+    return bot
+
+
+def _get_economy_store(request: Request):
+    store = getattr(request.app.state, "economy_data", None)
+    if store is None:
+        raise HTTPException(status_code=503, detail="Economy store not available")
+    return store
+
+
+def _get_leveling_db(request: Request):
+    bot = _get_bot(request)
+    cog = bot.get_cog("LevelingCog")
+    if cog is None or cog.db is None:
+        raise HTTPException(status_code=503, detail="Leveling DB unavailable")
+    return cog.db
 
 
 def _ensure_bot_in_guild(request: Request, guild_id: str) -> bool:
-    """Raise 404 if the bot is not in the guild."""
-    bot = request.app.state.bot
-    if not bot:
-        raise HTTPException(status_code=503, detail="Bot offline")
+    bot = _get_bot(request)
     if not any(str(g.id) == str(guild_id) for g in bot.guilds):
         raise HTTPException(
             status_code=404,
@@ -30,86 +55,103 @@ def _ensure_bot_in_guild(request: Request, guild_id: str) -> bool:
     return True
 
 
-@router.get("/{guild_id}/settings", response_model=AllSettingsResponse)
+# ── Endpoints ─────────────────────────────────────────────────
+
+@router.get("/{guild_id}/settings")
 async def get_all_settings(
     guild_id: str,
     request: Request,
     user: CurrentUser,
-    db: DbSession,
-):
-    """Return all settings for a guild (all categories)."""
+) -> dict[str, Any]:
+    """Return all settings for a guild (flat camelCase dict).
+
+    Uses ``src.guild_config.get_guild_settings`` which reads from
+    economy_store + leveling_db — the same stores the bot uses.
+    """
+    from app.utils.dependencies import require_guild_access
     await require_guild_access(guild_id, user)
     _ensure_bot_in_guild(request, guild_id)
 
-    guild = await guild_service.get_or_create_guild(db, guild_id)
-    all_settings = await guild_service.get_all_settings(db, guild)
+    economy_store = _get_economy_store(request)
+    leveling_db = _get_leveling_db(request)
 
-    # Flatten categories for frontend backwards-compatibility
-    flat_settings = {}
-    for cat_data in all_settings.values():
-        flat_settings.update(cat_data)
+    import src.guild_config as guild_config
+    settings = await asyncio.to_thread(
+        guild_config.get_guild_settings, economy_store, leveling_db, guild_id
+    )
+    return settings
 
-    return AllSettingsResponse(guild_id=guild_id, settings=flat_settings)
 
 @router.put("/{guild_id}/settings")
+@router.post("/{guild_id}/settings")
 async def update_all_settings(
     guild_id: str,
-    body: SettingsUpdate,
     request: Request,
     user: CurrentUser,
-    db: DbSession,
-):
-    """Update all settings from a flat dictionary."""
+) -> dict:
+    """Update settings from a flat camelCase dictionary.
+
+    Accepts either ``{data: {...}}`` (new frontend format) or a plain dict
+    (direct) for backwards compatibility.
+    """
+    from app.utils.dependencies import require_guild_access
     await require_guild_access(guild_id, user)
     _ensure_bot_in_guild(request, guild_id)
 
-    guild = await guild_service.get_or_create_guild(db, guild_id)
-    
-    # We update all categories with the payload (the service should ignore irrelevant keys)
-    for category in VALID_CATEGORIES:
-        await guild_service.update_category_settings(db, guild, category, body.data)
+    body = await request.json()
 
-    return {"status": "ok"}
+    # Support both {data: {...}} and flat dict
+    if isinstance(body, dict) and "data" in body and isinstance(body["data"], dict):
+        data = body["data"]
+    elif isinstance(body, dict):
+        data = body
+    else:
+        raise HTTPException(status_code=400, detail="Invalid request body")
 
+    if not data:
+        raise HTTPException(status_code=400, detail="No data")
 
-@router.get("/{guild_id}/settings/{category}", response_model=SettingsCategoryResponse)
-async def get_category_settings(
-    guild_id: str,
-    category: str,
-    request: Request,
-    user: CurrentUser,
-    db: DbSession,
-):
-    """Return a single category's settings."""
-    if category not in VALID_CATEGORIES:
-        raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
+    economy_store = _get_economy_store(request)
+    leveling_db = _get_leveling_db(request)
 
-    await require_guild_access(guild_id, user)
-    _ensure_bot_in_guild(request, guild_id)
+    import src.guild_config as guild_config
 
-    guild = await guild_service.get_or_create_guild(db, guild_id)
-    data = await guild_service.get_category_settings(db, guild, category)
+    # Get old settings for channel-change notifications
+    old_settings = await asyncio.to_thread(
+        guild_config.get_guild_settings, economy_store, leveling_db, guild_id
+    )
 
-    return SettingsCategoryResponse(category=category, settings=data)
+    try:
+        settings = await asyncio.to_thread(
+            guild_config.set_guild_settings, economy_store, leveling_db, guild_id, data
+        )
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
+    # ── Send notification to newly-configured channels ────────
+    bot = _get_bot(request)
+    if bot and getattr(bot, "loop", None):
+        guild = bot.get_guild(int(guild_id))
+        if guild:
+            channel_map = {
+                "newsChannelId": "публикации анонсов и новостей",
+                "treasureChannelId": "ежедневной раздачи карт сокровищ",
+                "levelupChannelId": "уведомлений о повышении уровня",
+                "welcomeChannelId": "приветствий новых участников",
+                "logsChannelId": "записи серверных логов",
+            }
+            for key, purpose in channel_map.items():
+                if key in data:
+                    old_val = str(old_settings.get(key) or "")
+                    new_val = str(settings.get(key) or "")
+                    if new_val and new_val != old_val and new_val.isdigit():
+                        channel = guild.get_channel(int(new_val))
+                        if channel:
+                            asyncio.run_coroutine_threadsafe(
+                                channel.send(
+                                    f"✅ Этот канал теперь используется для **{purpose}**."
+                                ),
+                                bot.loop,
+                            )
 
-@router.put("/{guild_id}/settings/{category}", response_model=SettingsCategoryResponse)
-async def update_category_settings(
-    guild_id: str,
-    category: str,
-    body: SettingsUpdate,
-    request: Request,
-    user: CurrentUser,
-    db: DbSession,
-):
-    """Update (partial merge) a single category's settings."""
-    if category not in VALID_CATEGORIES:
-        raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
-
-    await require_guild_access(guild_id, user)
-    _ensure_bot_in_guild(request, guild_id)
-
-    guild = await guild_service.get_or_create_guild(db, guild_id)
-    result = await guild_service.update_category_settings(db, guild, category, body.data)
-
-    return SettingsCategoryResponse(category=category, settings=result)
+    return {"status": "ok", "settings": settings}

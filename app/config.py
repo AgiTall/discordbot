@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:10000"
     debug: bool = False
 
+    @field_validator("debug", mode="before")
+    @classmethod
+    def parse_debug_mode(cls, value):
+        """Accept legacy deployment labels such as DEBUG=release."""
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "production", "prod"}:
+                return False
+            if normalized in {"debug", "development", "dev"}:
+                return True
+        return value
+
     # ── Render-specific ───────────────────────────────────────
     render: bool = False         # set RENDER=true on Render.com
 

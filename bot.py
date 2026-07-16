@@ -42,7 +42,6 @@ from discord import PartialEmoji
 import src.leveling as leveling
 import src.web_routes as web_routes
 from src.config import config
-CHANNELS_FILE = "data/channels.txt"
 COMMANDS_SYNCED = False
 ENV_FILE = ".env"
 BOT_TOKEN = config.get("token", "") or ""
@@ -205,20 +204,6 @@ WILDWEST_HEADER_ROLE_COLOR = discord.Color(0x393a41)
 ROLE_DISPLAY_COLOR = discord.Color(0xefe58d)
 
 
-
-
-# File helpers
-def load_channels():
-    if not os.path.exists(CHANNELS_FILE):
-        return set()
-    with open(CHANNELS_FILE, "r", encoding="utf-8") as f:
-        return {int(line.strip()) for line in f if line.strip().isdigit()}
-
-
-def save_channels(channels_set):
-    with open(CHANNELS_FILE, "w", encoding="utf-8") as f:
-        for channel_id in channels_set:
-            f.write(f"{channel_id}\n")
 
 
 def get_guild_thread_channel_ids(guild_id):
@@ -1793,7 +1778,6 @@ async def setup_hook():
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
 
-active_channels = load_channels()
 economy_data = EconomyStore()
 economy_lock = asyncio.Lock()
 
@@ -3354,8 +3338,6 @@ async def attach_channel(
     else:
         guild_channels.add(channel_id)
         set_guild_thread_channel_ids(interaction.guild.id, guild_channels)
-        active_channels.add(channel_id)
-        save_channels(active_channels)
         await interaction.response.send_message(
             f"Автоматические треды теперь включены в {channel.mention}.",
             ephemeral=True,
@@ -3377,9 +3359,6 @@ async def detach_channel(
     if channel_id in guild_channels:
         guild_channels.discard(channel_id)
         set_guild_thread_channel_ids(interaction.guild.id, guild_channels)
-        if channel_id in active_channels:
-            active_channels.discard(channel_id)
-            save_channels(active_channels)
         await interaction.response.send_message(
             f"Автоматические треды **выключены** в {channel.mention}.",
             ephemeral=True,
@@ -5620,7 +5599,7 @@ async def on_message(message):
         if message.guild:
             guild_thread_channels = get_guild_thread_channel_ids(message.guild.id)
 
-        if message.channel.id in guild_thread_channels or message.channel.id in active_channels:
+        if message.channel.id in guild_thread_channels:
             if not isinstance(message.channel, discord.Thread):
                 try:
                     if message.thread:

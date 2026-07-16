@@ -20,6 +20,10 @@ ROB_COOLDOWN_HOURS = 2
 ROB_SUCCESS_CHANCE_MIN = 10
 ROB_SUCCESS_CHANCE_MAX = 20
 
+
+def robbery_embed(title: str, description: str, color: discord.Color) -> discord.Embed:
+    return discord.Embed(title=title, description=description, color=color)
+
 class RobberyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -29,11 +33,11 @@ class RobberyCog(commands.Cog):
         token = set_economy_guild_id(interaction.guild_id)
         try:
             if target.bot:
-                await interaction.response.send_message("Ботов грабить нельзя, у них нет карманов.", ephemeral=True)
+                await interaction.response.send_message(embed=robbery_embed("🚫 Не та цель", "Ботов грабить нельзя, у них нет карманов.", discord.Color.dark_grey()), ephemeral=True)
                 return
                 
             if target.id == interaction.user.id:
-                await interaction.response.send_message("Вы не можете ограбить самого себя.", ephemeral=True)
+                await interaction.response.send_message(embed=robbery_embed("🚫 Не та цель", "Вы не можете ограбить самого себя.", discord.Color.dark_grey()), ephemeral=True)
                 return
                 
             async with economy_lock:
@@ -51,11 +55,11 @@ class RobberyCog(commands.Cog):
                         remaining = int(ROB_COOLDOWN_HOURS * 3600 - diff)
                         hours, remainder = divmod(remaining, 3600)
                         minutes, seconds = divmod(remainder, 60)
-                        await interaction.response.send_message(f"Шериф всё ещё ищет вас! Залечь на дно придется еще: **{hours} ч. {minutes} м.**", ephemeral=True)
+                        await interaction.response.send_message(embed=robbery_embed("⭐ Розыск", f"Шериф всё ещё ищет вас. Залягте на дно ещё на **{hours} ч. {minutes} м.**", discord.Color.orange()), ephemeral=True)
                         return
                         
                 if target_account.get("cash", 0.0) < 50:
-                    await interaction.response.send_message(f"У {target.mention} в карманах почти пусто. Ищите цель побогаче.", ephemeral=True)
+                    await interaction.response.send_message(embed=robbery_embed("🪙 Пустые карманы", f"У {target.mention} в карманах почти пусто. Ищите цель побогаче.", discord.Color.dark_grey()), ephemeral=True)
                     return
                     
                 # Setup robbery
@@ -78,7 +82,7 @@ class RobberyCog(commands.Cog):
                     account["cash"] += stolen_amount
                     
                     save_economy()
-                    await interaction.response.send_message(f"🔫 **УСПЕХ!** Вы подкрались к {target.mention} и вытащили из его карманов **{stolen_amount} {get_cash_emoji()}**! Настоящий бандит!")
+                    await interaction.response.send_message(embed=robbery_embed("🔫 Удачное дело", f"Вы подкрались к {target.mention} и вытащили из его карманов **{stolen_amount} {get_cash_emoji()}**.", discord.Color.green()))
                 else:
                     # Fail
                     fine_percent = 0.05 # 5% fine
@@ -87,10 +91,10 @@ class RobberyCog(commands.Cog):
                     if fine_amount > 0:
                         account["cash"] -= fine_amount
                         save_economy()
-                        await interaction.response.send_message(f"🚨 **ПРОВАЛ!** Вас заметил шериф при попытке ограбить {target.mention}. Во время погони вы обронили **{fine_amount} {get_cash_emoji()}**.")
+                        await interaction.response.send_message(embed=robbery_embed("🚨 Неудача", f"Шериф заметил вас при попытке ограбить {target.mention}. Во время погони вы обронили **{fine_amount} {get_cash_emoji()}**.", discord.Color.red()))
                     else:
                         save_economy()
-                        await interaction.response.send_message(f"🚨 **ПРОВАЛ!** Вы попытались ограбить {target.mention}, но получили отпор. К счастью, ваши карманы были пусты, поэтому вы ничего не потеряли.")
+                        await interaction.response.send_message(embed=robbery_embed("🚨 Неудача", f"Вы попытались ограбить {target.mention}, но получили отпор. К счастью, ваши карманы были пусты — вы ничего не потеряли.", discord.Color.red()))
         finally:
             reset_economy_guild_id(token)
 
