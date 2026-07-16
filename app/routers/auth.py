@@ -6,6 +6,7 @@ import json
 import logging
 import secrets
 import urllib.parse
+from pathlib import Path
 
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -22,6 +23,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])
 
 DISCORD_AUTHORIZE_URL = "https://discord.com/api/v10/oauth2/authorize"
+
+
+@router.get("/api/config")
+async def api_public_config():
+    """Public, non-secret values used by the static website."""
+    try:
+        version = (Path(__file__).resolve().parents[2] / "VERSION").read_text(
+            encoding="utf-8"
+        ).strip()
+    except OSError:
+        version = ""
+    return {
+        "version": version,
+        "inviteUrl": (
+            "https://discord.com/oauth2/authorize"
+            f"?client_id={settings.discord_client_id}"
+            "&scope=bot%20applications.commands&permissions=8"
+        ),
+        "supportUrl": settings.support_url or None,
+    }
 
 
 @router.get("/auth/discord")
@@ -183,19 +204,17 @@ async def api_me_refresh(
 
     try:
         guilds_data = await _dapi.get_user_guilds(user.access_token)
-        manageable = []
+        refreshed_guilds = []
         for g in guilds_data:
-            if not _can_manage_guild(g.get("permissions", 0)):
-                continue
             gid = str(g["id"])
-            manageable.append({
+            refreshed_guilds.append({
                 "id": gid,
                 "name": g.get("name", "Сервер"),
                 "icon": _build_guild_icon_url(gid, g.get("icon")),
-                "canManage": True,
+                "canManage": _can_manage_guild(g.get("permissions", 0)),
                 "botPresent": gid in bot_guild_ids,
             })
-        user.guilds_json = json.dumps(manageable, ensure_ascii=False)
+        user.guilds_json = json.dumps(refreshed_guilds, ensure_ascii=False)
         await db.commit()
     except Exception as e:
         logger.warning("Не удалось обновить список гильдий: %s", e)

@@ -1019,45 +1019,153 @@ def format_sample_name(sample_key):
 
 
 def format_balance_role_sections(guild, member, account):
-    owned_rows = []
-    unavailable_sections = []
+    rows = []
 
-    for role_definition in ROLE_DEFINITIONS:
+    for index, role_definition in enumerate(ROLE_DEFINITIONS):
         role = find_guild_role(guild, role_definition)
         owns_role = has_game_role(member, role_definition["key"], account)
+        icon = get_role_icon(role_definition, role)
+        name = role_definition["name"]
+        role_key = role_definition["key"]
+        branch = "└─" if index == len(ROLE_DEFINITIONS) - 1 else "├─"
 
         if owns_role:
-            icon = get_role_icon(role_definition, role)
-            name = role_definition["name"]
-            if role_definition["key"] == DEALER_ROLE_KEY:
+            if role_key == DEALER_ROLE_KEY:
                 wagon = account["dealer_wagon"]
-                row = f"{icon} {name}: {format_progress_percent(wagon)}"
-            elif role_definition["key"] == MOONSHINER_ROLE_KEY:
+                status = f"повозка {format_progress_percent(wagon)}"
+            elif role_key == MOONSHINER_ROLE_KEY:
                 moonshine = get_moonshine_account(account)
-                bottles = moonshine.get("bottles", 0)
-                row = f"{icon} {name}: {format_moonshine_short(account)}, {bottles}/20 бутылок"
-            elif role_definition["key"] == BOUNTY_ROLE_KEY:
-                row = f"{icon} {name}: {format_bounty_short(account)}"
-            elif role_definition["key"] == NATURALIST_ROLE_KEY:
-                row = f"{icon} {name}: {format_naturalist_short(account)}"
+                status = (
+                    f"ур. {get_moonshine_level(moonshine)}, "
+                    f"бутылки {get_moonshine_bottles(moonshine)}/20, "
+                    f"{format_moonshine_batch_status(moonshine)}"
+                )
+            elif role_key == BOUNTY_ROLE_KEY:
+                bounty = get_bounty_account(account)
+                status = (
+                    f"ур. {bounty['level']}, поймано {format_integer(bounty['captures'])}, "
+                    f"сбежало {format_integer(bounty['escaped'])}"
+                )
+            elif role_key == NATURALIST_ROLE_KEY:
+                naturalist = get_naturalist_account(account)
+                status = (
+                    f"ур. {naturalist['level']}, "
+                    f"образцов {format_integer(count_naturalist_samples(naturalist))}"
+                )
+            elif role_key == "miner":
+                status = format_balance_miner_status(guild, member)
+            elif role_key == "collector":
+                status = f"витрина: {format_collection_showcase(account)}"
             else:
-                row = f"{icon} {name}: {format_progress_percent(100)}"
-            owned_rows.append(row)
-        elif not role_definition["available"]:
-            unavailable_sections.append(f"• {role_definition['name']}")
+                status = "доступ открыт"
+            rows.append(f"{branch} ✅ {icon} **{name}** — {status}")
+        else:
+            lock_reason = (
+                f"не куплено · {format_role_price(get_role_price(role))} · `/roles`"
+                if role_definition.get("available")
+                else "пока недоступно на сервере"
+            )
+            rows.append(
+                f"{branch} {get_lock_emoji()} {icon} **{name}** — {lock_reason}"
+            )
 
-    if owned_rows:
-        owned_sections = [
-            f"{'└─' if index == len(owned_rows) - 1 else '├─'} {row}"
-            for index, row in enumerate(owned_rows)
-        ]
-    else:
-        owned_sections = ["└─ Нет активной профессии"]
+    return "\n".join(rows)
 
-    if not unavailable_sections:
-        unavailable_sections.append("• Нет")
 
-    return "\n".join(owned_sections), "\n".join(unavailable_sections)
+def format_balance_miner_status(guild, member):
+    """Read the miner snapshot from its dedicated persistent store."""
+    miner_cog = bot.get_cog("MinerCog")
+    if miner_cog is None or guild is None:
+        return "доступ открыт · `/mine`"
+    try:
+        player = miner_cog.db.get_player(str(guild.id), str(member.id))
+        depth = max(0, int(player.get("current_depth", 0)))
+        total = max(0, int(player.get("total_mined", 0)))
+        durability = max(0, int(player.get("pickaxe_durability", 0)))
+    except Exception:
+        logging.exception(
+            "Failed to read miner balance snapshot for guild=%s user=%s",
+            getattr(guild, "id", None),
+            getattr(member, "id", None),
+        )
+        return "доступ открыт · `/mine`"
+    return (
+        f"глубина {depth} м, добыто {total}, прочность кирки {durability} · `/mine`"
+    )
+
+
+def format_balance_gang_section(member, account):
+    gang_emoji = economy_data.get("balance_ui_gang", DEFAULT_BALANCE_GANG_EMOJI)
+    gang_name = account.get("gang_name")
+    guild_data = economy_data.current()
+    gangs = guild_data.get("gangs", {})
+    gang = gangs.get(gang_name) if isinstance(gangs, dict) and gang_name else None
+
+    if not isinstance(gang, dict):
+        return (
+            f"{gang_emoji} Банда\n"
+            f"└─ {get_lock_emoji()} Вы не состоите в банде · "
+            "`/gang-create` или приглашение лидера"
+        )
+
+    is_leader = str(gang.get("leader")) == str(member.id)
+    role_name = (
+        gang.get("leader_role_name", "Лидер")
+        if is_leader
+        else gang.get("member_role_name", "Участник")
+    )
+    members = gang.get("members", [])
+    members_count = len(members) if isinstance(members, list) else 0
+    try:
+        gang_cash = float(gang.get("cash", 0.0))
+    except (TypeError, ValueError):
+        gang_cash = 0.0
+    try:
+        gang_gold = float(gang.get("gold", 0.0))
+    except (TypeError, ValueError):
+        gang_gold = 0.0
+    try:
+        gang_level = max(1, int(gang.get("level", 1)))
+    except (TypeError, ValueError):
+        gang_level = 1
+    try:
+        gang_influence = max(0, int(gang.get("influence", 0)))
+    except (TypeError, ValueError):
+        gang_influence = 0
+
+    return (
+        f"{gang_emoji} Банда\n"
+        f"├─ **{gang_name}** [#{gang.get('id', '?')}] · {role_name}\n"
+        f"├─ Уровень: **{gang_level}** · влияние: **{gang_influence}**\n"
+        f"├─ Участников: **{members_count}**\n"
+        f"├─ Общак: **{format_money_plain(gang_cash)} {get_cash_emoji()} / "
+        f"{format_gold_plain(gang_gold)} {get_gold_emoji()}**\n"
+        "└─ Управление: `/gang`"
+    )
+
+
+def format_balance_property_section(account):
+    inventory = account.get("inventory", {})
+    if not isinstance(inventory, dict):
+        inventory = {}
+    owned_items = [
+        (str(item), amount)
+        for item, amount in inventory.items()
+        if item != "safe" and isinstance(amount, (int, float)) and amount > 0
+    ]
+    total_items = sum(int(amount) for _, amount in owned_items)
+    showcase = account.get("collection_showcase", [])
+    if not isinstance(showcase, list):
+        showcase = []
+    showcase_text = ", ".join(str(item) for item in showcase[:3]) or "пусто"
+    if len(showcase) > 3:
+        showcase_text += f" и ещё {len(showcase) - 3}"
+
+    return (
+        "🎒 Имущество\n"
+        f"├─ Каталог: **{len(owned_items)} видов / {total_items} предметов** · `/catalog`\n"
+        f"└─ Витрина: **{showcase_text}**"
+    )
 
 
 def format_account(account):
@@ -1621,7 +1729,17 @@ async def send_embed_response(
     if file is not None:
         kwargs["file"] = file
         
-    await interaction.response.send_message(**kwargs)
+    if interaction.response.is_done():
+        await interaction.followup.send(**kwargs)
+    else:
+        await interaction.response.send_message(**kwargs)
+
+
+async def send_interaction_response(interaction, *args, **kwargs):
+    """Reply safely whether a component was already deferred or not."""
+    if interaction.response.is_done():
+        return await interaction.followup.send(*args, **kwargs)
+    return await interaction.response.send_message(*args, **kwargs)
 
 
 async def send_embed_followup(
@@ -1664,6 +1782,17 @@ async def send_loading_then_edit(
     if file is not None:
         send_kwargs["file"] = file
         
+    if interaction.response.is_done():
+        # The interaction was acknowledged before synchronous PostgreSQL I/O.
+        # Send the result immediately instead of attempting a second response.
+        result_kwargs = {"embed": embed, "ephemeral": ephemeral}
+        if view is not None:
+            result_kwargs["view"] = view
+        if file is not None:
+            result_kwargs["file"] = file
+        await interaction.followup.send(**result_kwargs)
+        return
+
     await interaction.response.send_message(**send_kwargs)
     await asyncio.sleep(delay)
     
@@ -2113,23 +2242,35 @@ def build_balance_embed(guild, member, account, rate):
     cash = account["cash"]
     gold = account["gold"]
     treasure_maps = account["treasure_maps"]
-    role_sections, unavailable_role_sections = format_balance_role_sections(
-        guild, member, account
-    )
+    role_sections = format_balance_role_sections(guild, member, account)
+    gang_section = format_balance_gang_section(member, account)
+    property_section = format_balance_property_section(account)
 
-    gang_name = account.get("gang_name")
-    gang_str = ""
-    gang_emoji = economy_data.get("balance_ui_gang", DEFAULT_BALANCE_GANG_EMOJI)
-    if gang_name:
-        guild_data = economy_data.current()
-        gang = guild_data.get("gangs", {}).get(gang_name, {})
-        gang_id = gang.get("id", "N/A")
-        is_leader = gang.get("leader") == member.id
-        role_name = gang.get("leader_role_name", "Лидер") if is_leader else gang.get("member_role_name", "Участник")
-        gang_str = f"{gang_emoji} Фракция: **{gang_name}** [#{gang_id}] ({role_name})\n\n"
-
-    has_safe = account.get("inventory", {}).get("safe", 0) > 0
-    safe_icon = "" if has_safe else f"{get_lock_emoji()} "
+    inventory = account.get("inventory", {})
+    if not isinstance(inventory, dict):
+        inventory = {}
+    try:
+        has_safe = float(inventory.get("safe", 0)) > 0
+    except (TypeError, ValueError):
+        has_safe = False
+    try:
+        safe_cash = max(0.0, float(account.get("safe_cash", 0.0)))
+    except (TypeError, ValueError):
+        safe_cash = 0.0
+    try:
+        safe_gold = max(0.0, float(account.get("safe_gold", 0.0)))
+    except (TypeError, ValueError):
+        safe_gold = 0.0
+    if has_safe:
+        safe_line = (
+            f"├─ {get_safe_emoji()} Сейф: "
+            f"{format_number(safe_cash)} {get_cash_emoji()} / "
+            f"{format_number(safe_gold)} {get_gold_emoji()}"
+        )
+    else:
+        safe_line = (
+            f"├─ {get_lock_emoji()} {get_safe_emoji()} Сейф не куплен · `/catalog`"
+        )
 
     fin_emoji = economy_data.get("balance_ui_finance", DEFAULT_BALANCE_FINANCE_EMOJI)
     roles_emoji = economy_data.get("balance_ui_roles", DEFAULT_BALANCE_ROLES_EMOJI)
@@ -2139,16 +2280,18 @@ def build_balance_embed(guild, member, account, rate):
         f"{fin_emoji} Финансы\n"
         f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
         f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
-        f"├─ {safe_icon}{get_safe_emoji()}Сейф: {format_number(account.get('safe_cash', 0.0))}{get_cash_emoji()}/{format_number(account.get('safe_gold', 0.0))}{get_gold_emoji()}\n"
+        f"{safe_line}\n"
         f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
-        f"{gang_str}"
-        f"{roles_emoji} Роли\n"
+        f"{gang_section}\n\n"
+        f"{roles_emoji} Профессии\n"
         f"{role_sections}\n"
-        "\n"
+        f"\n{property_section}\n\n"
+        "🧭 Активности\n"
+        "├─ Заработок: `/work` · ограбление: `/rob`\n"
+        f"├─ Раскопки: {'`/excavation`' if treasure_maps > 0 else f'{get_lock_emoji()} нужна карта сокровищ'}\n"
+        "└─ Игры: `/dice` · `/poker` · `/blackjack`\n\n"
         f"{eco_emoji} Экономика\n"
-        f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
-        f"{get_lock_emoji()} Недоступные роли\n"
-        f"{unavailable_role_sections}\n"
+        f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}"
     )
     embed = discord.Embed(
         title=f"{get_stats_emoji()}Статистика: {member.display_name}",
@@ -2157,6 +2300,7 @@ def build_balance_embed(guild, member, account, rate):
     )
     if os.path.exists(BALANCE_IMAGE_FILE):
         embed.set_image(url=f"attachment://{BALANCE_IMAGE_ATTACHMENT_NAME}")
+    embed.set_footer(text="Закрытые профессии открываются через /roles.")
     return embed
 
 
@@ -2709,13 +2853,16 @@ async def ensure_moonshiner(interaction):
         save_economy()
 
     await interaction.response.send_message(
-        "Команда доступна только роли **Самогонщик**. Купить её можно через `/roles`.",
+        get_custom_message("role_required").format(role="Самогонщик"),
         ephemeral=True,
     )
     return None
 
 
 async def deliver_moonshine_batch(interaction):
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=True)
+
     async with economy_lock:
         account = get_account(interaction.user.id)
         moonshine = get_moonshine_account(account)
@@ -2775,6 +2922,24 @@ class MoonshineOwnerView(discord.ui.View):
             return False
         return True
 
+    async def on_error(self, interaction, error, item):
+        logging.error(
+            "Moonshine UI failed for user=%s guild=%s item=%s",
+            getattr(interaction.user, "id", None),
+            interaction.guild_id,
+            getattr(item, "custom_id", type(item).__name__),
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        try:
+            await send_interaction_response(
+                interaction,
+                "Не удалось выполнить действие самогонщика. "
+                "Откройте `/moonshine` заново и повторите.",
+                ephemeral=True,
+            )
+        except discord.HTTPException:
+            pass
+
 
 class MoonshineMashSelect(discord.ui.Select):
     def __init__(self, moonshine):
@@ -2807,7 +2972,19 @@ class MoonshineMashSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         recipe = get_moonshine_mash_recipe(self.values[0])
+        if recipe is None:
+            await send_embed_response(
+                interaction,
+                "Рецепт устарел",
+                "Откройте `/moonshine` заново и повторите выбор.",
+                ephemeral=True,
+            )
+            return
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
@@ -2904,6 +3081,9 @@ class MoonshineSpecialSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         if self.values[0] == "none":
             await send_embed_response(
                 interaction,
@@ -2914,6 +3094,15 @@ class MoonshineSpecialSelect(discord.ui.Select):
             return
 
         recipe = get_moonshine_special_recipe(self.values[0])
+        if recipe is None:
+            await send_embed_response(
+                interaction,
+                "Рецепт устарел",
+                "Откройте `/moonshine` заново и повторите выбор.",
+                ephemeral=True,
+            )
+            return
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
@@ -3008,19 +3197,24 @@ class MoonshineSpecialView(MoonshineOwnerView):
 class MoonshineUpgradeView(MoonshineOwnerView):
     @discord.ui.button(label="Конденсатор $825", style=discord.ButtonStyle.success)
     async def condenser_button(self, interaction, button):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
             if moonshine.get("has_condenser"):
                 save_economy()
-                await interaction.response.send_message(
+                await send_interaction_response(
+                    interaction,
                     "Конденсатор уже куплен.", ephemeral=True
                 )
                 return
 
             if account["cash"] + 0.0001 < MOONSHINE_CONDENSER_PRICE:
                 save_economy()
-                await interaction.response.send_message(
+                await send_interaction_response(
+                    interaction,
                     f"Не хватает денег. Нужно **{format_money(MOONSHINE_CONDENSER_PRICE)}**, "
                     f"у вас **{format_money(account['cash'])}**.",
                     ephemeral=True,
@@ -3032,33 +3226,40 @@ class MoonshineUpgradeView(MoonshineOwnerView):
             set_moonshine_level(moonshine, 2)
             save_economy()
 
-        await interaction.response.send_message(
+        await send_interaction_response(
+            interaction,
             "Конденсатор куплен. Открыт самогон **2 уровня**.",
             ephemeral=True,
         )
 
     @discord.ui.button(label="Медный дистиллятор $875", style=discord.ButtonStyle.success)
     async def distiller_button(self, interaction, button):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
             if moonshine.get("has_distiller"):
                 save_economy()
-                await interaction.response.send_message(
+                await send_interaction_response(
+                    interaction,
                     "Медный дистиллятор уже куплен.", ephemeral=True
                 )
                 return
 
             if not moonshine.get("has_condenser"):
                 save_economy()
-                await interaction.response.send_message(
+                await send_interaction_response(
+                    interaction,
                     "Сначала купите конденсатор для 2 уровня.", ephemeral=True
                 )
                 return
 
             if account["cash"] + 0.0001 < MOONSHINE_DISTILLER_PRICE:
                 save_economy()
-                await interaction.response.send_message(
+                await send_interaction_response(
+                    interaction,
                     f"Не хватает денег. Нужно **{format_money(MOONSHINE_DISTILLER_PRICE)}**, "
                     f"у вас **{format_money(account['cash'])}**.",
                     ephemeral=True,
@@ -3070,7 +3271,8 @@ class MoonshineUpgradeView(MoonshineOwnerView):
             set_moonshine_level(moonshine, 3)
             save_economy()
 
-        await interaction.response.send_message(
+        await send_interaction_response(
+            interaction,
             "Медный дистиллятор куплен. Открыт самогон **3 уровня**.",
             ephemeral=True,
         )
@@ -3087,6 +3289,9 @@ class MoonshineMainView(MoonshineOwnerView):
 
     @discord.ui.button(label="Выбрать бражку", style=discord.ButtonStyle.primary, row=0)
     async def choose_mash_button(self, interaction, button):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
@@ -3096,14 +3301,17 @@ class MoonshineMainView(MoonshineOwnerView):
 
         image = get_moonshine_image_file()
         if image:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=embed, view=view, file=image, ephemeral=True
             )
         else:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="Добавить особые ингредиенты", style=discord.ButtonStyle.primary, row=0)
     async def special_button(self, interaction, button):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
@@ -3113,14 +3321,17 @@ class MoonshineMainView(MoonshineOwnerView):
 
         image = get_moonshine_image_file()
         if image:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=embed, view=view, file=image, ephemeral=True
             )
         else:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="Купить улучшения", style=discord.ButtonStyle.secondary, row=0)
     async def upgrades_button(self, interaction, button):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             moonshine = get_moonshine_account(account)
@@ -3140,14 +3351,14 @@ class MoonshineMainView(MoonshineOwnerView):
             embed.set_image(url=f"attachment://{MOONSHINE_IMAGE_ATTACHMENT_NAME}")
         image = get_moonshine_image_file()
         if image:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=embed,
                 view=MoonshineUpgradeView(interaction.user.id),
                 file=image,
                 ephemeral=True,
             )
         else:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=embed,
                 view=MoonshineUpgradeView(interaction.user.id),
                 ephemeral=True,
@@ -3159,12 +3370,15 @@ class MoonshineMainView(MoonshineOwnerView):
 
     @discord.ui.button(label="Обновить", style=discord.ButtonStyle.secondary, row=1)
     async def refresh_button(self, interaction, button):
+        if not interaction.response.is_done():
+            await interaction.response.defer()
+
         async with economy_lock:
             account = get_account(interaction.user.id)
             embed = build_moonshine_embed(interaction.guild, account)
             save_economy()
 
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             embed=embed, view=MoonshineMainView(interaction.user.id)
         )
 
@@ -3389,6 +3603,8 @@ async def slash_error(interaction: discord.Interaction, error):
 
 
 @bot.tree.command(name="news", description="Опубликовать новость через красивый Embed")
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.checks.has_permissions(manage_guild=True)
 @app_commands.describe(
     title="Главный заголовок новости",
     content="Основной текст новости (используйте \\n для переноса строк)",
@@ -3465,7 +3681,27 @@ async def news_command(
     embed.set_footer(text=f"Автор: {author_name}", icon_url=author_icon)
     embed.timestamp = discord.utils.utcnow()
 
-    await interaction.response.send_message(embed=embed)
+    guild_data = economy_data.guild_data(interaction.guild_id)
+    configured_channel_id = guild_data.get("news_channel_id")
+    target_channel = None
+    if configured_channel_id and interaction.guild:
+        target_channel = interaction.guild.get_channel(int(configured_channel_id))
+
+    if target_channel and target_channel.id != interaction.channel_id:
+        try:
+            await target_channel.send(embed=embed)
+        except (discord.Forbidden, discord.HTTPException):
+            await interaction.response.send_message(
+                "Не удалось опубликовать новость: проверьте доступ бота к выбранному каналу.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            f"Новость опубликована в {target_channel.mention}.",
+            ephemeral=True,
+        )
+    else:
+        await interaction.response.send_message(embed=embed)
 
 
 
@@ -4180,7 +4416,7 @@ async def dealer_command(interaction: discord.Interaction):
             await send_embed_response(
                 interaction,
                 "Нужна роль",
-                "Команда доступна только роли **Торговец**. Купить её можно через `/roles`.",
+                get_custom_message("role_required").format(role="Торговец"),
                 ephemeral=True,
             )
             return
@@ -4249,7 +4485,7 @@ async def dealer_delivery_command(interaction: discord.Interaction):
             await send_embed_response(
                 interaction,
                 "Нужна роль",
-                "Команда доступна только роли **Торговец**. Купить её можно через `/roles`.",
+                get_custom_message("role_required").format(role="Торговец"),
                 ephemeral=True,
             )
             return
@@ -4302,7 +4538,7 @@ async def moonshine_command(interaction: discord.Interaction):
         if not has_game_role(interaction.user, MOONSHINER_ROLE_KEY, account):
             save_economy()
             await interaction.followup.send(
-                "Команда доступна только роли **Самогонщик**. Купить её можно через `/roles`.",
+                get_custom_message("role_required").format(role="Самогонщик"),
                 ephemeral=True,
             )
             return

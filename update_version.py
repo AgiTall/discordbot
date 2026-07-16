@@ -47,9 +47,9 @@ def update_version():
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        # Регулярки для поиска старых версий (вида vX.X.X.X или X.X.X.X)
-        pattern_v = re.compile(r"v\d+\.\d+\.\d+\.\d+")
-        pattern_num = re.compile(r"(?<!v)\b\d+\.\d+\.\d+\.\d+\b")
+        # Поддерживаем и semver (1.2.3), и расширенную версию (1.2.3.4).
+        pattern_v = re.compile(r"v\d+(?:\.\d+){2,3}")
+        pattern_num = re.compile(r"(?<!v)\b\d+(?:\.\d+){2,3}\b")
         
         # Ищем все файлы, где нужно обновить версию
         files_to_update = glob.glob("docs/*.html") + glob.glob("docs/js/*.js") + ["src/web_routes.py"]

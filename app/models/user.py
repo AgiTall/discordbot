@@ -21,7 +21,7 @@ class UserSession(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
 
     # Discord identity
-    discord_id: Mapped[str] = mapped_column(String(32), index=True)
+    discord_id: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     username: Mapped[str] = mapped_column(String(128))
     global_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     avatar: Mapped[str | None] = mapped_column(String(256), nullable=True)

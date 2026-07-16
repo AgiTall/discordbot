@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.schemas.billing import (
     CreateSessionRequest,
@@ -24,11 +24,12 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 @router.post("/create-session", response_model=CreateSessionResponse)
 async def create_session(
     body: CreateSessionRequest,
+    request: Request,
     user: CurrentUser,
     db: DbSession,
 ):
     """Create a mock payment session and return a payment link."""
-    await require_guild_access(body.guild_id, user)
+    await require_guild_access(body.guild_id, user, request)
     session_id, payment_url = await billing_service.create_payment_session(
         body.guild_id, db
     )

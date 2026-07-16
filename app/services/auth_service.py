@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -81,17 +82,18 @@ async def create_session_from_code(
     user_data = await discord_api.get_user(access_token)
     guilds_data = await discord_api.get_user_guilds(access_token)
 
-    # Step 3: filter manageable guilds
-    manageable = []
+    # Step 3: keep every guild for the player profile.  The dashboard filters
+    # this list to manageable guilds, while authorization itself is verified
+    # live against Discord before every protected action.
+    guilds = []
     for g in guilds_data:
-        if not _can_manage_guild(g.get("permissions", 0)):
-            continue
         gid = str(g["id"])
-        manageable.append({
+        can_manage = _can_manage_guild(g.get("permissions", 0))
+        guilds.append({
             "id": gid,
             "name": g.get("name", "Сервер"),
             "icon": _build_guild_icon_url(gid, g.get("icon")),
-            "canManage": True,
+            "canManage": can_manage,
             "botPresent": gid in bot_guild_ids,
         })
 
@@ -100,6 +102,7 @@ async def create_session_from_code(
     stmt = select(UserSession).where(UserSession.discord_id == discord_id)
     result = await db.execute(stmt)
     session_row = result.scalar_one_or_none()
+    is_new_session = session_row is None
 
     new_session_token = secrets.token_urlsafe(48)
 
@@ -111,7 +114,7 @@ async def create_session_from_code(
         session_row.refresh_token = refresh_token
         session_row.token_expires_at = token_expires_at
         session_row.session_token = new_session_token
-        session_row.guilds_json = json.dumps(manageable, ensure_ascii=False)
+        session_row.guilds_json = json.dumps(guilds, ensure_ascii=False)
         session_row.last_seen_at = datetime.now(timezone.utc)
     else:
         session_row = UserSession(
@@ -123,11 +126,34 @@ async def create_session_from_code(
             refresh_token=refresh_token,
             token_expires_at=token_expires_at,
             session_token=new_session_token,
-            guilds_json=json.dumps(manageable, ensure_ascii=False),
+            guilds_json=json.dumps(guilds, ensure_ascii=False),
         )
         db.add(session_row)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        if not is_new_session:
+            raise
+
+        # A second OAuth callback for the same Discord account may have
+        # inserted the row after our SELECT.  The unique constraint makes that
+        # race safe; update the winning row so the most recent login wins.
+        await db.rollback()
+        result = await db.execute(
+            select(UserSession).where(UserSession.discord_id == discord_id)
+        )
+        session_row = result.scalar_one()
+        session_row.username = user_data.get("username", "")
+        session_row.global_name = user_data.get("global_name")
+        session_row.avatar = user_data.get("avatar")
+        session_row.access_token = access_token
+        session_row.refresh_token = refresh_token
+        session_row.token_expires_at = token_expires_at
+        session_row.session_token = new_session_token
+        session_row.guilds_json = json.dumps(guilds, ensure_ascii=False)
+        session_row.last_seen_at = datetime.now(timezone.utc)
+        await db.commit()
     await db.refresh(session_row)
 
     signed = sign_session_token(new_session_token)

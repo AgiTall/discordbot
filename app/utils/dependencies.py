@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Annotated
 
@@ -63,21 +62,42 @@ async def get_current_user(
 async def require_guild_access(
     guild_id: str,
     user: UserSession,
+    request: Request,
 ) -> bool:
-    """Check that the user has MANAGE_GUILD or ADMINISTRATOR for guild_id.
+    """Check the user's current Discord permissions for ``guild_id``.
 
-    Raises 403 if access is denied.
+    Cached OAuth guild data is deliberately not trusted here: permissions can
+    be revoked while the dashboard session is still valid.  The bot's REST
+    API is used so the decision does not depend on the member cache.
     """
-    guilds = []
-    if user.guilds_json:
-        try:
-            guilds = json.loads(user.guilds_json)
-        except (json.JSONDecodeError, TypeError):
-            guilds = []
+    bot = getattr(request.app.state, "bot", None)
+    if bot is None:
+        raise HTTPException(status_code=503, detail={"error": "Bot offline"})
 
-    for g in guilds:
-        if str(g.get("id")) == str(guild_id) and g.get("canManage"):
-            return True
+    try:
+        guild = bot.get_guild(int(guild_id))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail={"error": "Invalid guild ID"})
+
+    if guild is None:
+        raise HTTPException(status_code=404, detail={"error": "Guild not found"})
+
+    try:
+        member = await guild.fetch_member(int(user.discord_id))
+    except Exception as exc:
+        # Unknown Member (and Discord/API failures) must fail closed.  Falling
+        # back to guilds_json would reintroduce stale authorization.
+        logger.warning(
+            "Could not verify Discord permissions for user %s in guild %s: %s",
+            user.discord_id,
+            guild_id,
+            exc,
+        )
+        raise HTTPException(status_code=403, detail={"error": "Forbidden"})
+
+    permissions = member.guild_permissions
+    if permissions.administrator or permissions.manage_guild:
+        return True
 
     raise HTTPException(status_code=403, detail={"error": "Forbidden"})
 

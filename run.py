@@ -43,7 +43,7 @@ def create_bot() -> commands.Bot:
         logger.info("Bot is ready as %s (ID: %s)", bot.user, bot.user.id)
         logger.info("Connected to %d guilds", len(bot.guilds))
 
-        # ── Whitelist: register all current guilds ────────────
+        # ── Register all current guilds ───────────────────────
         from app.database import async_session
         from app.services.guild_service import sync_bot_guilds
 
@@ -51,7 +51,7 @@ def create_bot() -> commands.Bot:
             bot_guilds = [(str(g.id), g.name) for g in bot.guilds]
             created = await sync_bot_guilds(db, bot_guilds)
             if created:
-                logger.info("Registered %d new guilds with lifetime_free=True", created)
+                logger.info("Registered %d new guilds", created)
 
     return bot
 

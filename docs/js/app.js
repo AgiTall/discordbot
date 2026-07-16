@@ -7,9 +7,9 @@
 // КОНФИГУРАЦИЯ
 // =============================================
 const CONFIG = {
-  botVersion: 'v0.7.0',
-  inviteUrl:  'https://discord.com/oauth2/authorize?client_id=1513810717495525377&scope=bot%20applications.commands&permissions=8',
-  supportUrl: 'https://discord.gg/YOUR_INVITE_CODE',
+  botVersion: '',
+  inviteUrl:  '/auth/discord',
+  supportUrl: '',
   storageKey: 'membot_settings',
   selectedGuildKey: 'membot_selected_guild',
 };
@@ -52,10 +52,31 @@ const COMMANDS = [
   { name: 'bounty-leaderboard', emoji: '🏆', category: 'role', tag: 'role', desc: 'Топ охотников за головами по уровню и количеству поимок.' },
   { name: 'naturalist',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766700904284370.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Натуралист: образцы, справочник животных и магазин транквилизаторов.' },
   { name: 'excavation',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Использовать карту сокровищ для раскопок — найдите клад!' },
+  { name: 'mine',            emoji: '⛏️', category: 'role', tag: 'role', desc: 'Шахтёр: добыча руды, плавка слитков, улучшения и продажа ресурсов.' },
+  { name: 'catalog',         emoji: '📖', category: 'role', tag: 'role', desc: 'Открыть каталог Wheeler, Rawson & Co. и приобрести товары.' },
 
   // ── Игры ──────────────────────────────────
+  { name: 'dice',       emoji: '🎲', category: 'game', tag: 'game', desc: 'Сыграть в кости с ботом.', args: '[ставка]' },
   { name: 'poker',      emoji: '🃏', category: 'game', tag: 'game', desc: 'Сыграть в покер с ботом. Попробуйте обыграть дилера!', args: '[ставка]' },
   { name: 'blackjack',  emoji: '🎲', category: 'game', tag: 'game', desc: 'Сыграть в блэкджек с дилером. Наберите 21, не перебрав!', args: '[ставка]' },
+  { name: 'rob',        emoji: '🗡️', category: 'game', tag: 'game', desc: 'Попытаться ограбить другого игрока с риском получить штраф.', args: '<участник>' },
+
+  // ── Банды и сейф ──────────────────────────
+  { name: 'gang',          emoji: '🔫', category: 'gang', tag: 'gang', desc: 'Открыть панель своей банды.' },
+  { name: 'gang-create',   emoji: '⭐', category: 'gang', tag: 'gang', desc: 'Создать собственную банду за 50 золота.' },
+  { name: 'gang-join',     emoji: '🤝', category: 'gang', tag: 'gang', desc: 'Принять приглашение и вступить в банду.' },
+  { name: 'gang-leave',    emoji: '🚪', category: 'gang', tag: 'gang', desc: 'Покинуть текущую банду.' },
+  { name: 'gang-info',     emoji: '📜', category: 'gang', tag: 'gang', desc: 'Посмотреть статистику банды.' },
+  { name: 'gang-deposit',  emoji: '📥', category: 'gang', tag: 'gang', desc: 'Внести деньги или золото в общак банды.' },
+  { name: 'gang-withdraw', emoji: '📤', category: 'gang', tag: 'gang', desc: 'Снять средства из общака — доступно лидеру.' },
+  { name: 'gang-rob',      emoji: '💣', category: 'gang', tag: 'gang', desc: 'Ограбить общак чужой банды с риском штрафа.' },
+  { name: 'safe-money',    emoji: '🔐', category: 'econ', tag: 'econ', desc: 'Положить деньги или золото в личный сейф.' },
+  { name: 'safe-take-money', emoji: '🔓', category: 'econ', tag: 'econ', desc: 'Забрать деньги или золото из личного сейфа.' },
+
+  // ── Справка ───────────────────────────────
+  { name: 'help',       emoji: '❓', category: 'util', tag: 'util', desc: 'Открыть интерактивную справку по возможностям бота.' },
+  { name: 'version',    emoji: '🏷️', category: 'util', tag: 'util', desc: 'Показать установленную версию бота.' },
+  { name: 'status',     emoji: '🟢', category: 'util', tag: 'util', desc: 'Показать версию, число серверов и задержку.' },
 
   // ── Администрирование ─────────────────────
   { name: 'check',       emoji: '🔍', category: 'admin', tag: 'admin', desc: 'Показать баланс участника.', args: '<участник>' },
@@ -68,8 +89,32 @@ const COMMANDS = [
   { name: 'give-map',    emoji: '🗺️', category: 'admin', tag: 'admin', desc: 'Выдать карты сокровищ участнику или всем.', args: '<участник|all> [количество]' },
   { name: 'remove-map',  emoji: '🗺️', category: 'admin', tag: 'admin', desc: 'Забрать карты сокровищ у участника или всех.', args: '<участник|all> [количество]' },
   { name: 'set-rate',    emoji: '📊', category: 'admin', tag: 'admin', desc: 'Установить курс золота вручную.', args: '<курс>' },
-  { name: 'reset',       emoji: '⚠️', category: 'admin', tag: 'admin', desc: 'Полный сброс экономики сервера (требует подтверждения).' },
-  { name: 'set-channel', emoji: '📡', category: 'admin', tag: 'admin', desc: 'Указать каналы новостей для публикации анонсов.' },
+  { name: 'reset-all',   emoji: '⚠️', category: 'admin', tag: 'admin', desc: 'Полный сброс экономики сервера с подтверждением.' },
+  { name: 'news',        emoji: '📰', category: 'admin', tag: 'admin', desc: 'Опубликовать оформленную новость в настроенный канал.' },
+  { name: 'treasure-channel', emoji: '🗺️', category: 'admin', tag: 'admin', desc: 'Настроить канал ежедневных карт сокровищ.' },
+  { name: 'treasure-event', emoji: '✨', category: 'admin', tag: 'admin', desc: 'Выдать игрокам карты и объявить событие.' },
+  { name: 'threads-on',  emoji: '🧵', category: 'admin', tag: 'admin', desc: 'Включить автоматические ветки в канале.' },
+  { name: 'threads-off', emoji: '✂️', category: 'admin', tag: 'admin', desc: 'Выключить автоматические ветки в канале.' },
+  { name: 'gang-admin',  emoji: '🛡️', category: 'admin', tag: 'admin', desc: 'Открыть панель управления бандами сервера.' },
+  { name: 'set-discount-shop', emoji: '🏷️', category: 'admin', tag: 'admin', desc: 'Установить скидку на товар каталога.' },
+  { name: 'send', emoji: '✉️', category: 'admin', tag: 'admin', desc: 'Отправить участнику личное сообщение от имени бота.' },
+  { name: 'delete-role', emoji: '🗑️', category: 'admin', tag: 'admin', desc: 'Удалить игровую роль у участника.' },
+  { name: 'restart-roles', emoji: '🔄', category: 'admin', tag: 'admin', desc: 'Повторно проверить и выдать игровые роли.' },
+  { name: 'auto-thread', emoji: '🧵', category: 'admin', tag: 'admin', desc: 'Переключить авто-ветки в текущем канале.' },
+  { name: 'set-icon-roles', emoji: '🎭', category: 'admin', tag: 'admin', desc: 'Настроить эмодзи игровых ролей.' },
+  { name: 'set-discounts-roles', emoji: '🏷️', category: 'admin', tag: 'admin', desc: 'Установить временную скидку на игровую роль.' },
+  { name: 'clear-discounts-roles', emoji: '✖️', category: 'admin', tag: 'admin', desc: 'Убрать скидку с игровой роли.' },
+  { name: 'fill-dealer', emoji: '📦', category: 'admin', tag: 'admin', desc: 'Изменить заполнение торговой повозки.' },
+  { name: 'give-moonshine-ingredient', emoji: '🍎', category: 'admin', tag: 'admin', desc: 'Выдать ингредиент самогонщика.' },
+  { name: 'remove-moonshine-ingredient', emoji: '🧺', category: 'admin', tag: 'admin', desc: 'Забрать ингредиент самогонщика.' },
+  { name: 'set-moonshine-upgrade', emoji: '⚗️', category: 'admin', tag: 'admin', desc: 'Установить уровень оборудования самогонщика.' },
+  { name: 'set-moonshine-skill', emoji: '⭐', category: 'admin', tag: 'admin', desc: 'Включить или выключить навык самогонщика.' },
+  { name: 'finish-moonshine', emoji: '✅', category: 'admin', tag: 'admin', desc: 'Мгновенно завершить текущую партию.' },
+  { name: 'reset-moonshine', emoji: '♻️', category: 'admin', tag: 'admin', desc: 'Сбросить состояние предприятия самогонщика.' },
+  { name: 'set-emoji', emoji: '😀', category: 'admin', tag: 'admin', desc: 'Настроить эмодзи валют, кнопок и ролей.' },
+  { name: 'set-message', emoji: '📝', category: 'admin', tag: 'admin', desc: 'Изменить системные сообщения бота.' },
+  { name: 'reset-work', emoji: '⏱️', category: 'admin', tag: 'admin', desc: 'Сбросить перезарядку команды /work.' },
+  { name: 'reset-dealer', emoji: '🚚', category: 'admin', tag: 'admin', desc: 'Сбросить перезарядку торговой доставки.' },
 ];
 
 // =============================================
@@ -111,6 +156,16 @@ function buildLevelsTable() {
 /** Форматировать число с пробелом-разделителем */
 function fmtNum(n) {
   return n.toLocaleString('ru-RU');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  })[character]);
 }
 
 /** Активная страница из URL */
@@ -170,11 +225,38 @@ async function fetchMe() {
   return res.json();
 }
 
+async function loadPublicConfig() {
+  try {
+    const response = await fetch('/api/config');
+    if (!response.ok) return;
+    const config = await response.json();
+    if (config.inviteUrl) CONFIG.inviteUrl = config.inviteUrl;
+    if (config.supportUrl) CONFIG.supportUrl = config.supportUrl;
+    if (config.version) {
+      CONFIG.botVersion = config.version.startsWith('v') ? config.version : `v${config.version}`;
+      document.querySelectorAll('.navbar__badge, .footer__version').forEach(element => {
+        element.textContent = CONFIG.botVersion;
+      });
+    }
+  } catch (error) {
+    console.warn('Public config unavailable', error);
+  }
+}
+
+function apiErrorMessage(payload, fallback) {
+  const detail = payload?.detail ?? payload?.error;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (detail && typeof detail === 'object') {
+    return detail.error || detail.message || fallback;
+  }
+  return fallback;
+}
+
 async function loadGuildSettings(guildId) {
   const res = await fetch(`/api/guilds/${guildId}/settings`, { credentials: 'same-origin' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to load settings');
+    throw new Error(apiErrorMessage(err, 'Не удалось загрузить настройки'));
   }
   return res.json();
 }
@@ -188,7 +270,7 @@ async function saveGuildSettings(guildId, data) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || err.detail || 'Failed to save settings');
+    throw new Error(apiErrorMessage(err, 'Не удалось сохранить настройки'));
   }
   return res.json();
 }
@@ -217,7 +299,7 @@ async function saveRankRoles(guildId, cards) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Не удалось сохранить ранговые роли');
+    throw new Error(apiErrorMessage(err, 'Не удалось сохранить ранговые роли'));
   }
   return res.json();
 }
@@ -292,7 +374,7 @@ function renderUserBadge(container) {
     : '<span class="user-badge__avatar user-badge__avatar--placeholder"></span>';
   container.innerHTML = `
     ${avatar}
-    <span class="user-badge__name">${authState.user.global_name || authState.user.username}</span>
+    <span class="user-badge__name">${escapeHtml(authState.user.global_name || authState.user.username)}</span>
   `;
 }
 
@@ -303,8 +385,9 @@ function renderGuildPicker() {
 
   renderUserBadge(document.getElementById('userBadge'));
 
-  const available = authState.guilds.filter(g => g.botPresent);
-  const unavailable = authState.guilds.filter(g => !g.botPresent);
+  const manageable = authState.guilds.filter(g => g.canManage);
+  const available = manageable.filter(g => g.botPresent);
+  const unavailable = manageable.filter(g => !g.botPresent);
 
   grid.innerHTML = '';
 
@@ -316,7 +399,7 @@ function renderGuildPicker() {
     const icon = guild.icon
       ? `<img src="${guild.icon}" alt="" class="guild-card__icon">`
       : '<div class="guild-card__icon guild-card__icon--placeholder"></div>';
-    card.innerHTML = `${icon}<span class="guild-card__name">${guild.name}</span>`;
+    card.innerHTML = `${icon}<span class="guild-card__name">${escapeHtml(guild.name)}</span>`;
     card.addEventListener('click', () => selectGuild(guild.id));
     grid.appendChild(card);
   });
@@ -331,12 +414,12 @@ function renderGuildPicker() {
     const icon = guild.icon
       ? `<img src="${guild.icon}" alt="" class="guild-card__icon">`
       : '<div class="guild-card__icon guild-card__icon--placeholder"></div>';
-    card.innerHTML = `${icon}<span class="guild-card__name">${guild.name}</span><span class="guild-card__badge">Добавить бота</span>`;
+    card.innerHTML = `${icon}<span class="guild-card__name">${escapeHtml(guild.name)}</span><span class="guild-card__badge">Добавить бота</span>`;
     grid.appendChild(card);
   });
 
   if (empty) {
-    empty.hidden = authState.guilds.length > 0;
+    empty.hidden = manageable.length > 0;
   }
 
   // ── Кнопка «Обновить список» ──────────────────────────
@@ -435,7 +518,7 @@ function renderCurrentGuildBadge() {
   const icon = guild.icon
     ? `<img src="${guild.icon}" alt="" class="guild-card__icon">`
     : '<div class="guild-card__icon guild-card__icon--placeholder"></div>';
-  badge.innerHTML = `${icon}<span>${guild.name}</span>`;
+  badge.innerHTML = `${icon}<span>${escapeHtml(guild.name)}</span>`;
 }
 
 // =============================================
@@ -452,6 +535,8 @@ function setUnsaved(val) {
 function trackChanges() {
   // Слушаем все поля формы
   document.querySelectorAll('[data-setting]').forEach(el => {
+    if (el.dataset.changeTrackingBound) return;
+    el.dataset.changeTrackingBound = 'true';
     el.addEventListener('change', () => setUnsaved(true));
     el.addEventListener('input', () => setUnsaved(true));
   });
@@ -461,12 +546,12 @@ function trackChanges() {
 // DASHBOARD UI
 // =============================================
 
-let economyStatsLoaded = false;
+let economyStatsGuildId = null;
 let wealthChartInstance = null;
 let gangsChartInstance = null;
 
 async function loadEconomyStats(guildId) {
-  if (economyStatsLoaded) return;
+  if (String(economyStatsGuildId) === String(guildId)) return;
   const tbody = document.getElementById("leaderboardTbody");
   if (!tbody) return;
   
@@ -483,7 +568,7 @@ async function loadEconomyStats(guildId) {
         tr.style.borderBottom = "1px solid var(--border)";
         tr.innerHTML = `
           <td style="padding:10px;color:var(--text-muted);">${i + 1}</td>
-          <td style="padding:10px;font-weight:bold;color:var(--gold);">${u.name}</td>
+          <td style="padding:10px;font-weight:bold;color:var(--gold);">${escapeHtml(u.name)}</td>
           <td style="padding:10px;">${u.level}</td>
           <td style="padding:10px;">${u.cash.toLocaleString("ru-RU")}</td>
           <td style="padding:10px;">${u.gold.toLocaleString("ru-RU")}</td>
@@ -572,7 +657,7 @@ async function loadEconomyStats(guildId) {
       });
     }
 
-    economyStatsLoaded = true;
+    economyStatsGuildId = guildId;
   } catch (err) {
     console.error("Failed to load economy stats:", err);
     tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:10px;text-align:center;color:#d93838;\">Ошибка загрузки</td></tr>";
@@ -591,18 +676,23 @@ function setupDashboardUi(settings) {
 
   hideSkeletonLoader();
   applySettingsToForm(settings);
+  renderSetupHealth(settings);
   
   // Предзагрузка каналов и ролей сервера для UI
   if (authState.selectedGuildId) {
     guildRolesCache = [];
     guildChannelsCache = [];
     guildEmojisCache = [];
+    guildRolesPromise = null;
+    guildChannelsPromise = null;
+    guildEmojisPromise = null;
     Promise.all([
       fetchGuildRoles(authState.selectedGuildId),
       fetchGuildChannels(authState.selectedGuildId),
       fetchGuildEmojis(authState.selectedGuildId)
     ]).then(([roles, channels, emojis]) => {
       populateChannelSelects(channels);
+      populateRoleSelects(roles);
       populateEmojiSelects(emojis);
       applySettingsToForm(settings); // Применяем настройки после загрузки каналов
       initRankRoleEditor(settings);
@@ -663,6 +753,7 @@ function setupDashboardUi(settings) {
             showToast(toast, 'Настройки сохранены! ✓');
             // Обновляем экономику после сохранения
             updateEconomySection(data);
+            renderSetupHealth(data);
           }
         } catch (err) {
           showToast(toast, 'Ошибка: ' + err.message, true);
@@ -727,6 +818,7 @@ function initXpCalculator() {
 }
 
 async function selectGuild(guildId) {
+  economyStatsGuildId = null;
   setSelectedGuildId(guildId);
   showDashboard();
   showSkeletonLoader();
@@ -786,7 +878,7 @@ async function initDashboardAuth() {
     }
 
     const savedGuild = getSelectedGuildId();
-    if (savedGuild && authState.guilds.some(g => String(g.id) === String(savedGuild) && g.botPresent)) {
+    if (savedGuild && authState.guilds.some(g => String(g.id) === String(savedGuild) && g.botPresent && g.canManage)) {
       await selectGuild(savedGuild);
     } else {
       showGuildPicker();
@@ -820,11 +912,11 @@ async function saveSettings(data) {
   const settingsData = { ...data };
   delete settingsData.rankRoles;
 
-  // Ранговые роли сохраняем без блокировки — ошибка там не ломает основной сейв
-  const result = await saveGuildSettings(authState.selectedGuildId, settingsData);
-  saveRankRoles(authState.selectedGuildId, rankRolesData).catch(e =>
-    console.warn('Rank roles save failed (non-fatal):', e)
-  );
+  // Успех показывается только после сохранения обеих частей конфигурации.
+  const [result] = await Promise.all([
+    saveGuildSettings(authState.selectedGuildId, settingsData),
+    saveRankRoles(authState.selectedGuildId, rankRolesData),
+  ]);
   return result.status === 'ok';
 }
 
@@ -1024,11 +1116,11 @@ function addRankRoleCard(list, level = '', roleId = '', removeRoleId = '') {
       <label>Выдаётся роль</label>
       <div style="padding: 6px 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 4px; display: flex; align-items: center; gap: 8px;">
         <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:${roleColor}"></span>
-        <span style="font-family:'Helvetica Neue', sans-serif; font-size:0.85rem">${roleName}</span>
+        <span style="font-family:'Helvetica Neue', sans-serif; font-size:0.85rem">${escapeHtml(roleName)}</span>
       </div>
       <label style="margin-top: 8px;">Изымается роль</label>
       <div style="padding: 4px 12px; background: rgba(0,0,0,0.1); border: 1px solid var(--border); border-radius: 4px; font-family:'Helvetica Neue', sans-serif; font-size:0.75rem; color:var(--text-muted)">
-        ${removeRoleName}
+        ${escapeHtml(removeRoleName)}
       </div>
       <div class="rank-role-card__error"></div>
     </div>
@@ -1187,22 +1279,129 @@ async function fetchGuildChannels(guildId) {
 }
 
 function populateChannelSelects(channels) {
-  const optionsHtml = '<option value="">Не выбран (или выберите из списка)</option>' + 
-    channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
-    
+  const channelOptions = channels
+    .filter(c => [0, 5].includes(Number(c.type)))
+    .map(c => `<option value="${c.id}"># ${escapeHtml(c.name)}</option>`)
+    .join('');
+
   document.querySelectorAll('select.channel-select').forEach(select => {
-    const currentVal = select.value;
-    select.innerHTML = optionsHtml;
-    if (currentVal && !channels.some(c => String(c.id) === String(currentVal))) {
-        select.innerHTML += `<option value="${currentVal}">ID: ${currentVal}</option>`;
+    const currentValues = select.multiple
+      ? Array.from(select.selectedOptions).map(option => option.value)
+      : [select.value];
+    select.innerHTML = select.multiple
+      ? channelOptions
+      : `<option value="">Не выбран</option>${channelOptions}`;
+    currentValues.filter(Boolean).forEach(currentVal => {
+      if (!channels.some(c => String(c.id) === String(currentVal))) {
+        select.innerHTML += `<option value="${currentVal}">Недоступный канал: ${currentVal}</option>`;
+      }
+    });
+    if (select.multiple) {
+      Array.from(select.options).forEach(option => {
+        option.selected = currentValues.includes(option.value);
+      });
+    } else {
+      select.value = currentValues[0] || '';
     }
-    select.value = currentVal;
   });
 
   const datalist = document.getElementById('channelDatalist');
   if (datalist) {
-    datalist.innerHTML = channels.map(c => `<option value="${c.id}"># ${c.name}</option>`).join('');
+    datalist.innerHTML = channels.map(c => `<option value="${c.id}"># ${escapeHtml(c.name)}</option>`).join('');
   }
+}
+
+function renderSetupHealth(settings) {
+  const checklist = document.getElementById('setupChecklist');
+  if (!checklist || !settings) return;
+
+  const hasIds = value => Array.isArray(value)
+    ? value.length > 0
+    : String(value || '').split(',').some(item => item.trim());
+  const logEventsEnabled = ['logJoin', 'logLeave', 'logBan', 'logDelete', 'logEdit', 'logVoice', 'logCommands']
+    .some(key => Boolean(settings[key]));
+  const checks = [
+    {
+      ok: Boolean(settings.allowAllChannels) || hasIds(settings.commandChannelIds),
+      title: 'Команды доступны игрокам',
+      detail: settings.allowAllChannels ? 'Разрешены во всех каналах' : 'Выбраны командные каналы',
+      missing: 'Выберите каналы или разрешите команды везде',
+      section: 'channels',
+    },
+    {
+      ok: Boolean(settings.treasureChannelId),
+      title: 'Ежедневные карты сокровищ',
+      detail: 'Канал раздачи выбран',
+      missing: 'Канал раздачи ещё не выбран',
+      section: 'channels',
+    },
+    {
+      ok: Boolean(settings.levelupChannelId) || Boolean(settings.levelupDM),
+      title: 'Уведомления об уровнях',
+      detail: settings.levelupDM ? 'Отправляются в личные сообщения' : 'Канал уведомлений выбран',
+      missing: 'Выберите канал или включите личные сообщения',
+      section: 'levels',
+    },
+    {
+      ok: Array.isArray(settings.rankRoles) && settings.rankRoles.length > 0,
+      title: 'Награды за уровни',
+      detail: `Настроено ролей: ${settings.rankRoles?.length || 0}`,
+      missing: 'Добавьте хотя бы одну роль за уровень',
+      section: 'rankroles',
+    },
+    {
+      ok: !settings.welcomeEnabled || Boolean(settings.welcomeChannelId),
+      title: 'Приветствие новичков',
+      detail: settings.welcomeEnabled ? 'Приветствие настроено' : 'Функция пока выключена',
+      missing: 'Приветствие включено, но канал не выбран',
+      section: 'welcome',
+    },
+    {
+      ok: !logEventsEnabled || Boolean(settings.logsChannelId),
+      title: 'Журнал событий',
+      detail: logEventsEnabled ? 'Канал логов выбран' : 'События логов выключены',
+      missing: 'Логи включены, но канал не выбран',
+      section: 'logs',
+    },
+  ];
+
+  const completed = checks.filter(check => check.ok).length;
+  const percent = Math.round((completed / checks.length) * 100);
+  document.getElementById('setupPercent').textContent = `${percent}%`;
+  document.getElementById('setupProgressBar').style.width = `${percent}%`;
+  document.getElementById('setupSummaryText').textContent = percent === 100
+    ? 'Основные функции готовы к запуску'
+    : `Готово ${completed} из ${checks.length} основных пунктов`;
+
+  checklist.innerHTML = checks.map(check => `
+    <div class="setup-check ${check.ok ? '' : 'setup-check--missing'}">
+      <span class="setup-check__state" aria-hidden="true">${check.ok ? '✓' : '!'}</span>
+      <span>
+        <strong>${check.title}</strong>
+        <small>${check.ok ? check.detail : check.missing}</small>
+      </span>
+      <a href="#" class="setup-check__link" data-section-link="${check.section}">${check.ok ? 'Проверить' : 'Настроить'} →</a>
+    </div>
+  `).join('');
+  checklist.querySelectorAll('[data-section-link]').forEach(link => {
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      document.querySelector(`[data-section="${link.dataset.sectionLink}"]`)?.click();
+    });
+  });
+}
+
+function populateRoleSelects(roles) {
+  document.querySelectorAll('select.role-select').forEach(select => {
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">Не выбрана</option>' + roles
+      .map(role => `<option value="${role.id}">${escapeHtml(role.name)}</option>`)
+      .join('');
+    if (currentVal && !roles.some(role => String(role.id) === String(currentVal))) {
+      select.innerHTML += `<option value="${currentVal}">Недоступная роль: ${currentVal}</option>`;
+    }
+    select.value = currentVal;
+  });
 }
 
 let guildEmojisCache = [];
@@ -1245,7 +1444,7 @@ function updateEmojiPreview(selectEl) {
 }
 
 function populateEmojiSelects(emojis) {
-  const customOptions = emojis.map(e => `<option value="${e.format}">${e.name}</option>`).join('');
+  const customOptions = emojis.map(e => `<option value="${escapeHtml(e.format)}">${escapeHtml(e.name)}</option>`).join('');
   document.querySelectorAll('select.emoji-select').forEach(select => {
     const defaultOpt = select.options[0].outerHTML;
     const currentVal = select.value;
@@ -1354,8 +1553,8 @@ async function openRankRoleModal(card = null) {
   removeRoleSelect.innerHTML = '<option value="">Не забирать конкретную роль</option>';
   
   roles.forEach(r => {
-    roleSelect.innerHTML += `<option value="${r.id}" style="color:${r.color}">${r.name}</option>`;
-    removeRoleSelect.innerHTML += `<option value="${r.id}" style="color:${r.color}">${r.name}</option>`;
+    roleSelect.innerHTML += `<option value="${r.id}" style="color:${r.color}">${escapeHtml(r.name)}</option>`;
+    removeRoleSelect.innerHTML += `<option value="${r.id}" style="color:${r.color}">${escapeHtml(r.name)}</option>`;
   });
   
   if (card) {
@@ -1386,14 +1585,27 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Укажите требуемый уровень и выберите роль!');
       return;
     }
+
+    const numericLevel = Number(level);
+    if (!Number.isInteger(numericLevel) || numericLevel < 1 || numericLevel > 100) {
+      alert('Уровень должен быть целым числом от 1 до 100.');
+      return;
+    }
+
+    const duplicate = Array.from(document.querySelectorAll('.rank-role-card'))
+      .some(card => card !== editingRankRoleCard && Number(card.dataset.level) === numericLevel);
+    if (duplicate) {
+      alert(`Для уровня ${numericLevel} роль уже настроена.`);
+      return;
+    }
     
     const list = document.getElementById('rankRolesList');
     
     if (editingRankRoleCard) {
       editingRankRoleCard.remove();
-      addRankRoleCard(list, level, roleId, removeRoleId);
+      addRankRoleCard(list, String(numericLevel), roleId, removeRoleId);
     } else {
-      addRankRoleCard(list, level, roleId, removeRoleId);
+      addRankRoleCard(list, String(numericLevel), roleId, removeRoleId);
     }
     
     setUnsaved(true);
@@ -1427,7 +1639,7 @@ function initCommandsPage() {
 
       visible++;
       const tagClass = `cmd-card__tag--${cmd.tag}`;
-      const tagLabel = { level: 'Уровни', admin: 'Админ', econ: 'Экономика', role: 'Профессия', game: 'Игры', util: 'Утилита' }[cmd.tag] || cmd.tag;
+      const tagLabel = { level: 'Уровни', admin: 'Админ', econ: 'Экономика', role: 'Профессия', game: 'Игры', gang: 'Банды', util: 'Утилита' }[cmd.tag] || cmd.tag;
 
       const card = document.createElement('div');
       card.className = 'cmd-card';
@@ -1505,6 +1717,10 @@ function initHeroButtons() {
     btn.addEventListener('click', () => window.open(CONFIG.inviteUrl, '_blank'));
   });
   document.querySelectorAll('[data-action="support"]').forEach(btn => {
+    if (!CONFIG.supportUrl) {
+      btn.hidden = true;
+      return;
+    }
     btn.addEventListener('click', () => window.open(CONFIG.supportUrl, '_blank'));
   });
 }
@@ -1568,8 +1784,8 @@ async function fetchAndRenderGangs() {
 
       card.innerHTML = `
         <div style="font-weight:600;color:var(--text);font-size:0.95rem;">
-          ${gang.name}
-          <div style="font-size:0.75rem;color:var(--text-muted);font-weight:400;margin-top:2px;">Улучшения: ${Object.keys(gang.camp_upgrades).length}</div>
+          ${escapeHtml(gang.name)}
+          <div style="font-size:0.75rem;color:var(--text-muted);font-weight:400;margin-top:2px;">Улучшения: ${Object.keys(gang.camp_upgrades || {}).length}</div>
         </div>
         <div style="font-size:0.9rem;color:var(--text);font-variant-numeric: tabular-nums;">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;color:var(--text-muted)"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 00-3-3.87"></path><path d="M16 3.13a4 4 0 010 7.75"></path></svg>
@@ -1579,7 +1795,7 @@ async function fetchAndRenderGangs() {
           $${gang.balance.toLocaleString('ru-RU')}
         </div>
         <div style="display:flex;gap:6px;justify-content:flex-end;">
-          <button class="btn btn--secondary btn--sm" style="padding:6px;color:var(--red);border-color:rgba(211,47,47,0.3);background:transparent;" onclick="deleteGang(${gang.id}, '${gang.name.replace(/'/g, "\\'")}')" title="Удалить банду">
+          <button class="btn btn--secondary btn--sm gang-delete-btn" style="padding:6px;color:var(--red);border-color:rgba(211,47,47,0.3);background:transparent;" title="Удалить банду">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" width="16" height="16">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
@@ -1589,6 +1805,7 @@ async function fetchAndRenderGangs() {
           </button>
         </div>
       `;
+      card.querySelector('.gang-delete-btn')?.addEventListener('click', () => deleteGang(gang.id, gang.name));
       container.appendChild(card);
     });
 
@@ -1645,7 +1862,8 @@ function initCookieBanner() {
 // =============================================
 // ИНИЦИАЛИЗАЦИЯ
 // =============================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadPublicConfig();
   markActiveNav();
   initHamburger();
   initHeroButtons();

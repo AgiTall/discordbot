@@ -22,7 +22,7 @@ async def get_guild_roles(
     db: DbSession,
 ):
     """Return the guild's roles (excluding @everyone), sorted by position desc."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
 
     bot = request.app.state.bot
     if not bot:
@@ -63,7 +63,7 @@ async def get_guild_channels(
     db: DbSession,
 ):
     """Return the guild's channels (text, voice, category), sorted by position."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
 
     bot = request.app.state.bot
     if not bot:
@@ -114,7 +114,7 @@ async def get_guild_emojis(
     db: DbSession,
 ):
     """Return the guild's custom emojis."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
 
     bot = request.app.state.bot
     if not bot:
@@ -147,7 +147,7 @@ async def get_guild_stats(
     db: DbSession,
 ):
     """Return economy statistics — leaderboard, gangs, globals."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
 
     bot = request.app.state.bot
     if not bot:

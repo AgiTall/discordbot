@@ -144,7 +144,7 @@ async def sync_bot_guilds(
     db: AsyncSession,
     bot_guilds: list[tuple[str, str]],
 ) -> int:
-    """Register all current bot guilds, setting lifetime_free=True for new ones.
+    """Register all current bot guilds without changing subscription access.
 
     *bot_guilds* is a list of (discord_guild_id, name) tuples.
     Returns the count of newly created guilds.
@@ -157,8 +157,8 @@ async def sync_bot_guilds(
     created = 0
     for gid, name in bot_guilds:
         if gid not in existing_ids:
-            await get_or_create_guild(db, gid, name, lifetime_free=True)
+            await get_or_create_guild(db, gid, name, lifetime_free=False)
             created += 1
 
-    logger.info("Guild sync complete: %d existing, %d newly created (lifetime_free)", len(existing_ids), created)
+    logger.info("Guild sync complete: %d existing, %d newly created", len(existing_ids), created)
     return created

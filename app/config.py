@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # ── Server ────────────────────────────────────────────────
     port: int = 10000
     frontend_url: str = "http://localhost:10000"
+    support_url: str = ""
     debug: bool = False
 
     @field_validator("debug", mode="before")

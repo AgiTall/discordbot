@@ -20,7 +20,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.7.0</span>
+        <span class="navbar__badge">v0.0.7.4.3</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -61,7 +61,7 @@
           <p>Авторизуйтесь, чтобы посмотреть свой профиль игрока и банду.</p>
           <a href="/auth/discord" class="btn btn--discord" id="discordLoginBtn">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M20.317 4.37a19.791 19.791 0 00-4.885-0.7.0 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-0.7.0 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 0.7.0 0 00.084-.028 14.09 14.09 0 001.226-0.7.0 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.0.7.1.292a.077.077 0 01-.006.127 12.299 12.299 0 01-0.7.1 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-0.7.0 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03z" />
+              <path d="M20.317 4.37a19.791 19.791 0 00-4.885-0.7.4.3 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-0.7.4.3 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 0.7.4.3 18.057a.082.082 0 0.7.4.3 19.9 19.9 0 005.993 0.7.4.3 0 00.084-.028 14.09 14.09 0 001.226-0.7.4.3 0 00-.041-.106 13.107 13.107 0 01-1.872-.0.7.4.3 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.0.7.4.3.292a.077.077 0 01-.006.127 12.299 12.299 0 01-0.7.4.3 0 00-.041.107c.0.7.4.3 1.362 1.225 1.993a.076.076 0 0.7.4.3 19.839 19.839 0 006.002-0.7.4.3 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03z" />
             </svg>
             Войти через Discord
           </a>
@@ -89,6 +89,26 @@
 
           <!-- СЕКЦИЯ: ПРОФИЛЬ -->
           <div class="dash-section active" style="margin-top: 20px;">
+            <div class="dash-section__header">
+              <div class="dash-section__icon" aria-hidden="true">💰</div>
+              <div class="dash-section__title">
+                <h2>Ваш персонаж</h2>
+                <p>Экономика и прогресс на выбранном сервере</p>
+              </div>
+            </div>
+            <div class="card" id="playerProfileCard">
+              <div class="rank-roles-empty" id="playerProfileLoading">Загрузка персонажа...</div>
+              <div id="playerProfileContent" hidden>
+                <h3 class="heading-md" id="myDisplayName" style="margin-bottom:18px">Персонаж</h3>
+                <div class="economy-grid">
+                  <div class="economy-stat"><div class="economy-stat__value" id="myCash">$0</div><div class="economy-stat__label">Наличные</div></div>
+                  <div class="economy-stat"><div class="economy-stat__value" id="myGold">0</div><div class="economy-stat__label">Золото</div></div>
+                  <div class="economy-stat"><div class="economy-stat__value" id="myMaps">0</div><div class="economy-stat__label">Карты сокровищ</div></div>
+                  <div class="economy-stat"><div class="economy-stat__value" id="myRoles">0</div><div class="economy-stat__label">Профессий открыто</div></div>
+                </div>
+              </div>
+            </div>
+
             <div class="dash-section__header">
               <div class="dash-section__icon" aria-hidden="true">🤠</div>
               <div class="dash-section__title">
@@ -143,50 +163,64 @@
 
   <script src="js/app.js"></script>
   <script>
-    // Простая инициализация для страницы профиля, переиспользуя функции authState
     document.addEventListener('DOMContentLoaded', async () => {
-      // Это часть логики `initDashboardAuth` но адаптированная для профиля
-      await fetchAuthData();
-      
       const gate = document.getElementById('authGate');
       const picker = document.getElementById('guildPicker');
       const main = document.getElementById('dashboardMain');
       const userBadge = document.getElementById('userBadge');
       const grid = document.getElementById('guildGrid');
-      
-      if (!authState.authenticated) {
+
+      let me;
+      try {
+        me = await fetchMe();
+      } catch (error) {
+        gate.querySelector('p').textContent = 'Не удалось связаться с сервером. Попробуйте обновить страницу.';
+        return;
+      }
+
+      if (!me?.authenticated) {
         gate.removeAttribute('hidden');
         picker.setAttribute('hidden', '');
         main.setAttribute('hidden', '');
         return;
       }
-      
+
+      authState.user = me.user;
+      authState.guilds = me.guilds || [];
       gate.setAttribute('hidden', '');
       picker.removeAttribute('hidden');
-      
+
       if (authState.user) {
-        userBadge.innerHTML = \`<img src="\${authState.user.avatar_url || 'img/avatar.png'}" alt="Avatar"> \${authState.user.username}\`;
+        renderUserBadge(userBadge);
       }
-      
-      // Показываем сервера, где бот ПРИСУТСТВУЕТ (даже если юзер не админ)
-      const botGuilds = (authState.guilds || []).filter(g => g.bot_present || g.botPresent);
-      
+
+      const botGuilds = authState.guilds.filter(guild => guild.botPresent);
+      grid.innerHTML = '';
       if (botGuilds.length === 0) {
         document.getElementById('guildPickerEmpty').removeAttribute('hidden');
       } else {
-        grid.innerHTML = botGuilds.map(g => \`
-          <button class="guild-card" onclick="selectProfileGuild('\${g.id}', '\${g.name.replace(/'/g, "\\'")}', '\${g.icon || ''}')">
-            <div class="guild-card__icon">
-              \${g.icon 
-                ? '<img src="https://cdn.discordapp.com/icons/' + g.id + '/' + g.icon + '.png" alt="Icon">'
-                : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg-secondary);color:var(--text);font-weight:bold">' + g.name.charAt(0) + '</div>'
-              }
-            </div>
-            <div class="guild-card__name">\${g.name}</div>
-          </button>
-        \`).join('');
+        botGuilds.forEach(guild => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'guild-card';
+          const icon = document.createElement(guild.icon ? 'img' : 'div');
+          icon.className = 'guild-card__icon';
+          if (guild.icon) {
+            icon.src = guild.icon;
+            icon.alt = '';
+          } else {
+            icon.classList.add('guild-card__icon--placeholder');
+            icon.textContent = guild.name.charAt(0).toUpperCase();
+          }
+          const label = document.createElement('span');
+          label.className = 'guild-card__name';
+          label.textContent = guild.name;
+          card.append(icon, label);
+          card.addEventListener('click', () => selectProfileGuild(guild.id, guild.name));
+          grid.appendChild(card);
+        });
       }
-      
+
       document.getElementById('changeGuildBtn')?.addEventListener('click', () => {
         picker.removeAttribute('hidden');
         main.setAttribute('hidden', '');
@@ -194,41 +228,61 @@
       document.getElementById('logoutBtn')?.addEventListener('click', logout);
     });
 
-    async function selectProfileGuild(id, name, icon) {
+    async function selectProfileGuild(id, name) {
       document.getElementById('guildPicker').setAttribute('hidden', '');
       document.getElementById('dashboardMain').removeAttribute('hidden');
       document.getElementById('currentGuildBadge').textContent = name;
-      
+
       const loading = document.getElementById('gangProfileLoading');
       const content = document.getElementById('gangProfileContent');
-      
+      const playerLoading = document.getElementById('playerProfileLoading');
+      const playerContent = document.getElementById('playerProfileContent');
+
+      loading.textContent = 'Загрузка информации о банде...';
       loading.removeAttribute('hidden');
       content.setAttribute('hidden', '');
-      
+      playerLoading.textContent = 'Загрузка персонажа...';
+      playerLoading.removeAttribute('hidden');
+      playerContent.setAttribute('hidden', '');
+
       try {
-        const res = await fetch(\`/api/guilds/\${id}/me/gang\`);
+        const profileResponse = await fetch(`/api/guilds/${id}/me/profile`, { credentials: 'same-origin' });
+        if (!profileResponse.ok) {
+          const payload = await profileResponse.json().catch(() => ({}));
+          throw new Error(apiErrorMessage(payload, 'Ошибка при загрузке персонажа'));
+        }
+        const profile = await profileResponse.json();
+        document.getElementById('myDisplayName').textContent = profile.display_name;
+        document.getElementById('myCash').textContent = '$' + profile.cash.toLocaleString('ru-RU');
+        document.getElementById('myGold').textContent = profile.gold.toLocaleString('ru-RU');
+        document.getElementById('myMaps').textContent = profile.treasure_maps;
+        document.getElementById('myRoles').textContent = profile.owned_roles.length;
+        playerLoading.setAttribute('hidden', '');
+        playerContent.removeAttribute('hidden');
+
+        const res = await fetch(`/api/guilds/${id}/me/gang`, { credentials: 'same-origin' });
         if (!res.ok) {
           if (res.status === 404) {
-            loading.innerHTML = 'Вы не состоите ни в одной банде на этом сервере.<br><small style="font-weight:normal;color:var(--text-muted)">Используйте команду /gang create или попросите лидера другой банды пригласить вас.</small>';
+            loading.textContent = 'Вы не состоите в банде на этом сервере. Создать банду можно командой /gang-create.';
           } else {
-            throw new Error('Ошибка при загрузке банды');
+            const payload = await res.json().catch(() => ({}));
+            throw new Error(apiErrorMessage(payload, 'Ошибка при загрузке банды'));
           }
           return;
         }
-        
+
         const data = await res.json();
-        
         document.getElementById('myGangName').textContent = data.gang.name;
         document.getElementById('myGangRole').textContent = data.my_role === 'leader' ? 'Лидер (Глава)' : 'Участник';
         document.getElementById('myGangBalance').textContent = '$' + data.gang.balance.toLocaleString('ru-RU');
         document.getElementById('myGangMembers').textContent = data.gang.member_count;
         document.getElementById('myGangUpgrades').textContent = Object.keys(data.gang.camp_upgrades || {}).length;
-        
+
         loading.setAttribute('hidden', '');
         content.removeAttribute('hidden');
-        
       } catch (err) {
-        loading.innerHTML = \`<span style="color:var(--red)">\${err.message}</span>\`;
+        loading.textContent = err.message;
+        if (!playerLoading.hasAttribute('hidden')) playerLoading.textContent = err.message;
       }
     }
   </script>

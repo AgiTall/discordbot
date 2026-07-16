@@ -2395,3 +2395,76 @@ input.rank-role-card__level-badge:focus {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.cmd-card__tag--gang {
+  color: #e6b566;
+  border-color: rgba(230, 181, 102, 0.35);
+  background: rgba(230, 181, 102, 0.08);
+}
+
+.cmd-card__tag--util {
+  color: #8eb6d9;
+  border-color: rgba(142, 182, 217, 0.35);
+  background: rgba(142, 182, 217, 0.08);
+}
+/* Dashboard setup health */
+.setup-summary__score {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.setup-summary__score strong {
+  color: var(--gold);
+  font-family: 'ChineseRocks', 'Oswald', sans-serif;
+  font-size: 2rem;
+}
+
+.setup-summary__score span { color: var(--text-muted); }
+
+.setup-progress {
+  height: 8px;
+  overflow: hidden;
+  margin-bottom: 22px;
+  border-radius: 999px;
+  background: var(--bg-primary);
+}
+
+.setup-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--red), var(--gold));
+  transition: width 0.25s ease;
+}
+
+.setup-checklist { display: grid; gap: 10px; }
+
+.setup-check {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.setup-check__state {
+  color: #79bd83;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.setup-check--missing .setup-check__state { color: var(--red); }
+.setup-check strong, .setup-check small { display: block; }
+.setup-check small { margin-top: 2px; color: var(--text-muted); }
+.setup-check__link { color: var(--gold); font-size: 0.78rem; white-space: nowrap; }
+
+@media (max-width: 620px) {
+  .setup-check { grid-template-columns: 24px 1fr; }
+  .setup-check__link { grid-column: 2; }
+}

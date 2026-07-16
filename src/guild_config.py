@@ -4,6 +4,47 @@ import json
 DEFAULT_WELCOME_MESSAGE = "Добро пожаловать на сервер, {mention}! 🎉"
 DEFAULT_FAREWELL_MESSAGE = "{user} покинул сервер. До свидания!"
 
+EMOJI_FIELDS = {
+    "cashEmoji": "cash_emoji",
+    "goldEmoji": "gold_emoji",
+    "mapEmoji": "map_emoji",
+    "statsEmoji": "stats_emoji",
+    "safeEmoji": "safe_emoji",
+    "lockEmoji": "lock_emoji",
+    "treasureDigEmoji": "treasure_dig_emoji",
+    "treasureFoundEmoji": "treasure_found_emoji",
+    "treasureExtraEmoji": "treasure_extra_emoji",
+    "balanceFinanceEmoji": "balance_ui_finance",
+    "balanceRolesEmoji": "balance_ui_roles",
+    "balanceEconomyEmoji": "balance_ui_economy",
+    "balanceGangEmoji": "balance_ui_gang",
+}
+
+ROLE_ICON_FIELDS = {
+    "roleIconBountyHunter": "bounty_hunter",
+    "roleIconTrader": "trader",
+    "roleIconMoonshiner": "moonshiner",
+    "roleIconNaturalist": "naturalist",
+    "roleIconMiner": "miner",
+    "roleIconCollector": "collector",
+}
+
+MESSAGE_FIELDS = {
+    "rolesDescription": "roles_description",
+    "rolesFooter": "roles_footer",
+    "workSuccessMessage": "work_success",
+    "roleRequiredMessage": "role_required",
+    "resetPromptMessage": "reset_prompt",
+}
+
+DEFAULT_CUSTOM_MESSAGES = {
+    "roles_description": "Выберите профессию и купите доступную роль за золото.",
+    "roles_footer": "Доступные роли покупаются зелёными кнопками ниже.",
+    "work_success": "{mention}, {scenario} и получили **{reward}**.",
+    "role_required": "Команда доступна только роли **{role}**. Купить её можно через `/roles`.",
+    "reset_prompt": "Для полного сброса сервера введите: Я знаю что я делаю или I know what I'm doing.",
+}
+
 
 def _parse_channel_ids(value):
     if not value:
@@ -36,9 +77,10 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
 
     thread_channels = econ.get("thread_channel_ids") or []
 
-    return {
+    settings = {
         "newsChannelId": str(econ.get("news_channel_id") or ""),
         "treasureChannelId": str(econ.get("treasure_channel_id") or ""),
+        "agitationChannelId": str(econ.get("agitation_channel_id") or ""),
         "commandChannelIds": _channel_ids_to_str(command_channels),
         "allowAllChannels": leveling_db.get_setting(gid, "allow_all_channels", "false") == "true",
         "threadChannelIds": _channel_ids_to_str(thread_channels),
@@ -76,6 +118,21 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
         "treasureFoundEmoji": str(econ.get("treasure_found_emoji") or "💰"),
         "treasureExtraEmoji": str(econ.get("treasure_extra_emoji") or "✨"),
     }
+    role_icons = econ.get("role_key_icons", {})
+    if not isinstance(role_icons, dict):
+        role_icons = {}
+    custom_messages = econ.get("custom_messages", {})
+    if not isinstance(custom_messages, dict):
+        custom_messages = {}
+    for field, db_field in EMOJI_FIELDS.items():
+        settings[field] = str(econ.get(db_field) or settings.get(field) or "")
+    for field, role_key in ROLE_ICON_FIELDS.items():
+        settings[field] = str(role_icons.get(role_key) or "")
+    for field, message_key in MESSAGE_FIELDS.items():
+        settings[field] = str(
+            custom_messages.get(message_key) or DEFAULT_CUSTOM_MESSAGES[message_key]
+        )
+    return settings
 
 
 def set_guild_settings(economy_store, leveling_db, guild_id, data):
@@ -89,6 +146,10 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
     if "treasureChannelId" in data:
         val = str(data["treasureChannelId"]).strip()
         econ["treasure_channel_id"] = int(val) if val.isdigit() else None
+
+    if "agitationChannelId" in data:
+        val = str(data["agitationChannelId"]).strip()
+        econ["agitation_channel_id"] = int(val) if val.isdigit() else None
 
     if "threadChannelIds" in data:
         econ["thread_channel_ids"] = _parse_channel_ids(data["threadChannelIds"])
@@ -155,6 +216,9 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
         if field in data:
             leveling_db.set_xp_rate(gid, source, max(0.0, float(data[field])))
 
+    if "goldRate" in data:
+        econ["gold_rate"] = max(50.0, float(data["goldRate"]))
+
     if "rankRoles" in data:
         existing = leveling_db.get_rank_roles(gid)
         for level in list(existing.keys()):
@@ -166,19 +230,25 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
             if level and role.isdigit():
                 leveling_db.set_rank_role(gid, int(level), role, remove_role if remove_role.isdigit() else None)
 
-    for field, db_field in [
-        ("cashEmoji", "cash_emoji"),
-        ("goldEmoji", "gold_emoji"),
-        ("mapEmoji", "map_emoji"),
-        ("statsEmoji", "stats_emoji"),
-        ("treasureDigEmoji", "treasure_dig_emoji"),
-        ("treasureFoundEmoji", "treasure_found_emoji"),
-        ("treasureExtraEmoji", "treasure_extra_emoji")
-    ]:
+    for field, db_field in EMOJI_FIELDS.items():
         if field in data:
             val = str(data[field]).strip()
             if val:
                 econ[db_field] = val
+
+    role_icons = econ.setdefault("role_key_icons", {})
+    for field, role_key in ROLE_ICON_FIELDS.items():
+        if field in data:
+            val = str(data[field]).strip()
+            if val:
+                role_icons[role_key] = val
+
+    custom_messages = econ.setdefault("custom_messages", {})
+    for field, message_key in MESSAGE_FIELDS.items():
+        if field in data:
+            val = str(data[field]).strip()
+            if val:
+                custom_messages[message_key] = val
 
     economy_store.save_all()
     return get_guild_settings(economy_store, leveling_db, gid)

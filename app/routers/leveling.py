@@ -7,7 +7,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.utils.dependencies import CurrentUser, require_guild_access
 
@@ -27,7 +27,7 @@ def _get_leveling_db(request: Request):
 
 
 class RankRoleEntry(BaseModel):
-    level: int
+    level: int = Field(ge=1, le=100)
     role_id: str
     remove_role_id: str | None = None
 
@@ -39,7 +39,7 @@ async def get_rank_roles(
     user: CurrentUser,
 ) -> list[dict[str, Any]]:
     """Вернуть все ранговые роли гильдии из таблицы rank_roles."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
     db = _get_leveling_db(request)
 
     roles: dict = await asyncio.to_thread(db.get_rank_roles, guild_id)
@@ -64,8 +64,20 @@ async def set_rank_roles(
 
     Удаляет уровни, которых нет в запросе, и создаёт/обновляет переданные.
     """
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
     db = _get_leveling_db(request)
+
+    guild = request.app.state.bot.get_guild(int(guild_id))
+    available_roles = {str(role.id) for role in guild.roles if role.id != guild.id}
+    seen_levels: set[int] = set()
+    for entry in entries:
+        if entry.level in seen_levels:
+            raise HTTPException(status_code=400, detail=f"Уровень {entry.level} указан дважды")
+        seen_levels.add(entry.level)
+        if entry.role_id not in available_roles:
+            raise HTTPException(status_code=400, detail=f"Роль для уровня {entry.level} недоступна")
+        if entry.remove_role_id and entry.remove_role_id not in available_roles:
+            raise HTTPException(status_code=400, detail=f"Снимаемая роль для уровня {entry.level} недоступна")
 
     # Текущие уровни из БД
     existing: dict = await asyncio.to_thread(db.get_rank_roles, guild_id)
@@ -99,7 +111,7 @@ async def delete_rank_role(
     user: CurrentUser,
 ) -> dict:
     """Удалить одну ранговую роль по уровню."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
     db = _get_leveling_db(request)
     await asyncio.to_thread(db.remove_rank_role, guild_id, level)
     return {"status": "ok"}

@@ -2,6 +2,8 @@ import time
 import math
 import random
 import json
+import os
+from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
 from emoji_config import *
@@ -23,6 +25,12 @@ MOONSHINE_DISTILLER_PRICE = 875.0
 
 
 MOONSHINE_BATCH_COST = 50.0
+
+
+def _economy_data():
+    """Return injected bot state without importing bot.py recursively."""
+    data = globals().get("economy_data")
+    return data if data is not None else {}
 
 
 MOONSHINE_STRENGTHS = {
@@ -184,7 +192,7 @@ MOONSHINE_INGREDIENTS = sorted(
 
 
 def get_moonshine_star_emoji(level):
-    emojis = economy_data.get("moonshine_star_emojis", {})
+    emojis = _economy_data().get("moonshine_star_emojis", {})
     emoji = emojis.get(str(level))
     if not emoji:
         return str(DEFAULT_MOONSHINE_STAR_EMOJIS[str(level)])
@@ -192,28 +200,28 @@ def get_moonshine_star_emoji(level):
 
 
 def get_moonshine_special_emoji():
-    emoji = economy_data.get("moonshine_special_emoji")
+    emoji = _economy_data().get("moonshine_special_emoji")
     if not emoji:
         return str(DEFAULT_MOONSHINE_SPECIAL_EMOJI)
     return str(emoji)
 
 
 def get_moonshine_condenser_emoji():
-    emoji = economy_data.get("moonshine_condenser_emoji")
+    emoji = _economy_data().get("moonshine_condenser_emoji")
     if not emoji:
         return str(DEFAULT_MOONSHINE_CONDENSER_EMOJI)
     return str(emoji)
 
 
 def get_moonshine_distiller_emoji():
-    emoji = economy_data.get("moonshine_distiller_emoji")
+    emoji = _economy_data().get("moonshine_distiller_emoji")
     if not emoji:
         return str(DEFAULT_MOONSHINE_DISTILLER_EMOJI)
     return str(emoji)
 
 
 def get_moonshine_button_emoji(button_key):
-    emojis = economy_data.get("moonshine_button_emojis", {})
+    emojis = _economy_data().get("moonshine_button_emojis", {})
     emoji = emojis.get(button_key)
     if not emoji:
         return str(DEFAULT_MOONSHINE_BUTTON_EMOJIS[button_key])
@@ -221,8 +229,7 @@ def get_moonshine_button_emoji(button_key):
 
 
 def get_moonshine_ui_emoji(key, default_value):
-    from bot import economy_data
-    emoji = economy_data.get(key)
+    emoji = _economy_data().get(key)
     if not emoji:
         return default_value
     return str(emoji)
@@ -298,6 +305,34 @@ def normalize_moonshine_data(moonshine):
 
     if not isinstance(moonshine.get("batch"), dict):
         moonshine["batch"] = None
+    else:
+        batch = moonshine["batch"]
+        try:
+            stars = max(1, min(3, int(batch.get("stars", 1))))
+            duration = max(1, int(float(batch.get("duration_seconds", 1))))
+            payout = float(batch.get("payout", 0.0))
+            cost = float(batch.get("cost", MOONSHINE_BATCH_COST))
+            if not math.isfinite(payout) or not math.isfinite(cost):
+                raise ValueError("non-finite moonshine amount")
+        except (TypeError, ValueError, OverflowError):
+            # A partially written legacy batch must not break every future
+            # interaction. Reset only the corrupted batch, keeping upgrades
+            # and ingredients intact.
+            moonshine["batch"] = None
+        else:
+            now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            batch["type"] = "special" if batch.get("type") == "special" else "mash"
+            batch["name"] = str(batch.get("name") or "Самогон")[:100]
+            batch["stars"] = stars
+            batch["duration_seconds"] = duration
+            batch["payout"] = max(0.0, payout)
+            batch["cost"] = max(0.0, cost)
+            for timestamp_key in ("started_at", "ready_at"):
+                value = batch.get(timestamp_key)
+                try:
+                    datetime.fromisoformat(value)
+                except (TypeError, ValueError):
+                    batch[timestamp_key] = now_iso
 
     return moonshine
 
@@ -360,7 +395,10 @@ def get_moonshine_bottles(moonshine):
     if not batch:
         return max(0, min(20, int(moonshine.get("bottles", 0))))
 
-    ready_at = parse_local_datetime(batch.get("ready_at"))
+    try:
+        ready_at = parse_local_datetime(batch.get("ready_at"))
+    except (TypeError, ValueError, OverflowError):
+        return 20
     seconds_left = (ready_at - now_local()).total_seconds()
     if seconds_left <= 0:
         return 20
@@ -371,7 +409,7 @@ def get_moonshine_bottles(moonshine):
 
 
 def format_moonshine_bottles(moonshine):
-    bottles = moonshine.get("bottles", 0)
+    bottles = get_moonshine_bottles(moonshine)
     bottle_emoji = get_moonshine_ui_emoji("moonshine_ui_bottles", DEFAULT_MOONSHINE_BOTTLES_EMOJI)
     percent = (bottles / 20.0) * 100
     bars = int((bottles / 20.0) * 10)
@@ -385,8 +423,7 @@ def format_moonshine_bottles(moonshine):
 
 
 def get_ingredient_emoji(ingredient_name):
-    from bot import economy_data, DEFAULT_MOONSHINE_INGREDIENT_EMOJIS
-    emojis = economy_data.get("moonshine_ingredient_emojis", {})
+    emojis = _economy_data().get("moonshine_ingredient_emojis", {})
     emoji = emojis.get(ingredient_name)
     if not emoji:
         return str(DEFAULT_MOONSHINE_INGREDIENT_EMOJIS.get(ingredient_name, "🌿"))

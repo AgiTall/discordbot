@@ -25,6 +25,87 @@ def _get_economy_store(request: Request):
     return store
 
 
+def _public_gang(gang_name: str, gang_data: dict[str, Any]) -> dict[str, Any]:
+    members = gang_data.get("members", [])
+    return {
+        "id": gang_data.get("id"),
+        "name": gang_name,
+        "balance": float(gang_data.get("cash", 0.0)),
+        "gold": float(gang_data.get("gold", 0.0)),
+        "camp_upgrades": gang_data.get("camp_upgrades", {}),
+        "member_count": len(members) if isinstance(members, (list, dict)) else 0,
+        "logo_url": gang_data.get("logo_url"),
+        "background_url": gang_data.get("bg_url"),
+        "description": gang_data.get("description", ""),
+    }
+
+
+async def _require_guild_member(guild_id: str, request: Request, user: CurrentUser):
+    bot = getattr(request.app.state, "bot", None)
+    if bot is None:
+        raise HTTPException(status_code=503, detail="Bot offline")
+    try:
+        guild = bot.get_guild(int(guild_id))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid guild ID")
+    if guild is None:
+        raise HTTPException(status_code=404, detail="Guild not found")
+    try:
+        return await guild.fetch_member(int(user.discord_id))
+    except Exception:
+        raise HTTPException(status_code=403, detail="You are not a member of this guild")
+
+
+@router.get("/guilds/{guild_id}/me/profile")
+async def get_my_profile(
+    guild_id: str,
+    request: Request,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Return the authenticated player's economy overview."""
+    member = await _require_guild_member(guild_id, request, user)
+    guild_data = _get_economy_store(request).guild_data(guild_id)
+    account = guild_data.get("users", {}).get(str(user.discord_id), {})
+    return {
+        "id": str(user.discord_id),
+        "display_name": member.display_name,
+        "avatar_url": str(member.display_avatar.url),
+        "cash": float(account.get("cash", 0.0)),
+        "gold": float(account.get("gold", 0.0)),
+        "treasure_maps": int(account.get("treasure_maps", 0)),
+        "safe_cash": float(account.get("safe_cash", 0.0)),
+        "safe_gold": float(account.get("safe_gold", 0.0)),
+        "owned_roles": list(account.get("owned_roles", [])),
+        "gang_name": account.get("gang_name"),
+    }
+
+
+@router.get("/guilds/{guild_id}/me/gang")
+async def get_my_gang(
+    guild_id: str,
+    request: Request,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Return the authenticated player's gang on a server."""
+    await _require_guild_member(guild_id, request, user)
+
+    gangs = _get_economy_store(request).guild_data(guild_id).get("gangs", {})
+    player_id = str(user.discord_id)
+    for gang_name, gang_data in gangs.items():
+        member_ids = {str(member_id) for member_id in gang_data.get("members", [])}
+        if player_id in member_ids:
+            return {
+                "gang": _public_gang(gang_name, gang_data),
+                "my_role": (
+                    "leader"
+                    if str(gang_data.get("leader")) == player_id
+                    else "member"
+                ),
+            }
+
+    raise HTTPException(status_code=404, detail="Player is not in a gang")
+
+
 @router.get("/guilds/{guild_id}/gangs")
 async def get_guild_gangs(
     guild_id: str,
@@ -32,7 +113,7 @@ async def get_guild_gangs(
     user: CurrentUser,
 ) -> list[dict[str, Any]]:
     """List all gangs for a guild from economy_store."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
 
     economy_store = _get_economy_store(request)
     guild_data = economy_store.guild_data(guild_id)
@@ -40,21 +121,10 @@ async def get_guild_gangs(
 
     result = []
     for g_name, g_data in gangs.items():
-        members = g_data.get("members", [])
-        if isinstance(members, dict):
-            member_count = len(members)
-        elif isinstance(members, list):
-            member_count = len(members)
-        else:
-            member_count = 0
-
-        result.append({
-            "id": g_data.get("id", hash(g_name) % 10000),
-            "name": g_name,
-            "balance": float(g_data.get("cash", 0.0)),
-            "camp_upgrades": g_data.get("camp_upgrades", {}),
-            "member_count": member_count,
-        })
+        item = _public_gang(g_name, g_data)
+        if item["id"] is None:
+            item["id"] = hash(g_name) % 10000
+        result.append(item)
 
     return result
 
@@ -67,7 +137,7 @@ async def delete_gang(
     user: CurrentUser,
 ):
     """Delete a gang from economy_store by its ID."""
-    await require_guild_access(guild_id, user)
+    await require_guild_access(guild_id, user, request)
 
     economy_store = _get_economy_store(request)
     guild_data = economy_store.guild_data(guild_id)
