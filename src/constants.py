@@ -124,7 +124,7 @@ ROLE_DEFINITIONS = [
         "name":        "Коллекционер",
         "aliases":     [],
         "emoji":       EMOJI_ROLE_COLLECTOR,
-        "available":   False,
+        "available":   True,
         "description": (
             "Ищет редкие находки, собирает ценные наборы и превращает любопытство "
             "в аккуратную витрину трофеев."

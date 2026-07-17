@@ -33,6 +33,7 @@ from src.constants import (
     ECONOMY_FILE, ECONOMY_GLOBAL_KEY, START_GOLD_RATE, MIN_GOLD_RATE,
     DEFAULT_CUSTOM_MESSAGES, DEFAULT_ROLE_EMOJIS,
 )
+from src.collector_logic import default_collector_data, normalize_collector_data
 from src.bounty_logic import default_bounty_data, normalize_bounty_data
 from src.moonshiner_logic import default_moonshine_data, normalize_moonshine_data
 from src.naturalist_logic import default_naturalist_data, normalize_naturalist_data
@@ -504,6 +505,7 @@ def get_account(user_id) -> dict:
             "bounty":             default_bounty_data(),
             "moonshine":          default_moonshine_data(),
             "naturalist":         default_naturalist_data(),
+            "collector":          default_collector_data(),
             "collection_showcase": [],
             "last_work_at":       None,
         },
@@ -529,6 +531,7 @@ def get_account(user_id) -> dict:
     account["bounty"]     = normalize_bounty_data(account.get("bounty"))
     account["moonshine"]  = normalize_moonshine_data(account.get("moonshine"))
     account["naturalist"] = normalize_naturalist_data(account.get("naturalist"))
+    account["collector"]  = normalize_collector_data(account.get("collector"))
     account.setdefault("collection_showcase", [])
     try:
         account["treasure_maps"] = max(0, int(account["treasure_maps"]))

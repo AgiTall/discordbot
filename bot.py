@@ -1,6 +1,7 @@
 from src.naturalist_logic import *
 from src.bounty_logic import *
 from src.moonshiner_logic import *
+from src.collector_logic import *
 from emoji_config import *
 import os
 import logging
@@ -184,7 +185,7 @@ ROLE_DEFINITIONS = [
         "name": "Коллекционер",
         "aliases": [],
         "emoji": EMOJI_ROLE_COLLECTOR,
-        "available": False,
+        "available": True,
         "description": (
             "Ищет редкие находки, собирает ценные наборы и превращает любопытство "
             "в аккуратную витрину трофеев."
@@ -1057,7 +1058,13 @@ def format_balance_role_sections(guild, member, account):
             elif role_key == "miner":
                 status = format_balance_miner_status(guild, member)
             elif role_key == "collector":
-                status = f"витрина: {format_collection_showcase(account)}"
+                collector = normalize_collector_data(account.get("collector"))
+                unique = sum(progress(collector, key)[0] for key in COLLECTIONS)
+                total = sum(len(items) for items in COLLECTION_ITEMS.values())
+                status = (
+                    f"ур. {collector['level']}, находок {total_items(collector)}, "
+                    f"уникальных {unique}/{total}, наборов продано {collector['sets_sold']}"
+                )
             else:
                 status = "доступ открыт"
             rows.append(
@@ -1287,6 +1294,7 @@ def get_account(user_id):
             "bounty": default_bounty_data(),
             "moonshine": default_moonshine_data(),
             "naturalist": default_naturalist_data(),
+            "collector": default_collector_data(),
             "collection_showcase": [],
             "last_work_at": None,
         },
@@ -1312,6 +1320,7 @@ def get_account(user_id):
     account["bounty"] = normalize_bounty_data(account.get("bounty"))
     account["moonshine"] = normalize_moonshine_data(account.get("moonshine"))
     account["naturalist"] = normalize_naturalist_data(account.get("naturalist"))
+    account["collector"] = normalize_collector_data(account.get("collector"))
     account.setdefault("collection_showcase", [])
     try:
         account["treasure_maps"] = max(0, int(account["treasure_maps"]))
@@ -1950,6 +1959,7 @@ async def setup_hook():
         await bot.load_extension("cogs.bounty")
         await bot.load_extension("cogs.naturalist")
         await bot.load_extension("cogs.miner")
+        await bot.load_extension("cogs.collector")
     except Exception as e:
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
