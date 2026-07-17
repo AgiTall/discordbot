@@ -204,6 +204,7 @@ def format_balance_role_sections(guild, member, account: dict):
     from src.moonshiner_logic import format_moonshine_short
     from src.bounty_logic import format_bounty_short
     from src.naturalist_logic import format_naturalist_short
+    from emoji_config import ROLE_OWNED_PIN_EMOJI
 
     owned_rows           = []
     unavailable_sections = []
@@ -217,27 +218,30 @@ def format_balance_role_sections(guild, member, account: dict):
             name = role_definition["name"]
             if role_definition["key"] == DEALER_ROLE_KEY:
                 wagon = account["dealer_wagon"]
-                row   = f"{icon} {name}: {format_progress_percent(wagon)}"
+                status = f"повозка {format_progress_percent(wagon)}"
             elif role_definition["key"] == MOONSHINER_ROLE_KEY:
                 from src.moonshiner_logic import get_moonshine_account
                 moonshine = get_moonshine_account(account)
                 bottles   = moonshine.get("bottles", 0)
-                row       = f"{icon} {name}: {format_moonshine_short(account)}, {bottles}/20 бутылок"
+                status = f"{format_moonshine_short(account)}, {bottles}/20 бутылок"
             elif role_definition["key"] == BOUNTY_ROLE_KEY:
-                row = f"{icon} {name}: {format_bounty_short(account)}"
+                status = format_bounty_short(account)
             elif role_definition["key"] == NATURALIST_ROLE_KEY:
-                row = f"{icon} {name}: {format_naturalist_short(account)}"
+                status = format_naturalist_short(account)
             else:
-                row = f"{icon} {name}: {format_progress_percent(100)}"
-            owned_rows.append(row)
+                status = format_progress_percent(100)
+            owned_rows.append((f"{ROLE_OWNED_PIN_EMOJI} {icon} **{name}**", status))
         elif not role_definition["available"]:
             unavailable_sections.append(f"• {role_definition['name']}")
 
     if owned_rows:
-        owned_sections = [
-            f"{'└─' if i == len(owned_rows) - 1 else '├─'} {row}"
-            for i, row in enumerate(owned_rows)
-        ]
+        owned_sections = []
+        for i, (title, status) in enumerate(owned_rows):
+            is_last = i == len(owned_rows) - 1
+            owned_sections.append(
+                f"{'└─' if is_last else '├─'} {title}\n"
+                f"{'   └─' if is_last else '│  └─'} {status}"
+            )
     else:
         owned_sections = ["└─ Нет активной профессии"]
 

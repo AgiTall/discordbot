@@ -47,6 +47,7 @@ class BalanceProfileTests(unittest.TestCase):
                 "BOUNTY_ROLE_KEY": "bounty_hunter",
                 "NATURALIST_ROLE_KEY": "naturalist",
                 "DEFAULT_BALANCE_GANG_EMOJI": "🏴‍☠️",
+                "ROLE_OWNED_PIN_EMOJI": "<:grenpin:1527602575463944232>",
                 "find_guild_role": lambda guild, definition: None,
                 "get_role_icon": lambda definition, role: definition.get("emoji", ""),
                 "get_lock_emoji": lambda: "🔒",
@@ -93,12 +94,31 @@ class BalanceProfileTests(unittest.TestCase):
                 "revolver_cattleman": 87.5,
                 "rifle_boltaction": 100,
             },
+            "ammo": {
+                "revolver": {"normal": 44},
+                "rifle": {"normal": 34},
+            },
+            "selected_ammo": {"revolver": "normal", "rifle": "normal"},
         }
         text = self.ns["format_balance_weapon_section"](account)
         self.assertIn("Револьвер Cattleman", text)
         self.assertIn("Болтовая винтовка", text)
         self.assertIn("87.5%", text)
         self.assertIn("<:gun:1527598299501035660>", text)
+        self.assertIn("<:bullet_normal:1527591453784670308> **44/200**", text)
+        self.assertIn("<:bullet_normal:1527591453784670308> **34/100**", text)
+
+    def test_role_stats_are_on_an_indented_second_line(self):
+        self.ns["ROLE_DEFINITIONS"] = [
+            {"key": "trader", "name": "Торговец", "emoji": "🛒", "available": True},
+        ]
+        text = self.ns["format_balance_role_sections"](
+            SimpleNamespace(),
+            SimpleNamespace(id=42),
+            {"owned_roles": ["trader"], "dealer_wagon": 25},
+        )
+        self.assertIn("└─ <:grenpin:1527602575463944232> 🛒 **Торговец**", text)
+        self.assertIn("\n   └─ повозка", text)
 
     def test_gang_section_is_visible_without_membership(self):
         self.ns["economy_data"] = _EconomyData({"gangs": {}})

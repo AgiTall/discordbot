@@ -22,6 +22,7 @@ _bootstrap_load_env()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 import json
+import io
 import signal
 import psycopg2
 import psycopg2.extras
@@ -1028,6 +1029,7 @@ def format_balance_role_sections(guild, member, account):
         name = role_definition["name"]
         role_key = role_definition["key"]
         branch = "└─" if index == len(ROLE_DEFINITIONS) - 1 else "├─"
+        child_branch = "   └─" if index == len(ROLE_DEFINITIONS) - 1 else "│  └─"
 
         if owns_role:
             if role_key == DEALER_ROLE_KEY:
@@ -1058,7 +1060,10 @@ def format_balance_role_sections(guild, member, account):
                 status = f"витрина: {format_collection_showcase(account)}"
             else:
                 status = "доступ открыт"
-            rows.append(f"{branch} ✅ {icon} **{name}** — {status}")
+            rows.append(
+                f"{branch} {ROLE_OWNED_PIN_EMOJI} {icon} **{name}**\n"
+                f"{child_branch} {status}"
+            )
         else:
             lock_reason = (
                 f"не куплено · {format_role_price(get_role_price(role))} · `/roles`"
@@ -1066,7 +1071,8 @@ def format_balance_role_sections(guild, member, account):
                 else "пока недоступно на сервере"
             )
             rows.append(
-                f"{branch} {get_lock_emoji()} {icon} **{name}** — {lock_reason}"
+                f"{branch} {get_lock_emoji()} {icon} **{name}**\n"
+                f"{child_branch} {lock_reason}"
             )
 
     return "\n".join(rows)
@@ -1170,9 +1176,13 @@ def format_balance_property_section(account):
 
 def format_balance_weapon_section(account):
     from src.weapon_system import (
+        AMMO_EMOJIS,
         WEAPON_CATALOG,
         WEAPON_DISPLAY_NAMES,
+        ammo_capacity,
+        ammo_total,
         normalize_weapon_state,
+        weapon_class,
         weapon_emoji,
     )
 
@@ -1183,10 +1193,18 @@ def format_balance_weapon_section(account):
     def format_slot(keys):
         if not keys:
             return "*пусто*"
-        return " · ".join(
-            f"{weapon_emoji(key)} **{WEAPON_DISPLAY_NAMES[key]}** ({condition.get(key, 100):g}%)"
-            for key in keys
-        )
+        formatted = []
+        for key in keys:
+            class_key = weapon_class(key, WEAPON_CATALOG.get(key))
+            selected_type = account["selected_ammo"].get(class_key, "normal")
+            ammo_emoji = AMMO_EMOJIS[selected_type]
+            stock = ammo_total(account, class_key)
+            capacity = ammo_capacity(account, class_key, WEAPON_CATALOG)
+            formatted.append(
+                f"{weapon_emoji(key)} **{WEAPON_DISPLAY_NAMES[key]}** "
+                f"({condition.get(key, 100):g}%) · {ammo_emoji} **{stock}/{capacity}**"
+            )
+        return " · ".join(formatted)
 
     return (
         "🔫 Активное оружие\n"
@@ -1967,10 +1985,31 @@ ADMIN_COMMAND_NAMES = {
     "finish-moonshine",
     "reset-moonshine",
     "set-emoji",
+    "emoji-list",
     "set-message",
     "reset-work",
     "reset-dealer",
 }
+
+
+def format_emoji_export(guild_emojis, application_emojis=()):
+    """Build a copy-friendly UTF-8 inventory of Discord custom emojis."""
+    sections = []
+    for title, emojis in (
+        ("ЭМОДЗИ СЕРВЕРА", guild_emojis),
+        ("ЭМОДЗИ ПРИЛОЖЕНИЯ", application_emojis),
+    ):
+        emojis = sorted(emojis, key=lambda emoji: (str(emoji.name).casefold(), int(emoji.id)))
+        sections.append(f"=== {title} ({len(emojis)}) ===")
+        if not emojis:
+            sections.append("— нет —")
+        else:
+            for emoji in emojis:
+                prefix = "a" if getattr(emoji, "animated", False) else ""
+                markup = f"<{prefix}:{emoji.name}:{emoji.id}>"
+                sections.append(f"{emoji.name}\t{emoji.id}\t{markup}")
+        sections.append("")
+    return "\n".join(sections).rstrip() + "\n"
 
 
 def is_admin_interaction(interaction):
@@ -2320,7 +2359,7 @@ def build_balance_embed(guild, member, account, rate):
         "🧭 Активности\n"
         "├─ Заработок: `/work` · ограбление: `/rob`\n"
         f"├─ Раскопки: {'`/excavation`' if treasure_maps > 0 else f'{get_lock_emoji()} нужна карта сокровищ'}\n"
-        "└─ Игры: `/dice` · `/poker` · `/blackjack`\n\n"
+        f"└─ {CASINO_LOGO_EMOJI} Казино: `/dice` · `/poker` · `/blackjack`\n\n"
         f"{eco_emoji} Экономика\n"
         f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}"
     )
@@ -2627,7 +2666,7 @@ def build_help_pages(is_admin):
 
     # 5. Games
     games = discord.Embed(
-        title="Справка: Игры",
+        title=f"{CASINO_LOGO_EMOJI} Справка: Казино",
         description="Испытайте удачу в казино.",
         color=discord.Color.gold(),
     )
@@ -2641,9 +2680,9 @@ def build_help_pages(is_admin):
         inline=False,
     )
     pages["games"] = {
-        "label": "Игры",
+        "label": "Казино",
         "description": "Кости, покер, блэкджек",
-        "emoji": "🎲",
+        "emoji": CASINO_LOGO_EMOJI,
         "embed": games
     }
 
@@ -4121,6 +4160,7 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
         save_economy()
 
     await interaction.followup.send(
+        f"{CASINO_LOGO_EMOJI} **Казино · Кости**\n"
         f"🎲 {interaction.user.mention}: **{player_roll}**\n"
         f"🎲 Бот: **{bot_roll}**\n"
         f"{result}",
@@ -4128,7 +4168,8 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
     )
     if player_roll > bot_roll and bet >= 100:
         await interaction.channel.send(
-            f"🎉 {interaction.user.mention} только что выиграл **{format_money(bet)}** в кости!"
+            f"{CASINO_LOGO_EMOJI} {interaction.user.mention} только что выиграл "
+            f"**{format_money(bet)}** в кости!"
         )
 
 
@@ -4171,6 +4212,7 @@ async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
         save_economy()
 
     await interaction.followup.send(
+        f"{CASINO_LOGO_EMOJI} **Казино · Покер**\n"
         f"🃏 {interaction.user.mention}: **{format_cards(player_hand)}** — {player_name}\n"
         f"🃏 Бот: **{format_cards(bot_hand)}** — {bot_name}\n"
         f"{result}",
@@ -4178,7 +4220,8 @@ async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
     )
     if player_score > bot_score and bet >= 100:
         await interaction.channel.send(
-            f"🎉 {interaction.user.mention} только что выиграл **{format_money(bet)}** в покер!"
+            f"{CASINO_LOGO_EMOJI} {interaction.user.mention} только что выиграл "
+            f"**{format_money(bet)}** в покер!"
         )
 
 
@@ -5434,6 +5477,36 @@ async def admin_reset_moonshine_command(
 
     await interaction.response.send_message(
         f"Состояние самогонщика сброшено для {member.mention}.",
+        ephemeral=True,
+    )
+
+
+@bot.tree.command(name="emoji-list", description="Админ: выгрузить имена, ID и разметку всех эмодзи")
+@app_commands.default_permissions(administrator=True)
+@app_commands.checks.has_permissions(administrator=True)
+async def admin_emoji_list_command(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    guild_emojis = list(interaction.guild.emojis) if interaction.guild else []
+    application_emojis = []
+    application_note = ""
+    try:
+        application_emojis = await bot.fetch_application_emojis()
+    except (discord.HTTPException, discord.Forbidden) as error:
+        application_note = f" Эмодзи приложения получить не удалось: {error}."
+
+    export = format_emoji_export(guild_emojis, application_emojis)
+    attachment = discord.File(
+        io.BytesIO(export.encode("utf-8-sig")),
+        filename=f"emoji-list-{interaction.guild_id or 'application'}.txt",
+    )
+    await interaction.followup.send(
+        (
+            f"Готово: **{len(guild_emojis)}** серверных и "
+            f"**{len(application_emojis)}** эмодзи приложения.{application_note}\n"
+            "В файле: `имя`, `ID` и готовая разметка `<:имя:ID>`."
+        ),
+        file=attachment,
         ephemeral=True,
     )
 

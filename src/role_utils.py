@@ -407,18 +407,28 @@ def build_balance_embed(guild, member, account: dict, rate: float) -> discord.Em
     role_sections, unavailable_role_sections = format_balance_role_sections(
         guild, member, account
     )
-    from src.weapon_system import WEAPON_DISPLAY_NAMES, weapon_emoji
+    from src.weapon_system import (
+        AMMO_EMOJIS, WEAPON_CATALOG, WEAPON_DISPLAY_NAMES,
+        ammo_capacity, ammo_total, weapon_class, weapon_emoji,
+    )
     loadout = account.get("weapon_loadout", {"sidearms": [], "longarms": []})
     condition = account.get("weapon_condition", {})
 
     def weapon_slot_text(keys):
         if not keys:
             return "*пусто*"
-        return " · ".join(
-            f"{weapon_emoji(key)} **{WEAPON_DISPLAY_NAMES.get(key, key)}** "
-            f"({condition.get(key, 100):g}%)"
-            for key in keys
-        )
+        formatted = []
+        for key in keys:
+            class_key = weapon_class(key, WEAPON_CATALOG.get(key))
+            selected_type = account.get("selected_ammo", {}).get(class_key, "normal")
+            ammo_emoji = AMMO_EMOJIS[selected_type]
+            stock = ammo_total(account, class_key)
+            capacity = ammo_capacity(account, class_key, WEAPON_CATALOG)
+            formatted.append(
+                f"{weapon_emoji(key)} **{WEAPON_DISPLAY_NAMES.get(key, key)}** "
+                f"({condition.get(key, 100):g}%) · {ammo_emoji} **{stock}/{capacity}**"
+            )
+        return " · ".join(formatted)
 
     weapon_section = (
         "🔫 Активное оружие\n"

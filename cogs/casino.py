@@ -4,6 +4,7 @@ import asyncio
 from discord.ext import commands
 from discord import app_commands
 from src.card_emojis import format_card_emoji
+from emoji_config import CASINO_LOGO_EMOJI
 
 CARD_SUITS = ["♠", "♥", "♦", "♣"]
 CARD_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
@@ -87,7 +88,10 @@ class BlackjackView(discord.ui.View):
             dealer_cards = f"{format_card(self.dealer_hand[0])} ??"
 
         dealer_value = blackjack_hand_value(self.dealer_hand)
-        embed = discord.Embed(title="Blackjack", color=discord.Color.dark_green())
+        embed = discord.Embed(
+            title=f"{CASINO_LOGO_EMOJI} Казино · Blackjack",
+            color=discord.Color.dark_green(),
+        )
         
         dealer_sum = dealer_value if reveal_dealer else blackjack_card_value(self.dealer_hand[0])
         embed.add_field(
@@ -192,7 +196,8 @@ class BlackjackView(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             if total_payout >= self.initial_bet * 2 and self.initial_bet >= 100:
                 await interaction.channel.send(
-                    f"🎉 {interaction.user.mention} только что выиграл в блэкджек! Выплата: **{self.bot.format_money(total_payout)}**!"
+                    f"{CASINO_LOGO_EMOJI} {interaction.user.mention} только что выиграл в блэкджек! "
+                    f"Выплата: **{self.bot.format_money(total_payout)}**!"
                 )
         elif self.message:
             try:
@@ -342,7 +347,8 @@ class CasinoCog(commands.Cog):
             )
             if outcome in ("blackjack", "win") and bet >= 100:
                 await interaction.channel.send(
-                    f"🎉 {interaction.user.mention} только что сорвал куш в блэкджек! Выигрыш: **{self.bot.format_money(bet * (2.5 if outcome == 'blackjack' else 2))}**!"
+                    f"{CASINO_LOGO_EMOJI} {interaction.user.mention} только что сорвал куш в блэкджек! "
+                    f"Выигрыш: **{self.bot.format_money(bet * (2.5 if outcome == 'blackjack' else 2))}**!"
                 )
             return
     

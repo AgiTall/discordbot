@@ -120,6 +120,14 @@ DEFAULT_MOONSHINE_INGREDIENT_EMOJIS = {
     "Карибский ром":             "<:Rum:1518324122122321981>",
 }
 
+# Маркер купленной профессии в /balance.
+ROLE_OWNED_PIN_EMOJI = "<:grenpin:1527602575463944232>"
+CASINO_LOGO_EMOJI = "<:blip_mg_poker:1527603592704426094>"
+
+# Коллекционер: основные инструменты.
+COLLECTOR_METAL_DETECTOR_EMOJI = "<:weapon_kit_metal_detector:1527574659636400138>"
+COLLECTOR_SHOVEL_EMOJI = "<:shovel:1518547808012079114>"
+
 # ══════════════════════════════════════════════════════════
 #  НАТУРАЛИСТ: КНОПКИ МЕНЮ
 #  (стандартные Unicode-смайлы помечены # ← заменить)

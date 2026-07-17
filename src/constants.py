@@ -256,7 +256,7 @@ ADMIN_COMMAND_NAMES = {
     "give-moonshine-ingredient", "remove-moonshine-ingredient",
     "set-moonshine-upgrade", "set-moonshine-skill",
     "finish-moonshine", "reset-moonshine",
-    "set-emoji", "set-message",
+    "set-emoji", "emoji-list", "set-message",
     "reset-work", "reset-dealer",
 }
 

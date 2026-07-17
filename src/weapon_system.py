@@ -100,6 +100,14 @@ AMMO_TYPE_NAMES = {
     "explosive": "разрывные экспресс",
 }
 
+AMMO_EMOJIS = {
+    "split_point": "<:bullet_split_point:1527591455395418232>",
+    "normal": "<:bullet_normal:1527591453784670308>",
+    "high_velocity": "<:bullet_high_velocity:1527591452207485118>",
+    "explosive": "<:bullet_express_explosive:1527591450043355216>",
+    "express": "<:bullet_express:1527591448214503535>",
+}
+
 AMMO_ROLL_BONUSES = {
     "normal": 0,
     "split_point": 1,

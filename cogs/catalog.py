@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Literal, Optional
 
 from src.weapon_system import (
+    AMMO_EMOJIS,
     AMMO_TYPE_NAMES,
     WEAPON_CLASS_NAMES,
     ammo_capacity,
@@ -44,13 +45,6 @@ DEFAULT_CATALOG_COMING_SOON_EMOJI = "🔜"
 DEFAULT_CATALOG_BOUGHT_EMOJI = "✅"
 DEFAULT_CATALOG_BUY_SUCCESS_EMOJI = "✅"
 
-AMMO_EMOJIS = {
-    "split_point": "<:bullet_split_point:1527591455395418232>",
-    "normal": "<:bullet_normal:1527591453784670308>",
-    "high_velocity": "<:bullet_high_velocity:1527591452207485118>",
-    "explosive": "<:bullet_express_explosive:1527591450043355216>",
-    "express": "<:bullet_express:1527591448214503535>",
-}
 GUN_OIL_EMOJI = "<:kit_gun_oil:1527594712230527026>"
 
 DEFAULT_CATALOG_CATEGORY_EMOJIS = {
@@ -584,7 +578,14 @@ def build_catalog_messages(category_key, account, guild_id):
         marker = "▸ " if key == category_key else "  "
         nav_lines.append(f"{marker}{c_emoji} {c['name']}")
     
-    embeds[-1].set_footer(text="Wheeler, Rawson & Co.\n" + "\n".join(nav_lines))
+    # Discord footers are plain text and show custom emoji markup literally.
+    # Embed fields support custom emojis, so navigation belongs here.
+    embeds[-1].add_field(
+        name="Разделы каталога",
+        value="\n".join(nav_lines),
+        inline=False,
+    )
+    embeds[-1].set_footer(text="Wheeler, Rawson & Co.")
 
     return embeds, files
 
