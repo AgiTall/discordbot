@@ -407,6 +407,25 @@ def build_balance_embed(guild, member, account: dict, rate: float) -> discord.Em
     role_sections, unavailable_role_sections = format_balance_role_sections(
         guild, member, account
     )
+    from src.weapon_system import WEAPON_DISPLAY_NAMES, weapon_emoji
+    loadout = account.get("weapon_loadout", {"sidearms": [], "longarms": []})
+    condition = account.get("weapon_condition", {})
+
+    def weapon_slot_text(keys):
+        if not keys:
+            return "*пусто*"
+        return " · ".join(
+            f"{weapon_emoji(key)} **{WEAPON_DISPLAY_NAMES.get(key, key)}** "
+            f"({condition.get(key, 100):g}%)"
+            for key in keys
+        )
+
+    weapon_section = (
+        "🔫 Активное оружие\n"
+        f"├─ Короткоствольное: {weapon_slot_text(loadout.get('sidearms', []))}\n"
+        f"├─ Крупное: {weapon_slot_text(loadout.get('longarms', []))}\n"
+        "└─ Снаряжение и боезапас: `/weapons`"
+    )
 
     gang_name  = account.get("gang_name")
     gang_str   = ""
@@ -440,7 +459,7 @@ def build_balance_embed(guild, member, account: dict, rate: float) -> discord.Em
         f"{gang_str}"
         f"{roles_emoji} Роли\n"
         f"{role_sections}\n"
-        "\n"
+        f"\n{weapon_section}\n\n"
         f"{eco_emoji} Экономика\n"
         f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}\n\n"
         f"{get_lock_emoji()} Недоступные роли\n"

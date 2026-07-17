@@ -13,6 +13,7 @@ def _load_balance_functions():
         "format_balance_miner_status",
         "format_balance_gang_section",
         "format_balance_property_section",
+        "format_balance_weapon_section",
     }
     definitions = [
         node
@@ -80,6 +81,24 @@ class BalanceProfileTests(unittest.TestCase):
         self.assertIn("не куплено", text)
         self.assertIn("20 G · `/roles`", text)
         self.assertIn("пока недоступно на сервере", text)
+
+    def test_active_weapons_are_visible_with_custom_emojis(self):
+        account = {
+            "inventory": {"revolver_cattleman": 1, "rifle_boltaction": 1},
+            "weapon_loadout": {
+                "sidearms": ["revolver_cattleman"],
+                "longarms": ["rifle_boltaction"],
+            },
+            "weapon_condition": {
+                "revolver_cattleman": 87.5,
+                "rifle_boltaction": 100,
+            },
+        }
+        text = self.ns["format_balance_weapon_section"](account)
+        self.assertIn("Револьвер Cattleman", text)
+        self.assertIn("Болтовая винтовка", text)
+        self.assertIn("87.5%", text)
+        self.assertIn("<:gun:1527598299501035660>", text)
 
     def test_gang_section_is_visible_without_membership(self):
         self.ns["economy_data"] = _EconomyData({"gangs": {}})

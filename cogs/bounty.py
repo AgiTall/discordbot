@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
+from src.weapon_system import AMMO_TYPE_NAMES, normalize_weapon_state, use_weapon_shot
 from src.bounty_logic import *
 
 class BountyOwnerView(discord.ui.View):
@@ -105,14 +106,41 @@ class BountyTacticButton(discord.ui.Button):
                     )
                     return
 
+                # Combat contracts use the active catalog loadout. Importing here
+                # avoids coupling the pure bounty logic to the catalog extension.
+                from cogs.catalog import CATALOG_ITEMS
+                normalize_weapon_state(account, CATALOG_ITEMS)
+                if not any(account["weapon_loadout"].values()):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        "Возьмите купленное оружие через `/weapon-equip`.", ephemeral=True
+                    )
+                    return
+                if not any(
+                    account["ammo"][class_key][ammo_type] > 0
+                    for class_key in account["ammo"]
+                    for ammo_type in account["ammo"][class_key]
+                ):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        "Боезапас пуст. Купите патроны в `/catalog`.", ephemeral=True
+                    )
+                    return
+
                 level_mod = bounty["level"] // 5
                 rounds = []
                 player_wins = 0
                 target_wins = 0
                 for round_number in range(1, 4):
+                    shot = use_weapon_shot(account, CATALOG_ITEMS)
+                    if not shot:
+                        target_wins = 2
+                        rounds.append("Боезапас закончился — цель воспользовалась заминкой и ушла.")
+                        break
                     player_roll = random.randint(1, 20)
                     target_roll = random.randint(1, 20)
-                    player_total = player_roll + tactic["mod"] + level_mod
+                    weapon_mod = shot["ammo_bonus"] + shot["condition_modifier"]
+                    player_total = player_roll + tactic["mod"] + level_mod + weapon_mod
                     target_total = target_roll + difficulty["mod"]
                     if player_total >= target_total:
                         player_wins += 1
@@ -121,9 +149,13 @@ class BountyTacticButton(discord.ui.Button):
                         target_wins += 1
                         outcome = "провал"
                     rounds.append(
-                        f"{round_number}. Вы: {player_roll}+{tactic['mod']}+{level_mod} = "
+                        f"{round_number}. Вы: {player_roll}+{tactic['mod']}+{level_mod}"
+                        f"{weapon_mod:+d} = "
                         f"**{player_total}**; цель: {target_roll}+{difficulty['mod']} = "
-                        f"**{target_total}** — {outcome}"
+                        f"**{target_total}** — {outcome}\n"
+                        f"   {CATALOG_ITEMS[shot['weapon']]['name']} · "
+                        f"{AMMO_TYPE_NAMES[shot['ammo_type']]} · "
+                        f"состояние {shot['condition_after']:g}%"
                     )
                     if self.tactic_key == "ambush" and outcome == "провал":
                         target_wins = 2

@@ -419,7 +419,8 @@ def build_card_deck() -> list:
 
 
 def format_card(card) -> str:
-    return f"{card[0]}{card[1]}"
+    from src.card_emojis import format_card_emoji
+    return format_card_emoji(card)
 
 
 def format_cards(cards) -> str:

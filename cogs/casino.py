@@ -3,12 +3,13 @@ import random
 import asyncio
 from discord.ext import commands
 from discord import app_commands
+from src.card_emojis import format_card_emoji
 
 CARD_SUITS = ["♠", "♥", "♦", "♣"]
 CARD_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
 
 def format_card(card):
-    return f"{card[0]}{card[1]}"
+    return format_card_emoji(card)
 
 def format_cards(cards):
     return " ".join(format_card(card) for card in cards)

@@ -1168,6 +1168,34 @@ def format_balance_property_section(account):
     )
 
 
+def format_balance_weapon_section(account):
+    from src.weapon_system import (
+        WEAPON_CATALOG,
+        WEAPON_DISPLAY_NAMES,
+        normalize_weapon_state,
+        weapon_emoji,
+    )
+
+    normalize_weapon_state(account, WEAPON_CATALOG)
+    loadout = account["weapon_loadout"]
+    condition = account["weapon_condition"]
+
+    def format_slot(keys):
+        if not keys:
+            return "*пусто*"
+        return " · ".join(
+            f"{weapon_emoji(key)} **{WEAPON_DISPLAY_NAMES[key]}** ({condition.get(key, 100):g}%)"
+            for key in keys
+        )
+
+    return (
+        "🔫 Активное оружие\n"
+        f"├─ Короткоствольное: {format_slot(loadout['sidearms'])}\n"
+        f"├─ Крупное: {format_slot(loadout['longarms'])}\n"
+        "└─ Снаряжение и боезапас: `/weapons`"
+    )
+
+
 def format_account(account):
     return (
         f"Деньги: **{format_money(account['cash'])}**\n"
@@ -1280,7 +1308,8 @@ def get_account(user_id):
     except (TypeError, ValueError):
         account["dealer_wagon"] = 0.0
     account.setdefault("last_work_at", None)
-    return account
+    from src.weapon_system import WEAPON_CATALOG, normalize_weapon_state
+    return normalize_weapon_state(account, WEAPON_CATALOG)
 
 
 
@@ -2245,6 +2274,7 @@ def build_balance_embed(guild, member, account, rate):
     role_sections = format_balance_role_sections(guild, member, account)
     gang_section = format_balance_gang_section(member, account)
     property_section = format_balance_property_section(account)
+    weapon_section = format_balance_weapon_section(account)
 
     inventory = account.get("inventory", {})
     if not isinstance(inventory, dict):
@@ -2286,6 +2316,7 @@ def build_balance_embed(guild, member, account, rate):
         f"{roles_emoji} Профессии\n"
         f"{role_sections}\n"
         f"\n{property_section}\n\n"
+        f"{weapon_section}\n\n"
         "🧭 Активности\n"
         "├─ Заработок: `/work` · ограбление: `/rob`\n"
         f"├─ Раскопки: {'`/excavation`' if treasure_maps > 0 else f'{get_lock_emoji()} нужна карта сокровищ'}\n"
@@ -2732,7 +2763,8 @@ def validate_bet(amount):
 
 
 def format_card(card):
-    return f"{card[0]}{card[1]}"
+    from src.card_emojis import format_card_emoji
+    return format_card_emoji(card)
 
 
 def format_cards(cards):

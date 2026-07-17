@@ -354,6 +354,23 @@ def resolve_moonshine_ingredient(name):
     return None
 
 
+def add_moonshine_ingredient(account, ingredient, amount=1):
+    """Add a validated recipe ingredient to the moonshiner's shared storage."""
+    ingredient_name = resolve_moonshine_ingredient(ingredient)
+    if ingredient_name is None:
+        raise ValueError("unknown moonshine ingredient")
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        raise ValueError("ingredient amount must be an integer") from None
+    if amount <= 0:
+        raise ValueError("ingredient amount must be positive")
+    moonshine = get_moonshine_account(account)
+    ingredients = moonshine["ingredients"]
+    ingredients[ingredient_name] = ingredients.get(ingredient_name, 0) + amount
+    return ingredients[ingredient_name]
+
+
 def get_moonshine_mash_recipe(recipe_key):
     for recipe in MOONSHINE_MASH_RECIPES:
         if recipe["key"] == recipe_key:

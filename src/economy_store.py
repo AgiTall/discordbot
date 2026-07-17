@@ -543,7 +543,8 @@ def get_account(user_id) -> dict:
     except (TypeError, ValueError):
         account["dealer_wagon"] = 0.0
     account.setdefault("last_work_at", None)
-    return account
+    from src.weapon_system import WEAPON_CATALOG, normalize_weapon_state
+    return normalize_weapon_state(account, WEAPON_CATALOG)
 
 
 # ──────────────────────────────────────────────────────────────

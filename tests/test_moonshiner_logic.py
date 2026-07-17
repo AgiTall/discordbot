@@ -16,6 +16,15 @@ class MoonshinerStateTests(unittest.TestCase):
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.astimezone(timezone.utc)
 
+    def test_store_purchase_goes_to_moonshine_ingredient_storage(self):
+        account = {"moonshine": moonshine.default_moonshine_data()}
+        stored = moonshine.add_moonshine_ingredient(account, "Яблоко", 1)
+        self.assertEqual(stored, 1)
+        self.assertEqual(account["moonshine"]["ingredients"]["Яблоко"], 1)
+
+        stored = moonshine.add_moonshine_ingredient(account, " яблоко ", 2)
+        self.assertEqual(stored, 3)
+
     def test_normalization_repairs_legacy_batch_fields(self):
         data = moonshine.normalize_moonshine_data(
             {
