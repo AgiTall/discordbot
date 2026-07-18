@@ -5,6 +5,7 @@ from src.weapon_system import (
     ammo_total,
     condition_stat_multiplier,
     equip_weapon,
+    has_usable_ammo,
     normalize_weapon_state,
     unequip_weapon,
     use_weapon_shot,
@@ -49,6 +50,27 @@ class WeaponSystemTests(unittest.TestCase):
         self.assertEqual(len(account["weapon_loadout"]["longarms"]), 2)
         ok, _ = equip_weapon(account, "shotgun_one", ITEMS)
         self.assertFalse(ok)
+
+    def test_menu_can_replace_weapon_when_slots_are_full(self):
+        account = self.account("repeater_one", "rifle_one", "shotgun_one")
+        ok, message = equip_weapon(account, "shotgun_one", ITEMS, replace=True)
+        self.assertTrue(ok)
+        self.assertIn("shotgun_one", account["weapon_loadout"]["longarms"])
+        self.assertIn("заменён", message)
+
+    def test_owned_unequipped_weapon_still_provides_ammo_capacity(self):
+        account = self.account("rifle_one")
+        account["weapon_loadout"]["longarms"] = []
+        self.assertEqual(ammo_capacity(account, "rifle", ITEMS), 100)
+
+    def test_unrelated_ammo_cannot_start_combat(self):
+        account = self.account("rifle_one", "revolver_one")
+        account["weapon_loadout"]["sidearms"] = []
+        account["weapon_loadout"]["longarms"] = ["rifle_one"]
+        account["ammo"]["revolver"]["normal"] = 20
+        self.assertFalse(has_usable_ammo(account, ITEMS))
+        account["ammo"]["rifle"]["normal"] = 1
+        self.assertTrue(has_usable_ammo(account, ITEMS))
 
     def test_shot_consumes_best_ammo_and_wears_weapon(self):
         account = self.account("rifle_one")

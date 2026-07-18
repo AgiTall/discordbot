@@ -1,0 +1,67 @@
+import ast
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def registered_command_names(path):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    names = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for decorator in node.decorator_list:
+            if not isinstance(decorator, ast.Call):
+                continue
+            for keyword in decorator.keywords:
+                if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                    names.add(keyword.value.value)
+    return names
+
+
+class InteractiveMenuContracts(unittest.TestCase):
+    def test_investments_is_the_only_company_investment_command(self):
+        names = registered_command_names(ROOT / "cogs" / "catalog.py")
+        self.assertIn("investments", names)
+        self.assertNotIn("companies", names)
+        self.assertNotIn("invest", names)
+
+    def test_gold_exchange_is_owned_by_balance_menu(self):
+        bot_commands = registered_command_names(ROOT / "bot.py")
+        self.assertNotIn("gold-rate", bot_commands)
+        self.assertNotIn("buy-gold", bot_commands)
+        self.assertNotIn("sell-gold", bot_commands)
+
+        catalog = (ROOT / "cogs" / "catalog.py").read_text(encoding="utf-8")
+        self.assertIn("class GoldExchangeView", catalog)
+        self.assertIn('label="Обмен золота"', catalog)
+        self.assertIn("class InvestmentsView", catalog)
+
+    def test_miner_buttons_use_shared_custom_emoji_constants(self):
+        miner = (ROOT / "cogs" / "miner.py").read_text(encoding="utf-8")
+        self.assertIn('label="Копать", emoji=EMOJI_MINE_DIG', miner)
+        self.assertIn('label="Купить", emoji=EMOJI_MINE_BUY', miner)
+        self.assertIn('label="Кузнец", emoji=EMOJI_MINE_SMELT', miner)
+        self.assertIn('label="Ювелир", emoji=EMOJI_MINE_FORGE', miner)
+
+    def test_bounty_leaderboard_lives_inside_bounty_menu(self):
+        bounty_path = ROOT / "cogs" / "bounty.py"
+        names = registered_command_names(bounty_path)
+        source = bounty_path.read_text(encoding="utf-8")
+        self.assertIn("bounty", names)
+        self.assertNotIn("bounty-leaderboard", names)
+        self.assertIn("class BountyLeaderboardButton", source)
+        self.assertIn("has_usable_ammo(account, CATALOG_ITEMS)", source)
+
+    def test_weapon_menu_acknowledges_buttons_before_database_work(self):
+        catalog = (ROOT / "cogs" / "catalog.py").read_text(encoding="utf-8")
+        self.assertIn("async def take_button", catalog)
+        self.assertIn("await interaction.response.defer()", catalog)
+        self.assertIn("await interaction.edit_original_response", catalog)
+        self.assertIn("Weapon menu failed", catalog)
+
+
+if __name__ == "__main__":
+    unittest.main()

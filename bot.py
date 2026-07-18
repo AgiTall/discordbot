@@ -1185,6 +1185,7 @@ def format_balance_property_section(account):
 
 
 def format_balance_weapon_section(account):
+    from emoji_config import DEFAULT_BALANCE_WEAPON_EMOJI
     from src.weapon_system import (
         AMMO_EMOJIS,
         WEAPON_CATALOG,
@@ -2590,10 +2591,9 @@ def build_help_pages(is_admin):
     economy.add_field(
         name="Деньги и Золото",
         value=(
-            "`/balance` — показать ваш баланс, карты, повозку и витрину.\n"
+            "`/balance` — баланс, курс и обмен золота через кнопки меню.\n"
             "`/work` — заработать деньги (кулдаун 2 часа).\n"
-            "`/gold-rate` — показать текущий курс золота.\n"
-            "`/buy-gold` / `/sell-gold` — обмен валюты."
+            "`/investments` — компании, общий прогресс и ваши инвестиции."
         ),
         inline=False,
     )
@@ -2626,7 +2626,7 @@ def build_help_pages(is_admin):
             "`/roles` — список профессий с описаниями и кнопками покупки.\n"
             "`/dealer` / `/dealer-delivery` — заполнение и доставка повозки торговца.\n"
             "`/moonshine` — варка и продажа самогона, прокачка аппарата.\n"
-            "`/bounty` / `/bounty-leaderboard` — охота за головами и доска почета.\n"
+            "`/bounty` — контракты и доска охотников в одном меню.\n"
             "`/naturalist` — справочник животных и сбор образцов."
         ),
         inline=False,
@@ -4649,84 +4649,6 @@ async def moonshine_command(interaction: discord.Interaction):
 
 
 
-
-
-
-@bot.tree.command(name="gold-rate", description="Показать текущий курс золота")
-async def gold_rate_command(interaction: discord.Interaction):
-    async with economy_lock:
-        rate = update_gold_rate()
-        save_economy()
-
-    await interaction.response.send_message(
-        f"Текущий курс: **1 {get_gold_emoji()} = {format_money(rate)}**."
-    )
-
-
-@bot.tree.command(name="buy-gold", description="Купить золото за деньги")
-@app_commands.describe(amount="Сколько золота купить")
-async def buy_gold_command(interaction: discord.Interaction, amount: float):
-    if not is_valid_amount(amount):
-        await interaction.response.send_message(
-            "Введите количество золота больше нуля.", ephemeral=True
-        )
-        return
-
-    async with economy_lock:
-        rate = update_gold_rate()
-        account = get_account(interaction.user.id)
-        cost = amount * rate
-
-        if not math.isfinite(cost):
-            message = "Это количество золота слишком велико."
-        elif account["cash"] + 0.0001 < cost:
-            message = (
-                f"Недостаточно денег. Вам нужно **{format_money(cost)}**, "
-                f"но у вас **{format_money(account['cash'])}**."
-            )
-        else:
-            account["cash"] -= cost
-            account["gold"] += amount
-            message = (
-                f"Вы купили **{format_gold(amount)}** за **{format_money(cost)}**.\n"
-                f"Деньги осталось: **{format_money(account['cash'])}**."
-            )
-
-        save_economy()
-
-    await interaction.response.send_message(message, ephemeral=True)
-
-
-@bot.tree.command(name="sell-gold", description="Продать золото за деньги")
-@app_commands.describe(amount="Сколько золота продать")
-async def sell_gold_command(interaction: discord.Interaction, amount: float):
-    if not is_valid_amount(amount):
-        await interaction.response.send_message(
-            "Введите количество золота больше нуля.", ephemeral=True
-        )
-        return
-
-    async with economy_lock:
-        rate = update_gold_rate()
-        account = get_account(interaction.user.id)
-
-        if account["gold"] + 0.0001 < amount:
-            message = (
-                f"Недостаточно золота. Вы хотите продать **{format_gold(amount)}**, "
-                f"но у вас **{format_gold(account['gold'])}**."
-            )
-        else:
-            income = amount * rate
-            account["gold"] = max(0.0, account["gold"] - amount)
-            account["cash"] += income
-            message = (
-                f"Вы продали **{format_gold(amount)}** за **{format_money(income)}**.\n"
-                f"Деньги сейчас: **{format_money(account['cash'])}**."
-            )
-
-        save_economy()
-
-    await interaction.response.send_message(message, ephemeral=True)
 
 
 

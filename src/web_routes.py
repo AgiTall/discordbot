@@ -11,6 +11,7 @@ from functools import wraps
 from flask import jsonify, redirect, request, session
 
 import src.guild_config as guild_config
+from src.config import config
 from src.economy_stats import build_economy_stats
 
 DISCORD_API = "https://discord.com/api"
@@ -24,7 +25,7 @@ _routes_registered = False
 def _http_request(url, method="GET", data=None, headers=None, timeout=15):
     req_headers = dict(headers or {})
     # Discord API требует User-Agent, иначе банит запросы с серверов (403 Forbidden)
-    req_headers.setdefault("User-Agent", "DiscordBot (https://pchev.me, 0.7.6.3)")
+    req_headers.setdefault("User-Agent", f"DiscordBot (https://pchev.me, {config.get('version', 'v0.0.0')})")
     
     body = None
     if data is not None:
@@ -402,9 +403,14 @@ def register_web_routes(app, get_bot, economy_store, get_leveling_db):
     @app.route("/api/config", methods=["GET"])
     def legacy_get_config():
         return jsonify({
-            "error": "Deprecated. Log in via Discord and use /api/guilds/<guild_id>/settings",
-            "login": "/auth/discord",
-        }), 410
+            "version": config.get("version", "v0.0.0"),
+            "inviteUrl": (
+                "https://discord.com/oauth2/authorize"
+                f"?client_id={DISCORD_CLIENT_ID}"
+                "&scope=bot%20applications.commands&permissions=8"
+            ),
+            "supportUrl": os.environ.get("SUPPORT_URL") or None,
+        })
 
     @app.route("/api/config", methods=["POST"])
     def legacy_post_config():

@@ -22,6 +22,9 @@ from emoji_config import (
     EMOJI_GEM_AMETHYST,
     EMOJI_GEM_EMERALD,
     EMOJI_GEM_DIAMOND,
+    EMOJI_BLOCKED,
+    EMOJI_MINE_DIG,
+    EMOJI_WARNING,
 )
 
 # Kept as a compatibility constant for older imports.  MineDB no longer uses a
@@ -734,11 +737,11 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
                 "🐦 Канарейка упала! Газ обнаружен вовремя. Птица погибла, вы успели уйти."
             )
         else:
-            result["events"].append(f"⚠️ {random.choice(GAS_WARNINGS)}")
+            result["events"].append(f"{EMOJI_WARNING} {random.choice(GAS_WARNINGS)}")
 
     # Газ без защиты: добыча не идёт, попытка сгорела
     if result["gas"] and not result["gas_blocked"]:
-        result["events"].append("🚫 Приступ кашля — вы были вынуждены покинуть забой.")
+        result["events"].append(f"{EMOJI_BLOCKED} Приступ кашля — вы были вынуждены покинуть забой.")
         return result
 
     # ── Обвал ────────────────────────────────────
@@ -749,7 +752,7 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
             result["events"].append("🪵 Крепь выдержала! Использовано 1 бревно крепёжного леса.")
         else:
             result["collapse"] = True
-            result["events"].append(f"💥 {random.choice(COLLAPSE_WARNINGS)}")
+            result["events"].append(f"{EMOJI_WARNING} {random.choice(COLLAPSE_WARNINGS)}")
 
     # ── Нет масла: предупреждение ─────────────────
     if not has_oil:
@@ -762,7 +765,7 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
         result["pickaxe_damaged"] = True
         if player["pickaxe_durability"] <= 10:
             result["events"].append(
-                f"⛏️ {random.choice(PICKAXE_HIT_LINES)} "
+                f"{EMOJI_MINE_DIG} {random.choice(PICKAXE_HIT_LINES)} "
                 f"Прочность: **{player['pickaxe_durability']}**. Пора задуматься о замене."
             )
 
@@ -776,7 +779,7 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
     if gem:
         result["gem"] = gem
         inv_add(player, gem["key"], 1)
-        result["events"].append(f"💎 {random.choice(GEM_FIND_LINES)}")
+        result["events"].append(f"{EMOJI_GEM_DIAMOND} {random.choice(GEM_FIND_LINES)}")
 
     # ── Редкая находка ────────────────────────────
     if random.random() < layer["find_chance"]:

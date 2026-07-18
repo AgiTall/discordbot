@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+import logging
 import math
 from datetime import datetime, timedelta
 from typing import Literal, Optional
@@ -32,7 +33,24 @@ from src.company_logic import (
     personal_investment,
     progress_bar,
 )
-from emoji_config import DEFAULT_MOONSHINE_INGREDIENT_EMOJIS
+from emoji_config import (
+    DEFAULT_MOONSHINE_INGREDIENT_EMOJIS,
+    DEFAULT_BALANCE_WEAPON_EMOJI,
+    EMOJI_ADD,
+    EMOJI_BOOK,
+    EMOJI_EDIT,
+    EMOJI_LEVEL,
+    EMOJI_MEMBERS,
+    EMOJI_SEARCH,
+    EMOJI_PACKAGE,
+    EMOJI_PAW,
+    EMOJI_POTION,
+    EMOJI_SHOP,
+    EMOJI_SUCCESS,
+    EMOJI_TROPHY,
+    EMOJI_WARNING,
+    EMOJI_WEAPON,
+)
 
 from bot import (
     economy_lock,
@@ -41,8 +59,13 @@ from bot import (
     get_gold_emoji,
     get_cash_emoji,
     get_safe_emoji,
+    get_lock_emoji,
     save_economy,
+    build_balance_embed,
+    format_gold,
+    format_money,
     format_money_plain,
+    update_gold_rate,
     now_local,
     parse_local_datetime,
     set_economy_guild_id,
@@ -51,25 +74,25 @@ from bot import (
 
 # ─── Дефолтные эмодзи каталога ───
 
-DEFAULT_CATALOG_TITLE_EMOJI = "📖"
-DEFAULT_CATALOG_COMING_SOON_EMOJI = "🔜"
-DEFAULT_CATALOG_BOUGHT_EMOJI = "✅"
-DEFAULT_CATALOG_BUY_SUCCESS_EMOJI = "✅"
+DEFAULT_CATALOG_TITLE_EMOJI = EMOJI_BOOK
+DEFAULT_CATALOG_COMING_SOON_EMOJI = EMOJI_WARNING
+DEFAULT_CATALOG_BOUGHT_EMOJI = EMOJI_SUCCESS
+DEFAULT_CATALOG_BUY_SUCCESS_EMOJI = EMOJI_SUCCESS
 
 GUN_OIL_EMOJI = "<:kit_gun_oil:1527594712230527026>"
 
 DEFAULT_CATALOG_CATEGORY_EMOJIS = {
-    "revolvers": "🔫",
-    "pistols": "🔫",
-    "carbines": "💥",
-    "rifles": "🎯",
-    "shotguns": "💥",
-    "hunting": "🎣",
-    "ammo": "💥",
+    "revolvers": EMOJI_WEAPON,
+    "pistols": EMOJI_WEAPON,
+    "carbines": EMOJI_WEAPON,
+    "rifles": EMOJI_WEAPON,
+    "shotguns": EMOJI_WEAPON,
+    "hunting": EMOJI_PAW,
+    "ammo": EMOJI_WEAPON,
     "horses": "🐴",
-    "weapon_equipment": "⚔️",
-    "provisions": "🍖",
-    "tonics": "🧪",
+    "weapon_equipment": EMOJI_WEAPON,
+    "provisions": EMOJI_PACKAGE,
+    "tonics": EMOJI_POTION,
 }
 
 # ─── Геттеры эмодзи каталога ───
@@ -107,7 +130,7 @@ def get_catalog_category_emoji(category_key):
         return str(val)
     if category_key.startswith("ammo_"):
         return AMMO_EMOJIS["normal"]
-    return DEFAULT_CATALOG_CATEGORY_EMOJIS.get(category_key, "📦")
+    return DEFAULT_CATALOG_CATEGORY_EMOJIS.get(category_key, EMOJI_PACKAGE)
 
 
 # ─── Категории каталога (в стиле Wheeler, Rawson & Co.) ───
@@ -542,7 +565,7 @@ def get_item_emoji(item_data):
     func = item_data.get("emoji_func")
     if func:
         return func()
-    return item_data.get("emoji", "📦")
+    return item_data.get("emoji", EMOJI_PACKAGE)
 
 
 def get_category_items(category_key):
@@ -577,7 +600,7 @@ def is_item_unlocked(item_data, guild_data):
     return state["level"] >= int(item_data.get("required_company_level", 1))
 
 
-def build_company_embed(guild_data, user_id):
+def build_company_embed(guild_data, user_id, notice=None):
     company_id = WHEELER_RAWSON
     definition = COMPANY_DEFINITIONS[company_id]
     state = get_company_state(guild_data, company_id)
@@ -591,30 +614,31 @@ def build_company_embed(guild_data, user_id):
         remaining = max(0, threshold - state["invested"])
         progress = (
             f"{progress_bar(state['invested'], threshold)} "
-            f"**{state['invested']:,}/{threshold:,} $**\n"
-            f"До следующего уровня: **{remaining:,} $**"
+            f"**{state['invested']:,}/{threshold:,}** {get_cash_emoji()}\n"
+            f"До следующего уровня: **{remaining:,}** {get_cash_emoji()}"
         )
 
     embed = discord.Embed(
-        title=f"🏢 {definition['name']}",
+        title=f"{EMOJI_SHOP} {definition['name']}",
         description=(
             "Инвестиции всех игроков развивают снабжение сервера и открывают "
             "новые товары в каталоге. Вложения возврату не подлежат."
+            + (f"\n\n{notice}" if notice else "")
         ),
         color=discord.Color.from_rgb(139, 109, 68),
     )
-    embed.add_field(name=f"Уровень компании: {state['level']}/4", value=progress, inline=False)
+    embed.add_field(name=f"{EMOJI_LEVEL} Уровень компании: {state['level']}/4", value=progress, inline=False)
     embed.add_field(
-        name="Ваши инвестиции",
-        value=f"**{own:,} $** · скидка на товары за наличные: **{discount}%**",
+        name=f"{EMOJI_TROPHY} Ваши инвестиции",
+        value=f"**{own:,}** {get_cash_emoji()} · скидка на товары за наличные: **{discount}%**",
         inline=False,
     )
     leaders = sorted(state["investors"].items(), key=lambda pair: pair[1], reverse=True)[:5]
     leaderboard = "\n".join(
-        f"{index}. <@{investor_id}> — **{amount:,} $**"
+        f"{index}. <@{investor_id}> — **{amount:,}** {get_cash_emoji()}"
         for index, (investor_id, amount) in enumerate(leaders, start=1)
     ) or "*Инвесторов пока нет.*"
-    embed.add_field(name="Крупнейшие инвесторы", value=leaderboard, inline=False)
+    embed.add_field(name=f"{EMOJI_MEMBERS} Крупнейшие инвесторы", value=leaderboard, inline=False)
     embed.set_footer(text="Скидки инвестора и магазина суммируются, но не превышают 25%.")
     return embed
 
@@ -635,8 +659,8 @@ def build_catalog_messages(category_key, account, guild_id, user_id):
         title=f"{title_emoji} Каталог — {cat_emoji} {cat['name']}",
         description=(
             f"{cat['description']}\n\n"
-            f"🏢 Wheeler, Rawson & Co. · уровень **{company_state['level']}/4** · "
-            "`/companies` для просмотра прогресса"
+            f"{EMOJI_SHOP} Wheeler, Rawson & Co. · уровень **{company_state['level']}/4** · "
+            "`/investments` для просмотра прогресса"
         ),
         color=discord.Color.from_rgb(139, 109, 68),  # Тёплый коричневый, стиль RDR2
     )
@@ -676,7 +700,7 @@ def build_catalog_messages(category_key, account, guild_id, user_id):
             if not unlocked:
                 required_level = item_data.get("required_company_level", 1)
                 item_description = (
-                    f"🔒 **Требуется {required_level}-й уровень Wheeler, Rawson & Co.**\n"
+                    f"{get_lock_emoji()} **Требуется {required_level}-й уровень Wheeler, Rawson & Co.**\n"
                     f"{item_description}"
                 )
             if item_data["type"] == "ammo":
@@ -691,7 +715,7 @@ def build_catalog_messages(category_key, account, guild_id, user_id):
 
             if "image" in item_data:
                 item_embed = discord.Embed(
-                    title=f"{'🔒' if not unlocked else item_emoji} {item_data['name']}{status}",
+                    title=f"{get_lock_emoji() if not unlocked else item_emoji} {item_data['name']}{status}",
                     description=f"{item_description}\nЦена: {price_text}",
                     color=discord.Color.from_rgb(139, 109, 68),
                 )
@@ -701,7 +725,7 @@ def build_catalog_messages(category_key, account, guild_id, user_id):
                 embeds.append(item_embed)
             else:
                 main_embed.add_field(
-                    name=f"{'🔒' if not unlocked else item_emoji} {item_data['name']}{status}",
+                    name=f"{get_lock_emoji() if not unlocked else item_emoji} {item_data['name']}{status}",
                     value=f"{item_description}\nЦена: {price_text}",
                     inline=False,
                 )
@@ -790,6 +814,7 @@ class CatalogBuyButton(discord.ui.Button):
             live_price, _ = get_catalog_price(
                 self.item_key, self.item_data, guild_data, interaction.user.id
             )
+            purchase_quantity = self.item_data.get("quantity", 1)
 
             if self.item_data["type"] == "unique" and inventory.get(self.item_key, 0) > 0:
                 await interaction.response.send_message(
@@ -804,16 +829,20 @@ class CatalogBuyButton(discord.ui.Button):
                 quantity = self.item_data["quantity"]
                 if capacity <= 0:
                     await interaction.response.send_message(
-                        f"Сначала возьмите с собой {WEAPON_CLASS_NAMES[class_key]} через `/balance` → «Оружие».",
+                        f"Сначала купите оружие класса «{WEAPON_CLASS_NAMES[class_key]}».",
                         ephemeral=True,
                     )
                     return
-                if current + quantity > capacity:
+                free_space = max(0, capacity - current)
+                if free_space <= 0:
                     await interaction.response.send_message(
-                        f"Коробка не помещается: сейчас **{current}/{capacity}**, в коробке **{quantity}** шт.",
+                        f"Боезапас этого класса уже полный: **{current}/{capacity}**.",
                         ephemeral=True,
                     )
                     return
+                purchase_quantity = min(quantity, free_space)
+                if purchase_quantity < quantity:
+                    live_price = max(1, math.ceil(live_price * purchase_quantity / quantity))
 
             if account.get(self.item_data["currency"], 0.0) < live_price:
                 currency_emoji = get_gold_emoji() if self.item_data["currency"] == "gold" else get_cash_emoji()
@@ -832,7 +861,7 @@ class CatalogBuyButton(discord.ui.Button):
             elif self.item_data["type"] == "ammo":
                 class_ammo = account["ammo"][self.item_data["ammo_class"]]
                 ammo_type = self.item_data["ammo_type"]
-                class_ammo[ammo_type] += self.item_data["quantity"]
+                class_ammo[ammo_type] += purchase_quantity
             elif self.item_data["type"] == "moonshine_ingredient":
                 stored_ingredient = add_moonshine_ingredient(
                     account, self.item_data["ingredient"], self.item_data["quantity"]
@@ -848,7 +877,7 @@ class CatalogBuyButton(discord.ui.Button):
                 stock = ammo_total(account, class_key)
                 capacity = ammo_capacity(account, class_key, CATALOG_ITEMS)
                 result = (
-                    f"{success_emoji} Куплено **{self.item_data['quantity']} шт.** — "
+                    f"{success_emoji} Куплено **{purchase_quantity} шт.** — "
                     f"**{self.item_data['name']}** за {live_price} {emoji}.\n"
                     f"Боезапас: **{stock}/{capacity}**."
                 )
@@ -973,7 +1002,7 @@ def build_weapons_embed(account):
 
     oil = int(account.get("inventory", {}).get("gun_oil", 0) or 0)
     embed = discord.Embed(
-        title="🔫 Оружие и боезапас",
+        title=f"{EMOJI_WEAPON} Оружие и боезапас",
         description="Выберите оружие ниже, чтобы взять его, убрать или почистить.",
         color=discord.Color.from_rgb(139, 109, 68),
     )
@@ -1013,6 +1042,7 @@ class WeaponSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         self.view.selected_weapon = self.values[0]
+        await interaction.response.defer()
         await self.view.refresh(interaction)
 
 
@@ -1029,6 +1059,7 @@ class AmmoClassSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         self.view.ammo_class = self.values[0]
+        await interaction.response.defer()
         await self.view.refresh(interaction)
 
 
@@ -1045,6 +1076,7 @@ class AmmoTypeSelect(discord.ui.Select):
 
     async def callback(self, interaction):
         self.view.ammo_type = self.values[0]
+        await interaction.response.defer()
         await self.view.refresh(interaction)
 
 
@@ -1053,7 +1085,14 @@ class WeaponManagementView(discord.ui.View):
         super().__init__(timeout=300)
         self.guild_id = guild_id
         self.member = member
-        self.selected_weapon = None
+        owned = owned_weapon_keys(account, CATALOG_ITEMS)
+        equipped = set(
+            account.get("weapon_loadout", {}).get("sidearms", [])
+            + account.get("weapon_loadout", {}).get("longarms", [])
+        )
+        self.selected_weapon = next((key for key in owned if key not in equipped), None)
+        if self.selected_weapon is None and owned:
+            self.selected_weapon = owned[0]
         self.ammo_class = "revolver"
         self.ammo_type = account.get("selected_ammo", {}).get(self.ammo_class, "normal")
         self.rebuild(account)
@@ -1081,6 +1120,20 @@ class WeaponManagementView(discord.ui.View):
             return False
         return True
 
+    async def on_error(self, interaction, error, item):
+        logging.error(
+            "Weapon menu failed for user=%s guild=%s item=%s",
+            getattr(interaction.user, "id", None),
+            interaction.guild_id,
+            getattr(item, "custom_id", type(item).__name__),
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        message = f"{EMOJI_WARNING} Не удалось обновить оружие. Попробуйте снова открыть `/balance`."
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+
     async def refresh(self, interaction, notice=None):
         async with economy_lock:
             account = get_account(interaction.user.id)
@@ -1090,36 +1143,51 @@ class WeaponManagementView(discord.ui.View):
             embed = build_weapons_embed(account)
         if notice:
             embed.description = notice
-        await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, attachments=[], view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
 
-    @discord.ui.button(label="Взять", emoji="✅", style=discord.ButtonStyle.success, row=1)
+    @discord.ui.button(label="Взять", emoji=EMOJI_SUCCESS, style=discord.ButtonStyle.success, row=1)
     async def take_button(self, interaction, button):
+        await interaction.response.defer()
         async with economy_lock:
             account = get_account(interaction.user.id)
-            ok, message = equip_weapon(account, self.selected_weapon, CATALOG_ITEMS)
+            ok, message = equip_weapon(
+                account, self.selected_weapon, CATALOG_ITEMS, replace=True
+            )
             if ok:
                 save_economy()
-        await self.refresh(interaction, f"{'✅' if ok else '⚠️'} {message}")
+                equipped = (
+                    account["weapon_loadout"]["sidearms"]
+                    + account["weapon_loadout"]["longarms"]
+                )
+                if self.selected_weapon not in equipped:
+                    ok = False
+                    message = "Оружие не сохранилось в активном снаряжении."
+        await self.refresh(interaction, f"{EMOJI_SUCCESS if ok else EMOJI_WARNING} {message}")
 
     @discord.ui.button(label="Убрать", emoji="➖", style=discord.ButtonStyle.secondary, row=1)
     async def remove_button(self, interaction, button):
+        await interaction.response.defer()
         async with economy_lock:
             account = get_account(interaction.user.id)
             removed = unequip_weapon(account, self.selected_weapon)
             if removed:
                 save_economy()
-        await self.refresh(interaction, "✅ Оружие убрано." if removed else "⚠️ Оружие уже не выбрано.")
+        await self.refresh(interaction, f"{EMOJI_SUCCESS} Оружие убрано." if removed else f"{EMOJI_WARNING} Оружие уже не выбрано.")
 
-    @discord.ui.button(label="Почистить", emoji="🧽", style=discord.ButtonStyle.primary, row=1)
+    @discord.ui.button(label="Почистить", emoji=GUN_OIL_EMOJI, style=discord.ButtonStyle.primary, row=1)
     async def clean_button(self, interaction, button):
+        await interaction.response.defer()
         async with economy_lock:
             account = get_account(interaction.user.id)
             inventory = account.setdefault("inventory", {})
             condition = account["weapon_condition"].get(self.selected_weapon, 100.0)
             if inventory.get("gun_oil", 0) <= 0:
-                message = "⚠️ Нет оружейного масла. Купите его в `/catalog`."
+                message = f"{EMOJI_WARNING} Нет оружейного масла. Купите его в `/catalog`."
             elif condition >= 100.0:
-                message = "⚠️ Оружие уже в идеальном состоянии."
+                message = f"{EMOJI_WARNING} Оружие уже в идеальном состоянии."
             else:
                 inventory["gun_oil"] -= 1
                 account["weapon_condition"][self.selected_weapon] = 100.0
@@ -1127,13 +1195,14 @@ class WeaponManagementView(discord.ui.View):
                 message = f"{GUN_OIL_EMOJI} Оружие очищено: {condition:g}% → **100%**."
         await self.refresh(interaction, message)
 
-    @discord.ui.button(label="Зарядить выбранные", emoji="💥", style=discord.ButtonStyle.primary, row=4)
+    @discord.ui.button(label="Зарядить выбранные", emoji=AMMO_EMOJIS["normal"], style=discord.ButtonStyle.primary, row=4)
     async def load_ammo_button(self, interaction, button):
+        await interaction.response.defer()
         async with economy_lock:
             account = get_account(interaction.user.id)
             stock = account["ammo"][self.ammo_class][self.ammo_type]
             if stock <= 0:
-                message = f"⚠️ Таких патронов для класса «{WEAPON_CLASS_NAMES[self.ammo_class]}» нет."
+                message = f"{EMOJI_WARNING} Таких патронов для класса «{WEAPON_CLASS_NAMES[self.ammo_class]}» нет."
             else:
                 account["selected_ammo"][self.ammo_class] = self.ammo_type
                 save_economy()
@@ -1147,7 +1216,7 @@ class BalanceWeaponButtonView(discord.ui.View):
         self.guild_id = guild_id
         self.member = member
 
-    @discord.ui.button(label="Оружие", emoji="🔫", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Оружие", emoji=DEFAULT_BALANCE_WEAPON_EMOJI, style=discord.ButtonStyle.primary)
     async def weapons_button(self, interaction, button):
         if interaction.user.id != self.member.id:
             await interaction.response.send_message("Это не ваш баланс!", ephemeral=True)
@@ -1161,6 +1230,243 @@ class BalanceWeaponButtonView(discord.ui.View):
                 embed = build_weapons_embed(account)
                 view = WeaponManagementView(interaction.guild_id, interaction.user, account)
             await interaction.response.edit_message(embed=embed, attachments=[], view=view)
+        finally:
+            reset_economy_guild_id(token)
+
+    @discord.ui.button(
+        label="Обмен золота",
+        emoji=get_gold_emoji(),
+        style=discord.ButtonStyle.success,
+    )
+    async def gold_exchange_button(self, interaction, button):
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваш баланс!", ephemeral=True)
+            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                rate = update_gold_rate()
+                account = get_account(interaction.user.id)
+                save_economy()
+                embed = build_gold_exchange_embed(account, rate)
+            await interaction.response.edit_message(
+                embed=embed,
+                view=GoldExchangeView(interaction.guild_id, interaction.user),
+            )
+        finally:
+            reset_economy_guild_id(token)
+
+
+def build_gold_exchange_embed(account, rate, notice=None):
+    description = (
+        f"Курс: **1 {get_gold_emoji()} = {format_money(rate)}**\n\n"
+        f"{get_cash_emoji()} Наличные: **{format_money_plain(account['cash'])}**\n"
+        f"{get_gold_emoji()} Золото: **{account['gold']:g}**"
+    )
+    if notice:
+        description += f"\n\n{notice}"
+    return discord.Embed(
+        title=f"{get_gold_emoji()} Обмен золота",
+        description=description,
+        color=discord.Color.dark_gold(),
+    )
+
+
+class GoldExchangeModal(discord.ui.Modal):
+    amount = discord.ui.TextInput(
+        label="Количество золота",
+        placeholder="Например: 1 или 0,5",
+        min_length=1,
+        max_length=20,
+    )
+
+    def __init__(self, guild_id, member, action):
+        verb = "Купить" if action == "buy" else "Продать"
+        super().__init__(title=f"{verb} золото")
+        self.guild_id = guild_id
+        self.member = member
+        self.action = action
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваше меню!", ephemeral=True)
+            return
+        try:
+            amount = float(str(self.amount.value).strip().replace(",", "."))
+        except ValueError:
+            amount = 0
+        if not math.isfinite(amount) or amount <= 0:
+            await interaction.response.send_message(
+                f"{EMOJI_WARNING} Введите положительное количество золота.",
+                ephemeral=True,
+            )
+            return
+
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                rate = update_gold_rate()
+                account = get_account(interaction.user.id)
+                if self.action == "buy":
+                    total = amount * rate
+                    if not math.isfinite(total) or account["cash"] + 0.0001 < total:
+                        notice = (
+                            f"{EMOJI_WARNING} Недостаточно наличных: нужно "
+                            f"**{format_money(total)}**."
+                        )
+                    else:
+                        account["cash"] -= total
+                        account["gold"] += amount
+                        notice = (
+                            f"{EMOJI_SUCCESS} Куплено **{format_gold(amount)}** за "
+                            f"**{format_money(total)}**."
+                        )
+                elif account["gold"] + 0.0001 < amount:
+                    notice = f"{EMOJI_WARNING} На балансе недостаточно золота."
+                else:
+                    total = amount * rate
+                    account["gold"] = max(0.0, account["gold"] - amount)
+                    account["cash"] += total
+                    notice = (
+                        f"{EMOJI_SUCCESS} Продано **{format_gold(amount)}** за "
+                        f"**{format_money(total)}**."
+                    )
+                save_economy()
+                embed = build_gold_exchange_embed(account, rate, notice)
+            await interaction.response.edit_message(
+                embed=embed,
+                view=GoldExchangeView(self.guild_id, self.member),
+            )
+        finally:
+            reset_economy_guild_id(token)
+
+
+class GoldExchangeView(discord.ui.View):
+    def __init__(self, guild_id, member):
+        super().__init__(timeout=600)
+        self.guild_id = guild_id
+        self.member = member
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.member.id:
+            return True
+        await interaction.response.send_message("Это не ваше меню!", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Купить", emoji=EMOJI_ADD, style=discord.ButtonStyle.success)
+    async def buy_button(self, interaction, button):
+        await interaction.response.send_modal(
+            GoldExchangeModal(self.guild_id, self.member, "buy")
+        )
+
+    @discord.ui.button(label="Продать", emoji=EMOJI_EDIT, style=discord.ButtonStyle.primary)
+    async def sell_button(self, interaction, button):
+        await interaction.response.send_modal(
+            GoldExchangeModal(self.guild_id, self.member, "sell")
+        )
+
+    @discord.ui.button(label="Вернуться к балансу", emoji=EMOJI_SEARCH, style=discord.ButtonStyle.secondary)
+    async def back_button(self, interaction, button):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                rate = update_gold_rate()
+                account = get_account(interaction.user.id)
+                embed = build_balance_embed(interaction.guild, interaction.user, account, rate)
+            await interaction.response.edit_message(
+                embed=embed,
+                view=BalanceWeaponButtonView(self.guild_id, self.member),
+            )
+        finally:
+            reset_economy_guild_id(token)
+
+
+class InvestmentAmountModal(discord.ui.Modal, title="Инвестиция в компанию"):
+    amount = discord.ui.TextInput(
+        label="Сумма наличными",
+        placeholder="Например: 500",
+        min_length=1,
+        max_length=12,
+    )
+
+    def __init__(self, guild_id, member):
+        super().__init__()
+        self.guild_id = guild_id
+        self.member = member
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваше меню!", ephemeral=True)
+            return
+        try:
+            amount = int(str(self.amount.value).strip().replace(" ", ""))
+        except ValueError:
+            amount = 0
+        if amount <= 0:
+            await interaction.response.send_message(
+                f"{EMOJI_WARNING} Введите положительную целую сумму.", ephemeral=True
+            )
+            return
+
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                guild_data = economy_data.current()
+                company_state = get_company_state(guild_data, WHEELER_RAWSON)
+                if account.get("cash", 0) < amount:
+                    notice = (
+                        f"{EMOJI_WARNING} Недостаточно наличных. Нужно "
+                        f"**{amount:,}** {get_cash_emoji()}."
+                    )
+                else:
+                    account["cash"] -= amount
+                    old_level, new_level = add_investment(
+                        company_state, WHEELER_RAWSON, interaction.user.id, amount
+                    )
+                    save_economy()
+                    notice = (
+                        f"{EMOJI_SUCCESS} Вложено **{amount:,}** {get_cash_emoji()}."
+                    )
+                    if new_level > old_level:
+                        notice += (
+                            f"\n{EMOJI_TROPHY} Компания достигла **{new_level}-го уровня** — "
+                            "открыты новые товары."
+                        )
+                embed = build_company_embed(guild_data, interaction.user.id, notice)
+            await interaction.response.edit_message(
+                embed=embed,
+                view=InvestmentsView(self.guild_id, self.member),
+            )
+        finally:
+            reset_economy_guild_id(token)
+
+
+class InvestmentsView(discord.ui.View):
+    def __init__(self, guild_id, member):
+        super().__init__(timeout=600)
+        self.guild_id = guild_id
+        self.member = member
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.member.id:
+            return True
+        await interaction.response.send_message("Это не ваше меню!", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Инвестировать", emoji=EMOJI_ADD, style=discord.ButtonStyle.success)
+    async def invest_button(self, interaction, button):
+        await interaction.response.send_modal(
+            InvestmentAmountModal(self.guild_id, self.member)
+        )
+
+    @discord.ui.button(label="Обновить", emoji=EMOJI_LEVEL, style=discord.ButtonStyle.secondary)
+    async def refresh_button(self, interaction, button):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                embed = build_company_embed(economy_data.current(), interaction.user.id)
+            await interaction.response.edit_message(embed=embed, view=self)
         finally:
             reset_economy_guild_id(token)
 
@@ -1187,58 +1493,15 @@ class CatalogCog(commands.Cog):
         finally:
             reset_economy_guild_id(token)
 
-    @app_commands.command(name="companies", description="Показать компании и прогресс их развития")
-    async def companies_cmd(self, interaction: discord.Interaction):
+    @app_commands.command(name="investments", description="Открыть компании и управление инвестициями")
+    async def investments_cmd(self, interaction: discord.Interaction):
         token = set_economy_guild_id(interaction.guild_id)
         try:
             async with economy_lock:
                 embed = build_company_embed(economy_data.current(), interaction.user.id)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        finally:
-            reset_economy_guild_id(token)
-
-    @app_commands.command(name="invest", description="Инвестировать наличные в Wheeler, Rawson & Co.")
-    @app_commands.describe(amount="Сумма инвестиции в долларах")
-    async def invest_cmd(self, interaction: discord.Interaction, amount: int):
-        token = set_economy_guild_id(interaction.guild_id)
-        try:
-            if amount <= 0:
-                await interaction.response.send_message(
-                    "Сумма инвестиции должна быть положительным целым числом.",
-                    ephemeral=True,
-                )
-                return
-
-            async with economy_lock:
-                account = get_account(interaction.user.id)
-                if account.get("cash", 0) < amount:
-                    await interaction.response.send_message(
-                        f"Недостаточно наличных. Нужно **{amount:,}** {get_cash_emoji()}.",
-                        ephemeral=True,
-                    )
-                    return
-
-                guild_data = economy_data.current()
-                company_state = get_company_state(guild_data, WHEELER_RAWSON)
-                account["cash"] -= amount
-                old_level, new_level = add_investment(
-                    company_state, WHEELER_RAWSON, interaction.user.id, amount
-                )
-                save_economy()
-                own_total = personal_investment(company_state, interaction.user.id)
-                discount = investor_discount_percent(company_state, interaction.user.id)
-
-            level_message = ""
-            if new_level > old_level:
-                level_message = (
-                    f"\n🎉 Компания достигла **{new_level}-го уровня** — "
-                    "в каталоге появились новые товары!"
-                )
             await interaction.response.send_message(
-                f"✅ Вы инвестировали **{amount:,}** {get_cash_emoji()} в "
-                f"**Wheeler, Rawson & Co.**\n"
-                f"Ваш общий вклад: **{own_total:,} $** · скидка: **{discount}%**"
-                f"{level_message}",
+                embed=embed,
+                view=InvestmentsView(interaction.guild_id, interaction.user),
                 ephemeral=True,
             )
         finally:
@@ -1274,7 +1537,7 @@ class CatalogCog(commands.Cog):
                 save_economy()
 
             embed = discord.Embed(
-                title="🔫 Оружие и боезапас",
+                title=f"{EMOJI_WEAPON} Оружие и боезапас",
                 description=(
                     "Состояние снижает характеристики оружия вплоть до 60% от исходных. "
                     "Оружейное масло полностью очищает выбранное оружие."
@@ -1311,7 +1574,7 @@ class CatalogCog(commands.Cog):
                     save_economy()
                 name = CATALOG_ITEMS.get(weapon, {}).get("name", weapon)
             await interaction.response.send_message(
-                f"{'✅' if ok else '⚠️'} **{name}**: {message}", ephemeral=True
+                f"{EMOJI_SUCCESS if ok else EMOJI_WARNING} **{name}**: {message}", ephemeral=True
             )
         finally:
             reset_economy_guild_id(token)
@@ -1339,7 +1602,7 @@ class CatalogCog(commands.Cog):
                 if removed:
                     save_economy()
                 name = CATALOG_ITEMS.get(weapon, {}).get("name", weapon)
-            message = f"✅ **{name}** убрано." if removed else "⚠️ Это оружие сейчас не взято с собой."
+            message = f"{EMOJI_SUCCESS} **{name}** убрано." if removed else f"{EMOJI_WARNING} Это оружие сейчас не взято с собой."
             await interaction.response.send_message(message, ephemeral=True)
         finally:
             reset_economy_guild_id(token)
@@ -1366,11 +1629,11 @@ class CatalogCog(commands.Cog):
                 normalize_weapon_state(account, CATALOG_ITEMS)
                 inventory = account.setdefault("inventory", {})
                 if weapon not in owned_weapon_keys(account, CATALOG_ITEMS):
-                    message = "⚠️ Это оружие не куплено."
+                    message = f"{EMOJI_WARNING} Это оружие не куплено."
                 elif inventory.get("gun_oil", 0) <= 0:
-                    message = f"⚠️ Нет оружейного масла. Купите его в разделе снаряжения `/catalog`."
+                    message = f"{EMOJI_WARNING} Нет оружейного масла. Купите его в разделе снаряжения `/catalog`."
                 elif account["weapon_condition"].get(weapon, 100.0) >= 100.0:
-                    message = "⚠️ Оружие уже находится в идеальном состоянии."
+                    message = f"{EMOJI_WARNING} Оружие уже находится в идеальном состоянии."
                 else:
                     old_condition = account["weapon_condition"][weapon]
                     inventory["gun_oil"] -= 1
@@ -1426,7 +1689,7 @@ class CatalogCog(commands.Cog):
                 stock = account["ammo"][class_key][type_key]
                 if stock <= 0:
                     message = (
-                        f"⚠️ Нет патронов типа **{AMMO_TYPE_NAMES[type_key]}** "
+                        f"{EMOJI_WARNING} Нет патронов типа **{AMMO_TYPE_NAMES[type_key]}** "
                         f"для класса «{WEAPON_CLASS_NAMES[class_key]}»."
                     )
                 else:

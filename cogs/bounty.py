@@ -2,7 +2,12 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
-from src.weapon_system import AMMO_TYPE_NAMES, normalize_weapon_state, use_weapon_shot
+from src.weapon_system import (
+    AMMO_TYPE_NAMES,
+    has_usable_ammo,
+    normalize_weapon_state,
+    use_weapon_shot,
+)
 from src.bounty_logic import *
 
 class BountyOwnerView(discord.ui.View):
@@ -62,6 +67,74 @@ class BountyMainView(BountyOwnerView):
         super().__init__(bot, user_id)
         for difficulty_key in BOUNTY_DIFFICULTIES:
             self.add_item(BountyDifficultyButton(self.bot, difficulty_key))
+        self.add_item(BountyLeaderboardButton(self.bot))
+
+
+def _bounty_leaderboard_rows():
+    rows = []
+    for user_id, account in economy_data["users"].items():
+        if not isinstance(account, dict):
+            continue
+        bounty = normalize_bounty_data(account.get("bounty"))
+        if bounty["captures"] <= 0 and bounty["xp"] <= 0:
+            continue
+        rows.append((user_id, bounty))
+    rows.sort(
+        key=lambda item: (
+            item[1]["level"],
+            item[1]["captures"],
+            item[1]["xp"],
+        ),
+        reverse=True,
+    )
+    return rows
+
+
+def _build_bounty_leaderboard_embed(guild, rows):
+    if not rows:
+        description = "Пока никто не закрыл ни одного контракта."
+    else:
+        lines = []
+        for index, (user_id, bounty) in enumerate(rows[:10], start=1):
+            member = guild.get_member(int(user_id)) if guild else None
+            name = member.mention if member else f"`{user_id}`"
+            lines.append(
+                f"**{index}.** {name} — ур. {bounty['level']}, "
+                f"поймано {format_integer(bounty['captures'])}, опыт {bounty['xp']}"
+            )
+        description = "\n".join(lines)
+    embed = build_bot_embed(
+        "Лучшие охотники за головами",
+        description,
+        color=discord.Color.dark_gold(),
+    )
+    if os.path.exists(BOUNTY_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
+    return embed
+
+
+class BountyLeaderboardButton(discord.ui.Button):
+    def __init__(self, bot):
+        self.bot = bot
+        super().__init__(
+            label="Доска охотников",
+            style=discord.ButtonStyle.secondary,
+            emoji=get_bounty_button_emoji("leaderboard"),
+            custom_id="bounty:leaderboard",
+        )
+
+    async def callback(self, interaction):
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                rows = _bounty_leaderboard_rows()
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+        await interaction.response.edit_message(
+            embed=_build_bounty_leaderboard_embed(interaction.guild, rows),
+            view=BountyMainView(self.bot, interaction.user.id),
+        )
 
 
 class BountyTacticButton(discord.ui.Button):
@@ -116,14 +189,12 @@ class BountyTacticButton(discord.ui.Button):
                         "Возьмите купленное оружие через `/balance` → «Оружие».", ephemeral=True
                     )
                     return
-                if not any(
-                    account["ammo"][class_key][ammo_type] > 0
-                    for class_key in account["ammo"]
-                    for ammo_type in account["ammo"][class_key]
-                ):
+                if not has_usable_ammo(account, CATALOG_ITEMS):
                     self.bot.save_economy()
                     await interaction.response.send_message(
-                        "Боезапас пуст. Купите патроны в `/catalog`.", ephemeral=True
+                        "Для оружия в руках нет подходящих патронов. "
+                        "Купите их в `/catalog` или смените оружие через `/balance`.",
+                        ephemeral=True,
                     )
                     return
 
@@ -270,58 +341,6 @@ class BountyCog(commands.Cog):
             )
         else:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
-    @app_commands.command(name="bounty-leaderboard", description="Топ охотников за головами")
-    async def bounty_leaderboard_command(self, interaction: discord.Interaction):
-        token = self.bot.set_economy_guild_id(interaction.guild_id)
-        try:
-            async with self.bot.economy_lock:
-                rows = []
-                for user_id, account in economy_data["users"].items():
-                    if not isinstance(account, dict):
-                        continue
-                    bounty = normalize_bounty_data(account.get("bounty"))
-                    if bounty["captures"] <= 0 and bounty["xp"] <= 0:
-                        continue
-                    rows.append((user_id, bounty))
-                rows.sort(
-                    key=lambda item: (
-                        item[1]["level"],
-                        item[1]["captures"],
-                        item[1]["xp"],
-                    ),
-                    reverse=True,
-                )
-                self.bot.save_economy()
-        finally:
-            self.bot.reset_economy_guild_id(token)
-
-        if not rows:
-            description = "Пока никто не закрыл ни одного контракта."
-        else:
-            lines = []
-            for index, (user_id, bounty) in enumerate(rows[:10], start=1):
-                member = interaction.guild.get_member(int(user_id)) if interaction.guild else None
-                name = member.mention if member else f"`{user_id}`"
-                lines.append(
-                    f"**{index}.** {name} — ур. {bounty['level']}, "
-                    f"поймано {format_integer(bounty['captures'])}, опыт {bounty['xp']}"
-                )
-            description = "\n".join(lines)
-
-        embed = build_bot_embed(
-            "Лучшие охотники за головами",
-            description,
-            color=discord.Color.dark_gold(),
-        )
-        if os.path.exists(BOUNTY_IMAGE_FILE):
-            embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
-        image = get_bounty_image_file()
-        if image:
-            await interaction.response.send_message(embed=embed, file=image, ephemeral=True)
-        else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
 
 async def setup(bot):
     await bot.add_cog(BountyCog(bot))

@@ -37,11 +37,8 @@ const COMMANDS = [
   { name: 'command-chat',     emoji: '💬', category: 'level', tag: 'admin',  desc: 'Указать каналы, где разрешены команды.', args: '[канал] [remove]' },
 
   // ── Экономика ─────────────────────────────
-  { name: 'gold-rate',    emoji: '📈', category: 'econ', tag: 'econ', desc: 'Показать текущий курс золота к деньгам.' },
-  { name: 'buy-gold',     emoji: '🪙', category: 'econ', tag: 'econ', desc: 'Купить золото за деньги по текущему курсу.', args: '<количество>' },
-  { name: 'sell-gold',    emoji: '💰', category: 'econ', tag: 'econ', desc: 'Продать золото за деньги по текущему курсу.', args: '<количество>' },
   { name: 'work',         emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'econ', tag: 'econ', desc: 'Поработать и получить деньги (перезарядка 1 час).' },
-  { name: 'balance',      emoji: '👤', category: 'econ', tag: 'econ', desc: 'Показать баланс вашего аккаунта.' },
+  { name: 'balance',      emoji: '👤', category: 'econ', tag: 'econ', desc: 'Открыть баланс, оружие, текущий курс и обмен золота.' },
 
   // ── Профессии ─────────────────────────────
   { name: 'roles',           emoji: '🎭', category: 'role', tag: 'role', desc: 'Просмотреть и купить доступные профессиональные роли за золото.' },
@@ -49,13 +46,11 @@ const COMMANDS = [
   { name: 'dealer-delivery', emoji: '📦', category: 'role', tag: 'role', desc: 'Торговец: доставить полную повозку и получить 500–625 $.' },
   { name: 'moonshine',       emoji: '<img src="https://cdn.discordapp.com/emojis/1515766699402465362.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Самогонщик: открыть меню предприятия (бражка, ингредиенты, улучшения).' },
   { name: 'bounty',          emoji: '<img src="https://cdn.discordapp.com/emojis/1515766696223445053.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Охотник за головами: открыть меню контрактов (лёгкий/средний/сложный).' },
-  { name: 'bounty-leaderboard', emoji: '🏆', category: 'role', tag: 'role', desc: 'Топ охотников за головами по уровню и количеству поимок.' },
   { name: 'naturalist',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766700904284370.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Натуралист: образцы, справочник животных и магазин транквилизаторов.' },
   { name: 'excavation',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Использовать карту сокровищ для раскопок — найдите клад!' },
   { name: 'mine',            emoji: '<img src="https://cdn.discordapp.com/emojis/1521863885689192518.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Шахтёр: добыча руды, плавка слитков, улучшения и продажа ресурсов.' },
   { name: 'catalog',         emoji: '📖', category: 'role', tag: 'role', desc: 'Открыть каталог Wheeler, Rawson & Co. и приобрести товары.' },
-  { name: 'companies',       emoji: '🏢', category: 'econ', tag: 'econ', desc: 'Показать уровень компании, прогресс снабжения и крупнейших инвесторов.' },
-  { name: 'invest',          emoji: '📊', category: 'econ', tag: 'econ', desc: 'Инвестировать наличные в Wheeler, Rawson & Co.', args: '<сумма>' },
+  { name: 'investments',     emoji: '🏢', category: 'econ', tag: 'econ', desc: 'Открыть компании, прогресс снабжения и управление инвестициями.' },
 
   // ── Игры ──────────────────────────────────
   { name: 'dice',       emoji: '🎲', category: 'game', tag: 'game', desc: 'Сыграть в кости с ботом.', args: '[ставка]' },
@@ -225,6 +220,22 @@ async function fetchMe() {
   if (res.status === 401) return null;
   if (!res.ok) throw new Error('API error');
   return res.json();
+}
+
+/** На главной странице авторизованному пользователю показываем быстрый вход в панель. */
+async function initHomeAuthCta() {
+  const cta = document.getElementById('heroSecondaryCta');
+  if (!cta) return;
+
+  try {
+    const me = await fetchMe();
+    if (me?.authenticated) {
+      cta.href = 'dashboard.html';
+      cta.textContent = 'ПЕРЕЙТИ К НАСТРОЙКАМ БОТА';
+    }
+  } catch (error) {
+    console.debug('Не удалось проверить авторизацию для главной кнопки:', error);
+  }
 }
 
 async function loadPublicConfig() {
@@ -1924,6 +1935,7 @@ function initCookieBanner() {
 // =============================================
 document.addEventListener('DOMContentLoaded', async () => {
   await loadPublicConfig();
+  await initHomeAuthCta();
   markActiveNav();
   initHamburger();
   initHeroButtons();

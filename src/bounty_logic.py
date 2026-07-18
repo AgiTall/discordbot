@@ -5,6 +5,15 @@ import json
 import discord
 from discord import app_commands
 from src.xp_utils import *
+from emoji_config import (
+    EMOJI_LEVEL,
+    EMOJI_LIST,
+    EMOJI_MEMBERS,
+    EMOJI_ROLE_BOUNTY_HUNTER,
+    EMOJI_SEARCH,
+    EMOJI_TROPHY,
+    EMOJI_WEAPON,
+)
 
 BOUNTY_IMAGE_FILE = "assets/images/hunter.png"
 
@@ -13,12 +22,13 @@ BOUNTY_IMAGE_ATTACHMENT_NAME = "hunter.png"
 
 
 DEFAULT_BOUNTY_BUTTON_EMOJIS = {
-    "easy": "🎯",
-    "medium": "⚔️",
-    "hard": "🔥",
-    "ambush": "🌵",
-    "chase": "🐎",
-    "negotiate": "🤝",
+    "easy": EMOJI_SEARCH,
+    "medium": EMOJI_WEAPON,
+    "hard": EMOJI_TROPHY,
+    "ambush": EMOJI_ROLE_BOUNTY_HUNTER,
+    "chase": EMOJI_LEVEL,
+    "negotiate": EMOJI_MEMBERS,
+    "leaderboard": EMOJI_TROPHY,
 }
 
 
@@ -166,7 +176,7 @@ def build_bounty_embed(guild, account):
         title=f"{icon} Охотник за головами",
         description=(
             "Выберите сложность контракта, затем тактику поимки.\n\n"
-            "📜 Прогресс\n"
+            f"{EMOJI_LIST} Прогресс\n"
             f"├─ Уровень: **{bounty['level']}/{BOUNTY_MAX_LEVEL}**\n"
             f"├─ Опыт: **{bounty['xp']}/{needed}**\n"
             f"├─ Поймано: **{format_integer(bounty['captures'])}**\n"
@@ -179,4 +189,3 @@ def build_bounty_embed(guild, account):
         embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
     return embed
 
- 

@@ -17,6 +17,7 @@ import tempfile
 import os
 
 _LOCK = threading.RLock()
+VERSION_PATH = Path(__file__).resolve().parents[1] / "VERSION"
 
 DEFAULT = {
     "version": "v0.0.0",
@@ -52,6 +53,13 @@ class ConfigManager:
 
     def get(self, key, default=None):
         with _LOCK:
+            if key == "version":
+                try:
+                    version = VERSION_PATH.read_text(encoding="utf-8").strip()
+                except OSError:
+                    version = ""
+                if version:
+                    return version if version.startswith("v") else f"v{version}"
             return self._data.get(key, default)
 
     def set(self, key, value):

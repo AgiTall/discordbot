@@ -1,86 +1,67 @@
 import json
-import os
 import re
-import glob
-
-VERSION_FILE = "VERSION"
-CONFIG_PATH = "config.json"
+from pathlib import Path
 
 
-def update_version():
-    # ── Читаем версию из файла VERSION ───────────────────────
-    if not os.path.exists(VERSION_FILE):
-        print(f"❌ Файл {VERSION_FILE} не найден!")
-        return
+ROOT = Path(__file__).resolve().parent
+VERSION_FILE = ROOT / "VERSION"
+CONFIG_PATH = ROOT / "config.json"
+VERSION_BADGE_PATTERN = re.compile(
+    r'(<span\b[^>]*class="[^"]*\b(?:navbar__badge|footer__version)\b[^"]*"[^>]*>)[^<]*(</span>)'
+)
 
-    with open(VERSION_FILE, "r", encoding="utf-8") as f:
-        NEW_VERSION = f.read().strip()
 
-    if not NEW_VERSION:
-        print("❌ Файл VERSION пустой!")
-        return
+def normalize_version(value: str) -> str:
+    version = value.strip()
+    if not re.fullmatch(r"v?\d+(?:\.\d+){2,3}", version):
+        raise ValueError("Версия должна иметь формат v1.2.3 или v1.2.3.4")
+    return version if version.startswith("v") else f"v{version}"
 
-    # Убеждаемся, что версия начинается с 'v'
-    if not NEW_VERSION.startswith("v"):
-        NEW_VERSION = "v" + NEW_VERSION
 
-    if not os.path.exists(CONFIG_PATH):
-        print(f"❌ Ошибка: Файл {CONFIG_PATH} не найден!")
-        return
+def replace_version_badges(content: str, version: str) -> str:
+    """Replace only visible version badges, never arbitrary dotted numbers."""
+    return VERSION_BADGE_PATTERN.sub(rf"\g<1>{version}\g<2>", content)
+
+
+def update_version(root: Path = ROOT):
+    version_path = root / "VERSION"
+    config_path = root / "config.json"
+    if not version_path.exists():
+        print(f"❌ Файл {version_path.name} не найден!")
+        return False
 
     try:
-        # Загружаем текущий конфиг
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
+        new_version = normalize_version(version_path.read_text(encoding="utf-8"))
+    except ValueError as error:
+        print(f"❌ {error}")
+        return False
+
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
         old_version = data.get("version", "неизвестно")
-        
-        # Если версия не изменилась, предупреждаем
-        if old_version == NEW_VERSION:
-            print(f"ℹ️ Версия в файле уже равна {NEW_VERSION}. Изменения не требуются.")
-            return
+        data["version"] = new_version
+        config_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
-        # Обновляем версию
-        data["version"] = NEW_VERSION
-
-        # Сохраняем конфиг обратно с красивым форматированием
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-        # Поддерживаем и semver (1.2.3), и расширенную версию (1.2.3.4).
-        pattern_v = re.compile(r"v\d+(?:\.\d+){2,3}")
-        pattern_num = re.compile(r"(?<!v)\b\d+(?:\.\d+){2,3}\b")
-        
-        # Ищем все файлы, где нужно обновить версию
-        files_to_update = glob.glob("docs/*.html") + glob.glob("docs/js/*.js") + ["src/web_routes.py"]
         docs_updated = 0
-        
-        for file_path in files_to_update:
-            if not os.path.exists(file_path):
-                continue
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                
-                # Ищем любую старую версию и заменяем на новую
-                new_content = pattern_v.sub(NEW_VERSION, content)
-                new_content = pattern_num.sub(NEW_VERSION.lstrip('v'), new_content)
-                
-                if new_content != content:
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        f.write(new_content)
-                    docs_updated += 1
-            except Exception as e:
-                print(f"⚠️ Не удалось обновить {file_path}: {e}")
+        for file_path in (root / "docs").glob("*.html"):
+            content = file_path.read_text(encoding="utf-8")
+            new_content = replace_version_badges(content, new_version)
+            if new_content != content:
+                file_path.write_text(new_content, encoding="utf-8")
+                docs_updated += 1
 
-        print(f"✅ Успех! Версия бота обновлена:")
+        print("✅ Версия синхронизирована:")
         print(f"   Было:  {old_version}")
-        print(f"   Стало: {NEW_VERSION}")
-        print(f"   Обновлено файлов: {docs_updated}")
-        print("Бот автоматически загрузит новую версию при следующем запуске.")
-
-    except Exception as e:
-        print(f"❌ Произошла ошибка при обновлении файла: {e}")
+        print(f"   Стало: {new_version}")
+        print(f"   Обновлено HTML-файлов: {docs_updated}")
+        print("VERSION теперь является единым источником версии для бота и сайта.")
+        return True
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"❌ Не удалось синхронизировать версию: {error}")
+        return False
 
 if __name__ == "__main__":
     update_version()

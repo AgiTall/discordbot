@@ -184,11 +184,17 @@ def equipped_weapon_keys(account: dict) -> list[str]:
 
 
 def ammo_capacity(account: dict, class_key: str, catalog_items: dict) -> int:
-    equipped = [
-        key for key in equipped_weapon_keys(account)
+    """Return carried ammo capacity for weapons the player owns.
+
+    Ammunition belongs to the player's inventory, not to the current loadout.
+    Requiring a weapon to be equipped created a circular UI dependency: ammo
+    could not be bought until the weapon menu had successfully equipped it.
+    """
+    owned = [
+        key for key in owned_weapon_keys(account, catalog_items)
         if weapon_class(key, catalog_items.get(key)) == class_key
     ]
-    count = len(equipped)
+    count = len(owned)
     if class_key in {"revolver", "pistol"}:
         return AMMO_CAPACITY_PER_WEAPON[class_key] * min(count, 2)
     return AMMO_CAPACITY_PER_WEAPON.get(class_key, 0) if count else 0
@@ -198,7 +204,23 @@ def ammo_total(account: dict, class_key: str) -> int:
     return sum(max(0, int(value or 0)) for value in account.get("ammo", {}).get(class_key, {}).values())
 
 
-def equip_weapon(account: dict, item_key: str, catalog_items: dict) -> tuple[bool, str]:
+def has_usable_ammo(account: dict, catalog_items: dict) -> bool:
+    """Return whether at least one equipped weapon can actually fire."""
+    normalize_weapon_state(account, catalog_items)
+    for item_key in equipped_weapon_keys(account):
+        class_key = weapon_class(item_key, catalog_items.get(item_key))
+        if class_key and ammo_total(account, class_key) > 0:
+            return True
+    return False
+
+
+def equip_weapon(
+    account: dict,
+    item_key: str,
+    catalog_items: dict,
+    *,
+    replace: bool = False,
+) -> tuple[bool, str]:
     normalize_weapon_state(account, catalog_items)
     if item_key not in owned_weapon_keys(account, catalog_items):
         return False, "Это оружие не куплено."
@@ -206,17 +228,27 @@ def equip_weapon(account: dict, item_key: str, catalog_items: dict) -> tuple[boo
     loadout = account["weapon_loadout"]
     slot_key = "sidearms" if class_key in SIDEARM_CLASSES else "longarms"
     equipped = loadout[slot_key]
+    replaced = False
     if item_key in equipped:
         return False, "Это оружие уже взято с собой."
     if slot_key == "sidearms":
         if equipped and weapon_class(equipped[0], catalog_items.get(equipped[0])) != class_key:
-            return False, "Нельзя одновременно взять револьвер и пистолет. Освободите короткоствольные слоты."
+            if not replace:
+                return False, "Нельзя одновременно взять револьвер и пистолет. Освободите короткоствольные слоты."
+            equipped.clear()
+            replaced = True
         if len(equipped) >= 2:
-            return False, "Оба короткоствольных слота уже заняты."
+            if not replace:
+                return False, "Оба короткоствольных слота уже заняты."
+            equipped.pop()
+            replaced = True
     elif len(equipped) >= 2:
-        return False, "Оба слота крупного оружия уже заняты."
+        if not replace:
+            return False, "Оба слота крупного оружия уже заняты."
+        equipped.pop()
+        replaced = True
     equipped.append(item_key)
-    return True, "Оружие добавлено в снаряжение."
+    return True, "Оружие добавлено в снаряжение; занятый слот заменён." if replaced else "Оружие добавлено в снаряжение."
 
 
 def unequip_weapon(account: dict, item_key: str) -> bool:

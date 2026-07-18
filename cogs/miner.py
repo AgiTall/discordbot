@@ -61,6 +61,18 @@ from bot import (
     has_game_role,
     get_custom_message,
 )
+from emoji_config import (
+    EMOJI_BAR_IRON,
+    EMOJI_GEM_DIAMOND,
+    EMOJI_MINE_BACK,
+    EMOJI_MINE_BUY,
+    EMOJI_MINE_DIG,
+    EMOJI_MINE_FIND,
+    EMOJI_MINE_FORGE,
+    EMOJI_MINE_SELL,
+    EMOJI_MINE_SMELT,
+    EMOJI_WARNING,
+)
 
 MINER_IMAGE_FILE = "assets/images/miner.png"
 MINER_IMAGE_ATTACHMENT_NAME = "miner.png"
@@ -102,21 +114,21 @@ def format_inventory(player: dict) -> str:
         for k in ORE_NAMES if inv.get(k, 0) > 0
     ]
     if ore_lines:
-        sections.append("⚒️ **Руда:**\n" + "\n".join(ore_lines))
+        sections.append(f"{EMOJI_MINE_DIG} **Руда:**\n" + "\n".join(ore_lines))
 
     bar_lines = [
         f"  {BAR_EMOJIS.get(k, '')} {BAR_NAMES[k]}: **{inv[k]}** шт. · {BAR_SELL_PRICE[k]} {cash_e}/шт."
         for k in BAR_NAMES if inv.get(k, 0) > 0
     ]
     if bar_lines:
-        sections.append("🧱 **Слитки:**\n" + "\n".join(bar_lines))
+        sections.append(f"{EMOJI_BAR_IRON} **Слитки:**\n" + "\n".join(bar_lines))
 
     gem_lines = [
         f"  {GEMS[k].get('emoji', '')} {GEMS[k]['name']}: **{inv[k]}** шт. · {GEMS[k]['sell']} {cash_e}/шт."
         for k in GEMS if inv.get(k, 0) > 0
     ]
     if gem_lines:
-        sections.append("💎 **Камни:**\n" + "\n".join(gem_lines))
+        sections.append(f"{EMOJI_GEM_DIAMOND} **Камни:**\n" + "\n".join(gem_lines))
 
     jewel_lines = [
         f"  {get_jewelry_name(k)}: **{qty}** шт. · {get_jewelry_sell_price(k)} {cash_e}/шт."
@@ -124,14 +136,14 @@ def format_inventory(player: dict) -> str:
         if k.startswith(JEWELRY_KEY_PREFIX) and qty > 0
     ]
     if jewel_lines:
-        sections.append("✨ **Украшения:**\n" + "\n".join(jewel_lines))
+        sections.append(f"{EMOJI_MINE_FORGE} **Украшения:**\n" + "\n".join(jewel_lines))
 
     find_lines = [
         f"  {f['name']}: **{inv[f['key']]}** шт. · {f['sell']} {cash_e}/шт."
         for f in RARE_FINDS if inv.get(f["key"], 0) > 0
     ]
     if find_lines:
-        sections.append("🔍 **Находки:**\n" + "\n".join(find_lines))
+        sections.append(f"{EMOJI_MINE_FIND} **Находки:**\n" + "\n".join(find_lines))
 
     return "\n\n".join(sections) if sections else "— пусто —"
 
@@ -163,7 +175,7 @@ def build_main_embed(player: dict, account: dict, guild) -> discord.Embed:
         f" · 🐦 Канарейки: **{player.get('canary_count', 0)}** шт.\n\n"
         f"**Попытки сегодня:** {player['daily_mines_left']} / {DAILY_MINE_LIMIT}"
     )
-    return build_mine_embed("⛏️ Шахта Аннесберга", desc, with_image=True)
+    return build_mine_embed(f"{EMOJI_MINE_DIG} Шахта Аннесберга", desc, with_image=True)
 
 
 # ─────────────────────────────────────────────────
@@ -184,7 +196,7 @@ class MinerOwnerView(discord.ui.View):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
                 embed=build_mine_embed(
-                    "⛏️ Чужая выработка",
+                    f"{EMOJI_MINE_DIG} Чужая выработка",
                     "Это меню шахтёра открыто не для вас.",
                     color=discord.Color.dark_red(),
                 ),
@@ -223,7 +235,7 @@ async def _go_back_to_main(interaction: discord.Interaction, db: MineDB, gid: st
 
 class BackToMainButton(discord.ui.Button):
     def __init__(self, row: int = 4):
-        super().__init__(label="◀️ Назад", style=discord.ButtonStyle.secondary, row=row)
+        super().__init__(label="Назад", emoji=EMOJI_MINE_BACK, style=discord.ButtonStyle.secondary, row=row)
 
     async def callback(self, interaction: discord.Interaction):
         view = self.view
@@ -240,11 +252,11 @@ def _make_back_only_view(bot, db, user_id, gid, uid):
 class MineResultView(MinerOwnerView):
     """Result screen keeps the primary action available without a detour home."""
 
-    @discord.ui.button(label="⛏️ Копать ещё", style=discord.ButtonStyle.primary, row=0)
+    @discord.ui.button(label="Копать ещё", emoji=EMOJI_MINE_DIG, style=discord.ButtonStyle.primary, row=0)
     async def dig_again_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await _do_mine(interaction, self.db, self.gid, self.uid, self.bot)
 
-    @discord.ui.button(label="◀️ К меню шахты", style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label="К меню шахты", emoji=EMOJI_MINE_BACK, style=discord.ButtonStyle.secondary, row=0)
     async def menu_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await _go_back_to_main(interaction, self.db, self.gid, self.uid, self.bot)
 
@@ -273,7 +285,7 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
     if player["pickaxe_durability"] <= 0:
         embed = build_mine_embed(
             "🔧 Сломанный инструмент",
-            "Инструмент сломан — работать невозможно.\nКупите новую через кнопку **🛒 Купить**.",
+            f"Инструмент сломан — работать невозможно.\nКупите новую через кнопку **{EMOJI_MINE_BUY} Купить**.",
             color=discord.Color.dark_red(),
         )
         view = _make_back_only_view(bot, db, interaction.user.id, gid, uid)
@@ -317,7 +329,7 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
         find = result["find"]
         lines += [
             "",
-            f"✨ **Редкая находка: {find['name']}!**",
+            f"{EMOJI_MINE_FIND} **Редкая находка: {find['name']}!**",
             f"_{find['desc']}_",
             f"Оценка фактории: **{find['sell']} {cash_e}**",
         ]
@@ -327,14 +339,14 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
     elif result["ore"] and result["ore_amount"] > 0:
         ore_key = result["ore"]
         ore_name = ORE_NAMES[ore_key]
-        ore_emoji = ORE_EMOJIS.get(ore_key, "⛏️")
+        ore_emoji = ORE_EMOJIS.get(ore_key, EMOJI_MINE_DIG)
         qty = result["ore_amount"]
         sell_direct = f"{ORE_SELL_PRICE[ore_key] * qty} {cash_e}"
         smelt_hint = ""
         if ore_key in SMELT_RECIPES:
             recipe = SMELT_RECIPES[ore_key]
             if qty >= recipe["ore_per_bar"]:
-                smelt_hint = " · или переплавить — **🔥 Кузнец**"
+                smelt_hint = f" · или переплавить — **{EMOJI_MINE_SMELT} Кузнец**"
         lines += [
             "",
             f"{ore_emoji} Добыто: **{ore_name}** ×{qty}",
@@ -348,11 +360,11 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
 
     if result.get("gem"):
         gem_data = result["gem"]
-        gem_emoji = gem_data.get("emoji", "💎")
+        gem_emoji = gem_data.get("emoji", EMOJI_GEM_DIAMOND)
         lines += [
             "",
             f"{gem_emoji} **{gem_data['name'].capitalize()}!**",
-            f"Цена фактории: **{gem_data['sell']} {cash_e}** · отнести ювелиру — **💍 Ювелир**",
+            f"Цена фактории: **{gem_data['sell']} {cash_e}** · отнести ювелиру — **{EMOJI_MINE_FORGE} Ювелир**",
         ]
         if not found_something and not (result["gas"] and not result["gas_blocked"]):
             color = discord.Color.from_rgb(100, 180, 220)
@@ -362,11 +374,11 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
     lines.append("")
     lines.append(f"▫️ Попыток сегодня: **{mines_left}** из {DAILY_MINE_LIMIT}")
     if oil_left == 0:
-        lines.append("🪔 **Масло закончилось!** Купите через **🛒 Купить**")
+        lines.append(f"🪔 **Масло закончилось!** Купите через **{EMOJI_MINE_BUY} Купить**")
     elif oil_left <= 2:
         lines.append(f"🪔 Масло: **{oil_left}** фл. — скоро кончится.")
 
-    embed = build_mine_embed("⛏️ Забой Аннесберга", "\n".join(lines), color=color)
+    embed = build_mine_embed(f"{EMOJI_MINE_DIG} Забой Аннесберга", "\n".join(lines), color=color)
     view = MineResultView(bot, db, interaction.user.id, gid, uid)
     await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
@@ -379,11 +391,11 @@ class MinerMainView(MinerOwnerView):
     def __init__(self, bot, db, user_id, gid, uid):
         super().__init__(bot, db, user_id, gid, uid)
 
-    @discord.ui.button(label="⛏️ Копать", style=discord.ButtonStyle.primary, row=0)
+    @discord.ui.button(label="Копать", emoji=EMOJI_MINE_DIG, style=discord.ButtonStyle.primary, row=0)
     async def dig_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await _do_mine(interaction, self.db, self.gid, self.uid, self.bot)
 
-    @discord.ui.button(label="🛒 Купить", style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label="Купить", emoji=EMOJI_MINE_BUY, style=discord.ButtonStyle.secondary, row=0)
     async def buy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         cash_e = get_cash_emoji()
         options = []
@@ -395,7 +407,7 @@ class MinerMainView(MinerOwnerView):
                 description=info.get("description", "")[:100],
             ))
         embed = build_mine_embed(
-            "🛒 Лавка шахтёра",
+            f"{EMOJI_MINE_BUY} Лавка шахтёра",
             "Выберите товар для покупки. Кирки заменяют текущую.",
             with_image=True,
         )
@@ -406,7 +418,7 @@ class MinerMainView(MinerOwnerView):
         else:
             await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
-    @discord.ui.button(label="💰 Продать", style=discord.ButtonStyle.success, row=1)
+    @discord.ui.button(label="Продать", emoji=EMOJI_MINE_SELL, style=discord.ButtonStyle.success, row=1)
     async def sell_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = self.db.get_player(self.gid, self.uid)
         inv = player.get("inventory", {})
@@ -424,7 +436,7 @@ class MinerMainView(MinerOwnerView):
 
         if not options:
             embed = build_mine_embed(
-                "💰 Фактория",
+                f"{EMOJI_MINE_SELL} Фактория",
                 "Инвентарь пуст — нечего продавать в факторию.",
                 color=discord.Color.dark_grey(),
             )
@@ -433,7 +445,7 @@ class MinerMainView(MinerOwnerView):
             return
 
         embed = build_mine_embed(
-            "💰 Фактория",
+            f"{EMOJI_MINE_SELL} Фактория",
             "Выберите предмет для продажи. Продаётся весь запас.",
             with_image=True,
         )
@@ -444,7 +456,7 @@ class MinerMainView(MinerOwnerView):
         else:
             await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
-    @discord.ui.button(label="🔥 Кузнец", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Кузнец", emoji=EMOJI_MINE_SMELT, style=discord.ButtonStyle.secondary, row=1)
     async def smelt_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = self.db.get_player(self.gid, self.uid)
         inv = player.get("inventory", {})
@@ -472,7 +484,7 @@ class MinerMainView(MinerOwnerView):
 
         if not options:
             embed = build_mine_embed(
-                "🔥 Кузнец",
+                f"{EMOJI_MINE_SMELT} Кузнец",
                 "Нет руды для переплавки.",
                 color=discord.Color.dark_grey(),
             )
@@ -481,7 +493,7 @@ class MinerMainView(MinerOwnerView):
             return
 
         embed = build_mine_embed(
-            "🔥 Кузнец",
+            f"{EMOJI_MINE_SMELT} Кузнец",
             "Выберите руду для переплавки. Переплавляется весь доступный запас.",
             with_image=True,
         )
@@ -492,7 +504,7 @@ class MinerMainView(MinerOwnerView):
         else:
             await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
-    @discord.ui.button(label="💍 Ювелир", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Ювелир", emoji=EMOJI_MINE_FORGE, style=discord.ButtonStyle.secondary, row=1)
     async def forge_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = self.db.get_player(self.gid, self.uid)
         inv = player.get("inventory", {})
@@ -518,7 +530,7 @@ class MinerMainView(MinerOwnerView):
 
         if not bar_options:
             embed = build_mine_embed(
-                "💍 Ювелир",
+                f"{EMOJI_MINE_FORGE} Ювелир",
                 "Нет золотых или серебряных слитков для ювелира.",
                 color=discord.Color.dark_grey(),
             )
@@ -527,7 +539,7 @@ class MinerMainView(MinerOwnerView):
             return
         if not gem_options:
             embed = build_mine_embed(
-                "💍 Ювелир",
+                f"{EMOJI_MINE_FORGE} Ювелир",
                 "Нет драгоценных камней для ювелира.",
                 color=discord.Color.dark_grey(),
             )
@@ -536,7 +548,7 @@ class MinerMainView(MinerOwnerView):
             return
 
         embed = build_mine_embed(
-            "💍 Ювелир",
+            f"{EMOJI_MINE_FORGE} Ювелир",
             f"Выберите слиток и камень для создания украшения.\n"
             f"Такса ювелира: {int(JEWELRY_FEE_PCT * 100)}% от стоимости материалов.",
             with_image=True,
@@ -589,7 +601,7 @@ class MinerBuySelect(discord.ui.Select):
                     if account["cash"] < cost - 0.001:
                         save_economy()
                         embed = build_mine_embed(
-                            "🛒 Лавка шахтёра",
+                            f"{EMOJI_MINE_BUY} Лавка шахтёра",
                             f"Не хватает средств. Нужно **{cost} {cash_e}**, у вас **{account['cash']} {cash_e}**.",
                             color=discord.Color.dark_red(),
                         )
@@ -608,7 +620,7 @@ class MinerBuySelect(discord.ui.Select):
             view.db.save_player(gid, uid, player)
 
             embed = build_mine_embed(
-                "🛒 Покупка в лавке",
+                f"{EMOJI_MINE_BUY} Покупка в лавке",
                 f"Куплена **{pickaxe_data['name']}**.\n"
                 f"Прочность: {pickaxe_data['max_durability']} ед.\n"
                 f"Остаток: **{bal} {cash_e}**.",
@@ -626,7 +638,7 @@ class MinerBuySelect(discord.ui.Select):
                 if account["cash"] < total_cost - 0.001:
                     save_economy()
                     embed = build_mine_embed(
-                        "🛒 Лавка шахтёра",
+                        f"{EMOJI_MINE_BUY} Лавка шахтёра",
                         f"Не хватает средств. Нужно **{total_cost} {cash_e}**, у вас **{account['cash']} {cash_e}**.",
                         color=discord.Color.dark_red(),
                     )
@@ -652,7 +664,7 @@ class MinerBuySelect(discord.ui.Select):
         view.db.save_player(gid, uid, player)
 
         embed = build_mine_embed(
-            "🛒 Покупка в лавке",
+            f"{EMOJI_MINE_BUY} Покупка в лавке",
             f"Куплено: **{info['name']}** × {quantity} {info['unit']}.\n"
             f"Потрачено: **{total_cost} {cash_e}**.\n"
             f"Остаток: **{bal} {cash_e}**.\n\n"
@@ -691,7 +703,7 @@ class MinerSellSelect(discord.ui.Select):
         available = inv_get(player, item)
         if available <= 0:
             embed = build_mine_embed(
-                "💰 Фактория",
+                f"{EMOJI_MINE_SELL} Фактория",
                 "У вас нет этого предмета в инвентаре.",
                 color=discord.Color.dark_red(),
             )
@@ -701,7 +713,7 @@ class MinerSellSelect(discord.ui.Select):
 
         if item not in ALL_SELL_PRICES:
             embed = build_mine_embed(
-                "💰 Фактория",
+                f"{EMOJI_MINE_SELL} Фактория",
                 "Фактория не принимает этот предмет.",
                 color=discord.Color.dark_red(),
             )
@@ -728,7 +740,7 @@ class MinerSellSelect(discord.ui.Select):
         cash_e = get_cash_emoji()
         item_name = ALL_SELLABLE_NAMES.get(item, item)
         embed = build_mine_embed(
-            "💰 Фактория",
+            f"{EMOJI_MINE_SELL} Фактория",
             f"Продано: **{item_name}** × {qty}\n"
             f"Выручка: **{earned} {cash_e}**\n"
             f"Баланс: **{bal} {cash_e}**",
@@ -768,7 +780,7 @@ class MinerSmeltSelect(discord.ui.Select):
         recipe = SMELT_RECIPES.get(ore)
         if recipe is None:
             embed = build_mine_embed(
-                "🔥 Кузнец",
+                f"{EMOJI_MINE_SMELT} Кузнец",
                 "Эту руду нельзя переплавить.",
                 color=discord.Color.dark_red(),
             )
@@ -780,7 +792,7 @@ class MinerSmeltSelect(discord.ui.Select):
         max_batches = available // recipe["ore_per_bar"]
         if max_batches == 0:
             embed = build_mine_embed(
-                "🔥 Кузнец",
+                f"{EMOJI_MINE_SMELT} Кузнец",
                 f"Недостаточно руды. Нужно минимум **{recipe['ore_per_bar']} шт.** для одной партии, "
                 f"у вас **{available}** шт.",
                 color=discord.Color.dark_red(),
@@ -800,7 +812,7 @@ class MinerSmeltSelect(discord.ui.Select):
                 if account["cash"] < total_fee - 0.001:
                     save_economy()
                     embed = build_mine_embed(
-                        "🔥 Кузнец",
+                        f"{EMOJI_MINE_SMELT} Кузнец",
                         f"Не хватает на оплату кузнецу. Нужно **{total_fee} {cash_e}**, "
                         f"у вас **{account['cash']} {cash_e}**.",
                         color=discord.Color.dark_red(),
@@ -829,7 +841,7 @@ class MinerSmeltSelect(discord.ui.Select):
                 reset_economy_guild_id(token)
             gold_emoji = get_gold_emoji()
             embed = build_mine_embed(
-                "🔥 Кузнец",
+                f"{EMOJI_MINE_SMELT} Кузнец",
                 f"Переплавлено: **{ore_name}** ×{ore_used}\n"
                 f"Получено: **{earned_gold:.4g}** {gold_emoji} (экономическое золото)\n"
                 f"Такса кузнеца: **{total_fee} {cash_e}**\n"
@@ -853,12 +865,12 @@ class MinerSmeltSelect(discord.ui.Select):
             reset_economy_guild_id(token)
 
         embed = build_mine_embed(
-            "🔥 Кузнец",
+            f"{EMOJI_MINE_SMELT} Кузнец",
             f"Переплавлено: **{ore_name}** × {ore_used}\n"
             f"Получено: **{recipe['bar_name']}** × {batches}\n"
             f"Такса кузнеца: **{total_fee} {cash_e}**\n"
             f"Баланс: **{bal} {cash_e}**\n\n"
-            f"Продайте слитки через **💰 Продать** · выручка ~{sell_hint}",
+            f"Продайте слитки через **{EMOJI_MINE_SELL} Продать** · выручка ~{sell_hint}",
             color=discord.Color.from_rgb(200, 100, 20),
         )
         back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
@@ -907,7 +919,8 @@ class MinerForgeGemSelect(discord.ui.Select):
 class MinerForgeConfirmButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
-            label="💍 Создать украшение",
+            label="Создать украшение",
+            emoji=EMOJI_MINE_FORGE,
             style=discord.ButtonStyle.success,
             row=2,
         )
@@ -940,7 +953,7 @@ class MinerForgeConfirmButton(discord.ui.Button):
         if inv_get(player, bar) < 1:
             bar_name = BAR_NAMES.get(bar, bar)
             embed = build_mine_embed(
-                "💍 Ювелир",
+                f"{EMOJI_MINE_FORGE} Ювелир",
                 f"Нет **{bar_name}** в инвентаре.",
                 color=discord.Color.dark_red(),
             )
@@ -950,7 +963,7 @@ class MinerForgeConfirmButton(discord.ui.Button):
         if inv_get(player, gem) < 1:
             gem_name = GEMS[gem]["name"]
             embed = build_mine_embed(
-                "💍 Ювелир",
+                f"{EMOJI_MINE_FORGE} Ювелир",
                 f"Нет **{gem_name}** в инвентаре.",
                 color=discord.Color.dark_red(),
             )
@@ -969,7 +982,7 @@ class MinerForgeConfirmButton(discord.ui.Button):
                 if account["cash"] < fee - 0.001:
                     save_economy()
                     embed = build_mine_embed(
-                        "💍 Ювелир",
+                        f"{EMOJI_MINE_FORGE} Ювелир",
                         f"Не хватает на такса ювелира. Нужно **{fee} {cash_e}**, "
                         f"у вас **{account['cash']} {cash_e}**.",
                         color=discord.Color.dark_red(),
@@ -1003,10 +1016,10 @@ class MinerForgeConfirmButton(discord.ui.Button):
             f"Создано: **{jewel_name}**\n"
             f"Такса ювелира: **{fee} {cash_e}**\n"
             f"Баланс: **{bal} {cash_e}**\n\n"
-            f"Цена продажи: **{jewel_price} {cash_e}** · продать через **💰 Продать**"
+            f"Цена продажи: **{jewel_price} {cash_e}** · продать через **{EMOJI_MINE_SELL} Продать**"
         )
         embed = build_mine_embed(
-            "💍 Ювелир",
+            f"{EMOJI_MINE_FORGE} Ювелир",
             desc,
             color=discord.Color.from_rgb(220, 180, 60),
         )

@@ -253,3 +253,12 @@ EMOJI_GEM_DIAMOND  = "<:diamond:1521916223707676835>"  # алмаз           �
 EMOJI_BAR_IRON   = "<:ironignot:1521916231639367750>"  # железный слиток
 EMOJI_BAR_COPPER = "<:copperingot:1521916221790879906>"  # медный слиток
 EMOJI_BAR_SILVER = "<:silveringot:1521916235342676149>"  # серебряный слиток
+
+# Шахта: единые иконки интерфейса из уже загруженного набора приложения.
+EMOJI_MINE_DIG     = EMOJI_ROLE_MINER
+EMOJI_MINE_BACK    = EMOJI_LEVEL
+EMOJI_MINE_BUY     = EMOJI_SHOP
+EMOJI_MINE_SELL    = DEFAULT_CASH_EMOJI
+EMOJI_MINE_SMELT   = EMOJI_BAR_IRON
+EMOJI_MINE_FORGE   = EMOJI_GEM_DIAMOND
+EMOJI_MINE_FIND    = EMOJI_SEARCH
