@@ -54,6 +54,8 @@ const COMMANDS = [
   { name: 'excavation',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Использовать карту сокровищ для раскопок — найдите клад!' },
   { name: 'mine',            emoji: '<img src="https://cdn.discordapp.com/emojis/1521863885689192518.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Шахтёр: добыча руды, плавка слитков, улучшения и продажа ресурсов.' },
   { name: 'catalog',         emoji: '📖', category: 'role', tag: 'role', desc: 'Открыть каталог Wheeler, Rawson & Co. и приобрести товары.' },
+  { name: 'companies',       emoji: '🏢', category: 'econ', tag: 'econ', desc: 'Показать уровень компании, прогресс снабжения и крупнейших инвесторов.' },
+  { name: 'invest',          emoji: '📊', category: 'econ', tag: 'econ', desc: 'Инвестировать наличные в Wheeler, Rawson & Co.', args: '<сумма>' },
 
   // ── Игры ──────────────────────────────────
   { name: 'dice',       emoji: '🎲', category: 'game', tag: 'game', desc: 'Сыграть в кости с ботом.', args: '[ставка]' },
@@ -551,9 +553,9 @@ let wealthChartInstance = null;
 let gangsChartInstance = null;
 
 async function loadEconomyStats(guildId) {
-  if (String(economyStatsGuildId) === String(guildId)) return;
   const tbody = document.getElementById("leaderboardTbody");
   if (!tbody) return;
+  tbody.innerHTML = "<tr><td colspan=\"7\" class=\"table-empty\">Загрузка актуальных данных...</td></tr>";
   
   try {
     const res = await fetch(`/api/guilds/${guildId}/stats`);
@@ -570,28 +572,33 @@ async function loadEconomyStats(guildId) {
           <td style="padding:10px;color:var(--text-muted);">${i + 1}</td>
           <td style="padding:10px;font-weight:bold;color:var(--gold);">${escapeHtml(u.name)}</td>
           <td style="padding:10px;">${u.level}</td>
-          <td style="padding:10px;">${u.cash.toLocaleString("ru-RU")}</td>
-          <td style="padding:10px;">${u.gold.toLocaleString("ru-RU")}</td>
+          <td style="padding:10px;">${u.cash.toLocaleString("ru-RU")} $</td>
+          <td style="padding:10px;">${u.safe_cash.toLocaleString("ru-RU")} $ · ${u.safe_gold.toLocaleString("ru-RU")} 🪙</td>
+          <td style="padding:10px;">${u.total_gold.toLocaleString("ru-RU")} 🪙</td>
           <td style="padding:10px;font-weight:bold;">${Math.round(u.wealth).toLocaleString("ru-RU")} 💰</td>
         `;
         tbody.appendChild(tr);
       });
     } else {
-      tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:10px;text-align:center;color:var(--text-muted);\">Нет данных</td></tr>";
+      tbody.innerHTML = "<tr><td colspan=\"7\" class=\"table-empty\">В экономике этого сервера пока нет игроков.</td></tr>";
     }
 
+    renderCompanyStats(data.company);
+
     // Chart.js Default Config for Dark Theme
-    Chart.defaults.color = "#99aab5";
-    Chart.defaults.font.family = "Inter, sans-serif";
+    if (typeof Chart !== "undefined") {
+      Chart.defaults.color = "#99aab5";
+      Chart.defaults.font.family = "Inter, sans-serif";
+    }
 
     // Wealth Pie Chart
     const wCtx = document.getElementById("wealthChart");
-    if (wCtx && data.leaderboard) {
+    if (wCtx && data.leaderboard && typeof Chart !== "undefined") {
       const topNames = data.leaderboard.slice(0, 5).map(u => u.name);
       const topWealth = data.leaderboard.slice(0, 5).map(u => u.wealth);
       
       const sumTop5 = topWealth.reduce((a, b) => a + b, 0);
-      const totalServerWealth = (data.globals.total_cash || 0) + ((data.globals.total_gold || 0) * (data.globals.gold_rate || 1));
+      const totalServerWealth = (data.globals.players_total_cash || 0) + ((data.globals.players_total_gold || 0) * (data.globals.gold_rate || 1));
       const othersWealth = Math.max(0, totalServerWealth - sumTop5);
       
       if (topNames.length > 0) {
@@ -624,7 +631,7 @@ async function loadEconomyStats(guildId) {
 
     // Gangs Bar Chart
     const gCtx = document.getElementById("gangsChart");
-    if (gCtx && data.gangs) {
+    if (gCtx && data.gangs && typeof Chart !== "undefined") {
       const gNames = data.gangs.map(g => g.name);
       const gWealth = data.gangs.map(g => g.wealth);
       
@@ -660,8 +667,61 @@ async function loadEconomyStats(guildId) {
     economyStatsGuildId = guildId;
   } catch (err) {
     console.error("Failed to load economy stats:", err);
-    tbody.innerHTML = "<tr><td colspan=\"6\" style=\"padding:10px;text-align:center;color:#d93838;\">Ошибка загрузки</td></tr>";
+    tbody.innerHTML = "<tr><td colspan=\"7\" class=\"table-empty table-empty--error\">Не удалось загрузить экономику сервера.</td></tr>";
   }
+}
+
+function renderCompanyStats(company) {
+  if (!company) return;
+  const roman = ["0", "I", "II", "III", "IV"];
+  const level = Number(company.level || 1);
+  const maxLevel = Number(company.max_level || 4);
+  const target = company.next_threshold;
+  const percent = target ? Math.min(100, (Number(company.invested || 0) / Number(target)) * 100) : 100;
+
+  const levelNode = document.getElementById("companyLevel");
+  const investedNode = document.getElementById("companyInvested");
+  const viewerInvestedNode = document.getElementById("companyViewerInvested");
+  const viewerDiscountNode = document.getElementById("companyViewerDiscount");
+  const progressNode = document.getElementById("companyProgress");
+  const progressFill = document.getElementById("companyProgressFill");
+  const progressLabel = document.getElementById("companyProgressLabel");
+  const remainingNode = document.getElementById("companyRemaining");
+
+  if (levelNode) levelNode.textContent = `${roman[level] || level} / ${roman[maxLevel] || maxLevel}`;
+  if (investedNode) investedNode.textContent = `${Number(company.invested || 0).toLocaleString("ru-RU")} $`;
+  if (viewerInvestedNode) viewerInvestedNode.textContent = `${Number(company.viewer_invested || 0).toLocaleString("ru-RU")} $`;
+  if (viewerDiscountNode) viewerDiscountNode.textContent = `${Number(company.viewer_discount || 0)}%`;
+  if (progressNode) progressNode.setAttribute("aria-valuenow", String(Math.round(percent)));
+  if (progressFill) progressFill.style.width = `${percent}%`;
+  if (progressLabel) {
+    progressLabel.textContent = target
+      ? `${Number(company.invested || 0).toLocaleString("ru-RU")} / ${Number(target).toLocaleString("ru-RU")} $`
+      : "Максимальный уровень снабжения";
+  }
+  if (remainingNode) {
+    remainingNode.textContent = target
+      ? `Осталось ${Number(company.remaining || 0).toLocaleString("ru-RU")} $`
+      : "Все товары открыты";
+  }
+
+  document.querySelectorAll("[data-company-tier]").forEach(node => {
+    node.classList.toggle("is-unlocked", Number(node.dataset.companyTier) <= level);
+  });
+
+  const investorsBody = document.getElementById("companyInvestorsTbody");
+  if (!investorsBody) return;
+  if (!company.investors || company.investors.length === 0) {
+    investorsBody.innerHTML = '<tr><td colspan="3" class="table-empty">Инвесторов пока нет.</td></tr>';
+    return;
+  }
+  investorsBody.innerHTML = company.investors.map((investor, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td><strong>${escapeHtml(investor.name)}</strong></td>
+      <td class="money-cell">${Number(investor.amount).toLocaleString("ru-RU")} $</td>
+    </tr>
+  `).join("");
 }
 
 let dashboardUiReady = false;

@@ -21,6 +21,17 @@ from src.weapon_system import (
     weapon_emoji,
 )
 from src.moonshiner_logic import add_moonshine_ingredient, get_moonshine_account
+from src.company_logic import (
+    COMPANY_DEFINITIONS,
+    WHEELER_RAWSON,
+    add_investment,
+    combined_discount_percent,
+    get_company_state,
+    investor_discount_percent,
+    next_level_threshold,
+    personal_investment,
+    progress_bar,
+)
 from emoji_config import DEFAULT_MOONSHINE_INGREDIENT_EMOJIS
 
 from bot import (
@@ -475,6 +486,54 @@ for _item_key, (_ingredient_name, _price) in _MOONSHINE_PROVISIONS.items():
         "quantity": 1,
     }
 
+
+_COMPANY_LEVEL_4_ITEMS = {
+    "revolver_doubleaction_gambler",
+    "shotgun_doublebarrel_exotic",
+}
+_COMPANY_LEVEL_3_ITEMS = {
+    "revolver_lemat",
+    "pistol_mauser",
+    "pistol_semiauto",
+    "rifle_elephant",
+    "sniperrifle_carcano",
+    "sniperrifle_rollingblock",
+    "shotgun_semiauto",
+}
+_COMPANY_LEVEL_2_ITEMS = {
+    "revolver_schofield",
+    "pistol_volcanic",
+    "repeater_henry",
+    "repeater_lancaster",
+    "rifle_boltaction",
+    "rifle_springfield",
+    "shotgun_pump",
+    "shotgun_repeating",
+}
+
+
+def _required_company_level(item_key, item_data):
+    if item_key in _COMPANY_LEVEL_4_ITEMS:
+        return 4
+    if item_key in _COMPANY_LEVEL_3_ITEMS:
+        return 3
+    if item_key in _COMPANY_LEVEL_2_ITEMS:
+        return 2
+    if item_data.get("type") == "ammo":
+        ammo_type = item_data.get("ammo_type")
+        if ammo_type == "explosive":
+            return 4
+        if ammo_type == "express":
+            return 3
+        if ammo_type in {"split_point", "high_velocity"}:
+            return 2
+    return 1
+
+
+for _item_key, _item_data in CATALOG_ITEMS.items():
+    _item_data["company"] = WHEELER_RAWSON
+    _item_data["required_company_level"] = _required_company_level(_item_key, _item_data)
+
 SAFE_COOLDOWN_HOURS = 3
 
 
@@ -494,21 +553,91 @@ def get_category_items(category_key):
     }
 
 
-def build_catalog_messages(category_key, account, guild_id):
+def get_catalog_price(item_key, item_data, guild_data, user_id):
+    """Return the live price and applied total discount for a player."""
+    item_discount = guild_data.get("shop_discounts", {}).get(item_key, 0)
+    investor_discount = 0
+    company_id = item_data.get("company")
+    # Investments are made in cash, so their perk only affects cash goods.
+    if company_id and item_data.get("currency") == "cash":
+        state = get_company_state(guild_data, company_id)
+        investor_discount = investor_discount_percent(state, user_id)
+    discount = combined_discount_percent(item_discount, investor_discount)
+    price = item_data["base_price"]
+    if discount:
+        price = max(1, math.floor(price * (1 - discount / 100)))
+    return price, discount
+
+
+def is_item_unlocked(item_data, guild_data):
+    company_id = item_data.get("company")
+    if not company_id:
+        return True
+    state = get_company_state(guild_data, company_id)
+    return state["level"] >= int(item_data.get("required_company_level", 1))
+
+
+def build_company_embed(guild_data, user_id):
+    company_id = WHEELER_RAWSON
+    definition = COMPANY_DEFINITIONS[company_id]
+    state = get_company_state(guild_data, company_id)
+    threshold = next_level_threshold(company_id, state["level"])
+    own = personal_investment(state, user_id)
+    discount = investor_discount_percent(state, user_id)
+
+    if threshold is None:
+        progress = f"{progress_bar(state['invested'], None)} **Максимальный уровень**"
+    else:
+        remaining = max(0, threshold - state["invested"])
+        progress = (
+            f"{progress_bar(state['invested'], threshold)} "
+            f"**{state['invested']:,}/{threshold:,} $**\n"
+            f"До следующего уровня: **{remaining:,} $**"
+        )
+
+    embed = discord.Embed(
+        title=f"🏢 {definition['name']}",
+        description=(
+            "Инвестиции всех игроков развивают снабжение сервера и открывают "
+            "новые товары в каталоге. Вложения возврату не подлежат."
+        ),
+        color=discord.Color.from_rgb(139, 109, 68),
+    )
+    embed.add_field(name=f"Уровень компании: {state['level']}/4", value=progress, inline=False)
+    embed.add_field(
+        name="Ваши инвестиции",
+        value=f"**{own:,} $** · скидка на товары за наличные: **{discount}%**",
+        inline=False,
+    )
+    leaders = sorted(state["investors"].items(), key=lambda pair: pair[1], reverse=True)[:5]
+    leaderboard = "\n".join(
+        f"{index}. <@{investor_id}> — **{amount:,} $**"
+        for index, (investor_id, amount) in enumerate(leaders, start=1)
+    ) or "*Инвесторов пока нет.*"
+    embed.add_field(name="Крупнейшие инвесторы", value=leaderboard, inline=False)
+    embed.set_footer(text="Скидки инвестора и магазина суммируются, но не превышают 25%.")
+    return embed
+
+
+def build_catalog_messages(category_key, account, guild_id, user_id):
     """Создать embeds и файлы для страницы категории каталога."""
     normalize_weapon_state(account, CATALOG_ITEMS)
     cat = CATALOG_CATEGORIES[category_key]
     items = get_category_items(category_key)
 
     guild_data = economy_data.current()
-    discounts = guild_data.get("shop_discounts", {})
+    company_state = get_company_state(guild_data, WHEELER_RAWSON)
 
     cat_emoji = get_catalog_category_emoji(category_key)
     title_emoji = get_catalog_title_emoji()
 
     main_embed = discord.Embed(
         title=f"{title_emoji} Каталог — {cat_emoji} {cat['name']}",
-        description=cat["description"],
+        description=(
+            f"{cat['description']}\n\n"
+            f"🏢 Wheeler, Rawson & Co. · уровень **{company_state['level']}/4** · "
+            "`/companies` для просмотра прогресса"
+        ),
         color=discord.Color.from_rgb(139, 109, 68),  # Тёплый коричневый, стиль RDR2
     )
 
@@ -524,10 +653,10 @@ def build_catalog_messages(category_key, account, guild_id):
         )
     else:
         for item_key, item_data in items.items():
-            discount_percent = discounts.get(item_key, 0)
-            price = item_data["base_price"]
-            if discount_percent > 0:
-                price = math.floor(price * (1 - discount_percent / 100))
+            price, discount_percent = get_catalog_price(
+                item_key, item_data, guild_data, user_id
+            )
+            unlocked = is_item_unlocked(item_data, guild_data)
 
             emoji = get_gold_emoji() if item_data["currency"] == "gold" else get_cash_emoji()
             item_emoji = get_item_emoji(item_data)
@@ -544,6 +673,12 @@ def build_catalog_messages(category_key, account, guild_id):
                     status = f" {bought_emoji} *Куплено*"
 
             item_description = item_data["description"]
+            if not unlocked:
+                required_level = item_data.get("required_company_level", 1)
+                item_description = (
+                    f"🔒 **Требуется {required_level}-й уровень Wheeler, Rawson & Co.**\n"
+                    f"{item_description}"
+                )
             if item_data["type"] == "ammo":
                 class_key = item_data["ammo_class"]
                 current = ammo_total(account, class_key)
@@ -556,7 +691,7 @@ def build_catalog_messages(category_key, account, guild_id):
 
             if "image" in item_data:
                 item_embed = discord.Embed(
-                    title=f"{item_emoji} {item_data['name']}{status}",
+                    title=f"{'🔒' if not unlocked else item_emoji} {item_data['name']}{status}",
                     description=f"{item_description}\nЦена: {price_text}",
                     color=discord.Color.from_rgb(139, 109, 68),
                 )
@@ -566,7 +701,7 @@ def build_catalog_messages(category_key, account, guild_id):
                 embeds.append(item_embed)
             else:
                 main_embed.add_field(
-                    name=f"{item_emoji} {item_data['name']}{status}",
+                    name=f"{'🔒' if not unlocked else item_emoji} {item_data['name']}{status}",
                     value=f"{item_description}\nЦена: {price_text}",
                     inline=False,
                 )
@@ -614,7 +749,7 @@ def _button_price_text(price, currency):
 
 
 class CatalogBuyButton(discord.ui.Button):
-    def __init__(self, item_key, item_data, price, already_owned, discount_percent=0):
+    def __init__(self, item_key, item_data, price, already_owned, unlocked, discount_percent=0):
         self.item_key = item_key
         self.item_data = item_data
         self.price = price
@@ -628,11 +763,11 @@ class CatalogBuyButton(discord.ui.Button):
         item_emoji = get_item_emoji(item_data)
 
         super().__init__(
-            label="Уже куплено" if already_owned else label,
-            style=discord.ButtonStyle.secondary if already_owned else discord.ButtonStyle.success,
+            label=("Уже куплено" if already_owned else label) if unlocked else f"Закрыто до уровня {item_data.get('required_company_level', 1)}",
+            style=discord.ButtonStyle.secondary if already_owned or not unlocked else discord.ButtonStyle.success,
             custom_id=f"catalog_buy_{item_key}",
             emoji=item_emoji,
-            disabled=already_owned,
+            disabled=already_owned or not unlocked,
         )
 
     async def callback(self, interaction: discord.Interaction):
@@ -640,6 +775,21 @@ class CatalogBuyButton(discord.ui.Button):
             account = get_account(interaction.user.id)
             inventory = account.setdefault("inventory", {})
             normalize_weapon_state(account, CATALOG_ITEMS)
+            guild_data = economy_data.current()
+
+            if not is_item_unlocked(self.item_data, guild_data):
+                required_level = self.item_data.get("required_company_level", 1)
+                await interaction.response.send_message(
+                    f"Товар пока недоступен. Требуется **{required_level}-й уровень Wheeler, Rawson & Co.**",
+                    ephemeral=True,
+                )
+                return
+
+            # Recalculate the price inside the lock: an old catalog message must
+            # not retain a stale company or administrator discount.
+            live_price, _ = get_catalog_price(
+                self.item_key, self.item_data, guild_data, interaction.user.id
+            )
 
             if self.item_data["type"] == "unique" and inventory.get(self.item_key, 0) > 0:
                 await interaction.response.send_message(
@@ -665,15 +815,15 @@ class CatalogBuyButton(discord.ui.Button):
                     )
                     return
 
-            if account.get(self.item_data["currency"], 0.0) < self.price:
+            if account.get(self.item_data["currency"], 0.0) < live_price:
                 currency_emoji = get_gold_emoji() if self.item_data["currency"] == "gold" else get_cash_emoji()
                 await interaction.response.send_message(
-                    f"Недостаточно средств. Нужно {self.price} {currency_emoji}.",
+                    f"Недостаточно средств. Нужно {live_price} {currency_emoji}.",
                     ephemeral=True,
                 )
                 return
 
-            account[self.item_data["currency"]] -= self.price
+            account[self.item_data["currency"]] -= live_price
             if self.item_data["type"] == "unique":
                 inventory[self.item_key] = 1
                 if weapon_class(self.item_key, self.item_data):
@@ -699,17 +849,17 @@ class CatalogBuyButton(discord.ui.Button):
                 capacity = ammo_capacity(account, class_key, CATALOG_ITEMS)
                 result = (
                     f"{success_emoji} Куплено **{self.item_data['quantity']} шт.** — "
-                    f"**{self.item_data['name']}** за {self.price} {emoji}.\n"
+                    f"**{self.item_data['name']}** за {live_price} {emoji}.\n"
                     f"Боезапас: **{stock}/{capacity}**."
                 )
             elif self.item_data["type"] == "moonshine_ingredient":
                 result = (
                     f"{success_emoji} Куплено: **{self.item_data['name']} x{self.item_data['quantity']}** "
-                    f"за {self.price} {emoji}.\n"
+                    f"за {live_price} {emoji}.\n"
                     f"На складе самогонщика: **{stored_ingredient} шт.**"
                 )
             else:
-                result = f"{success_emoji} Вы успешно купили **{self.item_data['name']}** за {self.price} {emoji}!"
+                result = f"{success_emoji} Вы успешно купили **{self.item_data['name']}** за {live_price} {emoji}!"
             await interaction.response.send_message(result, ephemeral=True)
 
             # Обновить кнопку если unique
@@ -746,7 +896,7 @@ class CatalogCategorySelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         selected = self.values[0]
         account = get_account(interaction.user.id)
-        embeds, files = build_catalog_messages(selected, account, interaction.guild_id)
+        embeds, files = build_catalog_messages(selected, account, interaction.guild_id, interaction.user.id)
         view = CatalogView(interaction.guild_id, interaction.user, account, selected)
         await interaction.response.edit_message(embeds=embeds, attachments=files, view=view)
 
@@ -768,13 +918,12 @@ class CatalogView(discord.ui.View):
         # Кнопки покупки для текущей категории
         items = get_category_items(current_category)
         guild_data = economy_data.current()
-        discounts = guild_data.get("shop_discounts", {})
 
         for item_key, item_data in items.items():
-            discount_percent = discounts.get(item_key, 0)
-            price = item_data["base_price"]
-            if discount_percent > 0:
-                price = math.floor(price * (1 - discount_percent / 100))
+            price, discount_percent = get_catalog_price(
+                item_key, item_data, guild_data, member.id
+            )
+            unlocked = is_item_unlocked(item_data, guild_data)
 
             inventory = account.get("inventory", {})
             already_owned = (
@@ -782,7 +931,9 @@ class CatalogView(discord.ui.View):
             )
 
             self.add_item(
-                CatalogBuyButton(item_key, item_data, price, already_owned, discount_percent)
+                CatalogBuyButton(
+                    item_key, item_data, price, already_owned, unlocked, discount_percent
+                )
             )
 
     async def interaction_check(self, interaction):
@@ -1027,10 +1178,69 @@ class CatalogCog(commands.Cog):
             account = get_account(interaction.user.id)
             current_category = "revolvers"  # Начинаем с револьверов
 
-            embeds, files = build_catalog_messages(current_category, account, interaction.guild_id)
+            embeds, files = build_catalog_messages(
+                current_category, account, interaction.guild_id, interaction.user.id
+            )
             view = CatalogView(interaction.guild_id, interaction.user, account, current_category)
 
             await interaction.response.send_message(embeds=embeds, files=files, view=view, ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+    @app_commands.command(name="companies", description="Показать компании и прогресс их развития")
+    async def companies_cmd(self, interaction: discord.Interaction):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                embed = build_company_embed(economy_data.current(), interaction.user.id)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+    @app_commands.command(name="invest", description="Инвестировать наличные в Wheeler, Rawson & Co.")
+    @app_commands.describe(amount="Сумма инвестиции в долларах")
+    async def invest_cmd(self, interaction: discord.Interaction, amount: int):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            if amount <= 0:
+                await interaction.response.send_message(
+                    "Сумма инвестиции должна быть положительным целым числом.",
+                    ephemeral=True,
+                )
+                return
+
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                if account.get("cash", 0) < amount:
+                    await interaction.response.send_message(
+                        f"Недостаточно наличных. Нужно **{amount:,}** {get_cash_emoji()}.",
+                        ephemeral=True,
+                    )
+                    return
+
+                guild_data = economy_data.current()
+                company_state = get_company_state(guild_data, WHEELER_RAWSON)
+                account["cash"] -= amount
+                old_level, new_level = add_investment(
+                    company_state, WHEELER_RAWSON, interaction.user.id, amount
+                )
+                save_economy()
+                own_total = personal_investment(company_state, interaction.user.id)
+                discount = investor_discount_percent(company_state, interaction.user.id)
+
+            level_message = ""
+            if new_level > old_level:
+                level_message = (
+                    f"\n🎉 Компания достигла **{new_level}-го уровня** — "
+                    "в каталоге появились новые товары!"
+                )
+            await interaction.response.send_message(
+                f"✅ Вы инвестировали **{amount:,}** {get_cash_emoji()} в "
+                f"**Wheeler, Rawson & Co.**\n"
+                f"Ваш общий вклад: **{own_total:,} $** · скидка: **{discount}%**"
+                f"{level_message}",
+                ephemeral=True,
+            )
         finally:
             reset_economy_guild_id(token)
 

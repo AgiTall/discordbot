@@ -11,6 +11,7 @@ from functools import wraps
 from flask import jsonify, redirect, request, session
 
 import src.guild_config as guild_config
+from src.economy_stats import build_economy_stats
 
 DISCORD_API = "https://discord.com/api"
 DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "1513810717495525377")
@@ -23,7 +24,7 @@ _routes_registered = False
 def _http_request(url, method="GET", data=None, headers=None, timeout=15):
     req_headers = dict(headers or {})
     # Discord API требует User-Agent, иначе банит запросы с серверов (403 Forbidden)
-    req_headers.setdefault("User-Agent", "DiscordBot (https://pchev.me, 0.7.6.1)")
+    req_headers.setdefault("User-Agent", "DiscordBot (https://pchev.me, 0.7.6.3)")
     
     body = None
     if data is not None:
@@ -373,75 +374,30 @@ def register_web_routes(app, get_bot, economy_store, get_leveling_db):
         if not bot:
             return jsonify({"error": "Bot offline"}), 503
             
-        guild_data = economy_store.guild_data(guild_id)
-        users = guild_data.get("users", {})
-        gangs = guild_data.get("gangs", {})
-        gold_rate = guild_data.get("gold_rate", 543.45)
-        
-        # 1. Leaderboard
-        user_list = []
-        total_cash = 0.0
-        total_gold = 0.0
-        
-        for u_id, u_data in users.items():
-            c = float(u_data.get("cash", 0.0))
-            g = float(u_data.get("gold", 0.0))
-            total_cash += c
-            total_gold += g
-            wealth = c + (g * gold_rate)
-            
-            # Try to resolve username if possible, otherwise use ID
-            name = f"User {u_id}"
-            user_obj = bot.get_user(int(u_id))
-            if user_obj:
-                name = user_obj.display_name
-            elif "name" in u_data:
-                name = u_data["name"]
-                
-            user_list.append({
-                "id": u_id,
-                "name": name,
-                "cash": c,
-                "gold": g,
-                "wealth": wealth,
-                "level": u_data.get("level", 1)
-            })
-            
-        user_list.sort(key=lambda x: x["wealth"], reverse=True)
-        top_10 = user_list[:10]
-        
-        # 2. Gangs
-        gang_list = []
-        for g_name, g_data in gangs.items():
-            gc = float(g_data.get("cash", 0.0))
-            gg = float(g_data.get("gold", 0.0))
-            g_wealth = gc + (gg * gold_rate)
-            total_cash += gc
-            total_gold += gg
-            
-            gang_list.append({
-                "name": g_name,
-                "id": g_data.get("id", 0),
-                "members_count": len(g_data.get("members", [])),
-                "cash": gc,
-                "gold": gg,
-                "wealth": g_wealth,
-                "influence": g_data.get("influence", 0)
-            })
-            
-        gang_list.sort(key=lambda x: x["wealth"], reverse=True)
-        
-        return jsonify({
-            "leaderboard": top_10,
-            "gangs": gang_list,
-            "globals": {
-                "total_users": len(users),
-                "total_gangs": len(gangs),
-                "total_cash": total_cash,
-                "total_gold": total_gold,
-                "gold_rate": gold_rate
-            }
-        })
+        guild = bot.get_guild(int(guild_id))
+
+        def resolve_name(user_id, account):
+            try:
+                member = guild.get_member(int(user_id)) if guild else None
+                discord_user = member or bot.get_user(int(user_id))
+            except (TypeError, ValueError):
+                discord_user = None
+            return getattr(discord_user, "display_name", None) or account.get("name", "")
+
+        leveling_db = get_leveling_db()
+
+        def resolve_level(user_id):
+            if leveling_db is None:
+                return 1
+            return leveling_db.get_user(guild_id, user_id).get("level", 1)
+
+        viewer = session.get("user") or {}
+        return jsonify(build_economy_stats(
+            economy_store.guild_data(guild_id),
+            viewer_id=viewer.get("id"),
+            name_resolver=resolve_name,
+            level_resolver=resolve_level,
+        ))
 
     @app.route("/api/config", methods=["GET"])
     def legacy_get_config():

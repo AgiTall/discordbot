@@ -37,6 +37,7 @@ from src.collector_logic import default_collector_data, normalize_collector_data
 from src.bounty_logic import default_bounty_data, normalize_bounty_data
 from src.moonshiner_logic import default_moonshine_data, normalize_moonshine_data
 from src.naturalist_logic import default_naturalist_data, normalize_naturalist_data
+from src.company_logic import normalize_companies
 
 # ──────────────────────────────────────────────────────────────
 #  ЧАСОВЫЕ ПОЯСА / ВРЕМЯ
@@ -152,6 +153,7 @@ def default_economy() -> dict:
         "last_treasure_map_drop_date":  None,
         "role_icons":                   {},
         "role_discounts":               {},
+        "companies":                    normalize_companies({}),
         "users":                        {},
     }
 
@@ -212,6 +214,7 @@ def normalize_economy_data(data: dict) -> dict:
     data.setdefault("last_treasure_map_drop_date", None)
     data.setdefault("role_icons", {})
     data.setdefault("role_discounts", {})
+    data["companies"] = normalize_companies(data.get("companies"))
     data.setdefault("users", {})
 
     # moonshine UI emojis

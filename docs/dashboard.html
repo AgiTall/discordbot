@@ -8,8 +8,6 @@
     content="Панель настройки Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — войдите через Discord, выберите сервер и настройте бота.">
   <title>Настройки — Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺</title>
   <link rel="stylesheet" href="css/style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -21,7 +19,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.0.7.6.3</span>
+        <span class="navbar__badge">v0.0.8.0</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -64,7 +62,7 @@
         <div id="authGate" class="auth-gate">
           <div class="auth-gate__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M20.317 4.37a19.791 19.791 0 00-4.885-0.7.6.3 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-0.7.6.3 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 0.7.6.3 18.057a.082.082 0 0.7.6.3 19.9 19.9 0 005.993 0.7.6.3 0 00.084-.028 14.09 14.09 0 001.226-0.7.6.3 0 00-.041-.106 13.107 13.107 0 01-1.872-.0.7.6.3 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.0.7.6.3.292a.077.077 0 01-.006.127 12.299 12.299 0 01-0.7.6.3 0 00-.041.107c.0.7.6.3 1.362 1.225 1.993a.076.076 0 0.7.6.3 19.839 19.839 0 006.002-0.7.6.3 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03z" />
+              <path d="M20.317 4.37a19.791 19.791 0 00-4.885-0.8.0 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-0.8.0 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 0.8.0 18.057a.082.082 0 0.8.0 19.9 19.9 0 005.993 0.8.0 0 00.084-.028 14.09 14.09 0 001.226-0.8.0 0 00-.041-.106 13.107 13.107 0 01-1.872-.0.8.0 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.0.8.0.292a.077.077 0 01-.006.127 12.299 12.299 0 01-0.8.0 0 00-.041.107c.0.8.0 1.362 1.225 1.993a.076.076 0 0.8.0 19.839 19.839 0 006.002-0.8.0 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03z" />
             </svg>
           </div>
           <h2>Войдите через Discord</h2>
@@ -72,7 +70,7 @@
           <a href="/auth/discord" class="btn btn--discord" id="discordLoginBtn">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path
-                d="M20.317 4.37a19.791 19.791 0 00-4.885-0.7.6.3 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-0.7.6.3 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 0.7.6.3 18.057a.082.082 0 0.7.6.3 19.9 19.9 0 005.993 0.7.6.3 0 00.084-.028 14.09 14.09 0 001.226-0.7.6.3 0 00-.041-.106 13.107 13.107 0 01-1.872-.0.7.6.3 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.0.7.6.3.292a.077.077 0 01-.006.127 12.299 12.299 0 01-0.7.6.3 0 00-.041.107c.0.7.6.3 1.362 1.225 1.993a.076.076 0 0.7.6.3 19.839 19.839 0 006.002-0.7.6.3 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-0.7.6.3-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-0.7.6.3-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                d="M20.317 4.37a19.791 19.791 0 00-4.885-0.8.0 0 00-.079.037 12.3 12.3 0 00-.608 1.25 18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-0.8.0 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 0.8.0 18.057a.082.082 0 0.8.0 19.9 19.9 0 005.993 0.8.0 0 00.084-.028 14.09 14.09 0 001.226-0.8.0 0 00-.041-.106 13.107 13.107 0 01-1.872-.0.8.0 0 01-.008-.128c.126-.094.252-.192.372-.292a.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.0.8.0.292a.077.077 0 01-.006.127 12.299 12.299 0 01-0.8.0 0 00-.041.107c.0.8.0 1.362 1.225 1.993a.076.076 0 0.8.0 19.839 19.839 0 006.002-0.8.0 0 00.032-.054c.5-5.177-.838-9.664-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-0.8.0-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-0.8.0-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
             </svg>
             Войти через Discord
           </a>
@@ -807,9 +805,48 @@
                     </div>
                   </div>
                 </div>
-              </div>
 
-              
+                <div class="card company-card" style="margin-top:20px">
+                  <div class="company-card__header">
+                    <div>
+                      <span class="company-card__eyebrow">ТОРГОВАЯ КОМПАНИЯ</span>
+                      <h3 class="heading-sm">🏢 Wheeler, Rawson &amp; Co.</h3>
+                      <p>Общие инвестиции игроков открывают новые поставки в каталоге.</p>
+                    </div>
+                    <div class="company-level" id="companyLevel">I / IV</div>
+                  </div>
+
+                  <div class="company-progress" role="progressbar" aria-label="Прогресс компании" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="companyProgress">
+                    <span id="companyProgressFill"></span>
+                  </div>
+                  <div class="company-progress__labels">
+                    <strong id="companyProgressLabel">Загрузка...</strong>
+                    <span id="companyRemaining"></span>
+                  </div>
+
+                  <div class="company-metrics">
+                    <div><span>Всего вложено</span><strong id="companyInvested">0 $</strong></div>
+                    <div><span>Ваш вклад</span><strong id="companyViewerInvested">0 $</strong></div>
+                    <div><span>Ваша скидка</span><strong id="companyViewerDiscount">0%</strong></div>
+                  </div>
+
+                  <div class="company-supply-grid" aria-label="Уровни поставок">
+                    <div data-company-tier="1"><b>I</b><span>Базовое оружие, обычные патроны и провиант</span></div>
+                    <div data-company-tier="2"><b>II</b><span>Карабины, винтовки и улучшенные патроны</span></div>
+                    <div data-company-tier="3"><b>III</b><span>Современное и снайперское оружие</span></div>
+                    <div data-company-tier="4"><b>IV</b><span>Редкие товары и взрывные боеприпасы</span></div>
+                  </div>
+
+                  <h3 class="heading-sm company-investors-title">Крупнейшие инвесторы</h3>
+                  <div class="table-scroll">
+                    <table class="economy-table">
+                      <thead><tr><th>#</th><th>Игрок</th><th>Вложено</th></tr></thead>
+                      <tbody id="companyInvestorsTbody">
+                        <tr><td colspan="3" class="table-empty">Загрузка...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
                 <!-- CHARTS AND LEADERBOARD SECTION -->
                 <div class="card" style="margin-top:20px">
@@ -824,24 +861,27 @@
                   </div>
                   
                   <h3 class="heading-sm" style="margin-bottom:16px">🏆 Топ-10 Богачей</h3>
-                  <div style="overflow-x:auto;">
-                    <table style="width:100%;border-collapse:collapse;text-align:left;font-size:0.9rem;">
+                  <p class="hint" style="margin-bottom:12px">Состояние учитывает наличные и золото как на руках, так и в личном сейфе.</p>
+                  <div class="table-scroll">
+                    <table class="economy-table">
                       <thead>
-                        <tr style="border-bottom:1px solid var(--border);color:var(--text-muted);">
-                          <th style="padding:10px;">#</th>
-                          <th style="padding:10px;">Игрок</th>
-                          <th style="padding:10px;">Уровень</th>
-                          <th style="padding:10px;">Деньги</th>
-                          <th style="padding:10px;">Золото</th>
-                          <th style="padding:10px;">Состояние</th>
+                        <tr>
+                          <th>#</th>
+                          <th>Игрок</th>
+                          <th>Уровень</th>
+                          <th>Наличные</th>
+                          <th>В сейфе</th>
+                          <th>Золото</th>
+                          <th>Состояние</th>
                         </tr>
                       </thead>
                       <tbody id="leaderboardTbody">
-                        <tr><td colspan="6" style="padding:10px;text-align:center;">Загрузка...</td></tr>
+                        <tr><td colspan="7" class="table-empty">Загрузка...</td></tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
+              </div>
 
 <!-- ════════════ СЕКЦИЯ: БАНДЫ ════════════ -->
               <div class="dash-section" id="gangs" aria-labelledby="gangsHeading">
@@ -1076,7 +1116,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2026 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.0.7.6.3</span>
+        <span class="footer__version">v0.0.8.0</span>
       </div>
     </div>
   </footer>

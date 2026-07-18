@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Request
 
 from app.schemas.guild import ChannelItem, RoleItem
 from app.utils.dependencies import CurrentUser, DbSession, require_guild_access
+from src.economy_stats import build_economy_stats
 
 logger = logging.getLogger(__name__)
 
@@ -159,71 +161,35 @@ async def get_guild_stats(
         from fastapi import HTTPException
         raise HTTPException(status_code=503, detail="Economy store not available")
 
-    guild_data = economy_store.guild_data(guild_id)
-    users = guild_data.get("users", {})
-    gangs = guild_data.get("gangs", {})
-    gold_rate = guild_data.get("gold_rate", 543.45)
+    guild = bot.get_guild(int(guild_id))
 
-    # 1. Leaderboard
-    user_list = []
-    total_cash = 0.0
-    total_gold = 0.0
+    def resolve_name(user_id, account):
+        try:
+            member = guild.get_member(int(user_id)) if guild else None
+            discord_user = member or bot.get_user(int(user_id))
+        except (TypeError, ValueError):
+            discord_user = None
+        return getattr(discord_user, "display_name", None) or account.get("name", "")
 
-    for u_id, u_data in users.items():
-        c = float(u_data.get("cash", 0.0))
-        g = float(u_data.get("gold", 0.0))
-        total_cash += c
-        total_gold += g
-        wealth = c + (g * gold_rate)
+    stats = build_economy_stats(
+        economy_store.guild_data(guild_id),
+        viewer_id=user.discord_id,
+        name_resolver=resolve_name,
+    )
 
-        name = f"User {u_id}"
-        user_obj = bot.get_user(int(u_id))
-        if user_obj:
-            name = user_obj.display_name
-        elif "name" in u_data:
-            name = u_data["name"]
+    # Levels live in their own table rather than inside economy accounts.
+    leveling_cog = bot.get_cog("LevelingCog")
+    if leveling_cog and leveling_cog.db and stats["leaderboard"]:
+        # LevelingDB owns one psycopg2 connection, so its reads must stay
+        # sequential even though the blocking work runs outside the event loop.
+        def load_levels():
+            return [
+                leveling_cog.db.get_user(guild_id, entry["id"])
+                for entry in stats["leaderboard"]
+            ]
 
-        user_list.append({
-            "id": u_id,
-            "name": name,
-            "cash": c,
-            "gold": g,
-            "wealth": wealth,
-            "level": u_data.get("level", 1),
-        })
+        levels = await asyncio.to_thread(load_levels)
+        for entry, level_data in zip(stats["leaderboard"], levels):
+            entry["level"] = max(1, int(level_data.get("level", 1)))
 
-    user_list.sort(key=lambda x: x["wealth"], reverse=True)
-    top_10 = user_list[:10]
-
-    # 2. Gangs
-    gang_list = []
-    for g_name, g_data in gangs.items():
-        gc = float(g_data.get("cash", 0.0))
-        gg = float(g_data.get("gold", 0.0))
-        g_wealth = gc + (gg * gold_rate)
-        total_cash += gc
-        total_gold += gg
-
-        gang_list.append({
-            "name": g_name,
-            "id": g_data.get("id", 0),
-            "members_count": len(g_data.get("members", [])),
-            "cash": gc,
-            "gold": gg,
-            "wealth": g_wealth,
-            "influence": g_data.get("influence", 0),
-        })
-
-    gang_list.sort(key=lambda x: x["wealth"], reverse=True)
-
-    return {
-        "leaderboard": top_10,
-        "gangs": gang_list,
-        "globals": {
-            "total_users": len(users),
-            "total_gangs": len(gangs),
-            "total_cash": total_cash,
-            "total_gold": total_gold,
-            "gold_rate": gold_rate,
-        },
-    }
+    return stats

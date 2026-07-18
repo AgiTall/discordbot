@@ -2,6 +2,7 @@ from src.naturalist_logic import *
 from src.bounty_logic import *
 from src.moonshiner_logic import *
 from src.collector_logic import *
+from src.company_logic import normalize_companies
 from emoji_config import *
 import os
 import logging
@@ -351,6 +352,7 @@ def default_economy():
         "last_treasure_map_drop_date": None,
         "role_icons": {},
         "role_discounts": {},
+        "companies": normalize_companies({}),
         "users": {},
     }
 
@@ -414,6 +416,7 @@ def normalize_economy_data(data):
     data.setdefault("last_treasure_map_drop_date", None)
     data.setdefault("role_icons", {})
     data.setdefault("role_discounts", {})
+    data["companies"] = normalize_companies(data.get("companies"))
     data.setdefault("users", {})
 
     if not isinstance(data["role_icons"], dict):
