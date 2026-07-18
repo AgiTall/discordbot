@@ -19,7 +19,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.8.1</span>
+        <span class="navbar__badge">v0.8.1.1</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -788,7 +788,7 @@
                   </p>
                   <div style="display:flex;flex-direction:column;gap:1px;background:var(--border);border:1px solid var(--border)">
                     <div style="display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--bg-card);padding:14px 20px">
-                      <div><strong style="font-size:.9rem;letter-spacing:.04em">⛏️ Работа и профессии</strong><p class="hint" style="margin:0">Охотник, Торговец, Самогонщик, Натуралист</p></div>
+                      <div><strong style="font-size:.9rem;letter-spacing:.04em">⛏️ Работа и профессии</strong><p class="hint" style="margin:0">Охотник, Торговец, Самогонщик, Натуралист, Шахтёр, Коллекционер</p></div>
                       <span style="font-family:'ChineseRocks','Oswald',sans-serif;font-size:1.3rem;color:var(--gold)" id="econJobsRate">×1.0</span>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr auto;align-items:center;background:var(--bg-card);padding:14px 20px">
@@ -809,9 +809,9 @@
                 <div class="card company-card" style="margin-top:20px">
                   <div class="company-card__header">
                     <div>
-                      <span class="company-card__eyebrow">ТОРГОВАЯ КОМПАНИЯ</span>
+                      <span class="company-card__eyebrow">КАТАЛОГ И СНАБЖЕНИЕ</span>
                       <h3 class="heading-sm">🏢 Wheeler, Rawson &amp; Co.</h3>
-                      <p>Общие инвестиции игроков открывают новые поставки в каталоге.</p>
+                      <p>Компания распространяет товары через каталог и поставки, но не производит оружие. Общие инвестиции открывают новые партии товаров.</p>
                     </div>
                     <div class="company-level" id="companyLevel">I / IV</div>
                   </div>
@@ -825,8 +825,8 @@
                   </div>
 
                   <div class="company-metrics">
-                    <div><span>Всего вложено</span><strong id="companyInvested">0 $</strong></div>
-                    <div><span>Ваш вклад</span><strong id="companyViewerInvested">0 $</strong></div>
+                    <div><span>Всего вложено</span><strong id="companyInvested">0</strong></div>
+                    <div><span>Ваш вклад</span><strong id="companyViewerInvested">0</strong></div>
                     <div><span>Ваша скидка</span><strong id="companyViewerDiscount">0%</strong></div>
                   </div>
 
@@ -860,19 +860,19 @@
                     </div>
                   </div>
                   
-                  <h3 class="heading-sm" style="margin-bottom:16px">🏆 Топ-10 Богачей</h3>
+                  <h3 class="heading-sm" style="margin-bottom:16px"><span id="leaderboardStatsEmoji" aria-hidden="true"></span> Топ-10 Богачей</h3>
                   <p class="hint" style="margin-bottom:12px">Состояние учитывает наличные и золото как на руках, так и в личном сейфе.</p>
                   <div class="table-scroll">
-                    <table class="economy-table">
+                    <table class="economy-table leaderboard-sortable">
                       <thead>
                         <tr>
                           <th>#</th>
-                          <th>Игрок</th>
-                          <th>Уровень</th>
-                          <th>Наличные</th>
-                          <th>В сейфе</th>
-                          <th>Золото</th>
-                          <th>Состояние</th>
+                          <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="name">Игрок<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                          <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="level">Уровень<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                          <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="cash">Наличные<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                          <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="safe">В сейфе<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                          <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="gold">Золото<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                          <th aria-sort="descending"><button type="button" class="table-sort is-active" data-leaderboard-sort="wealth">Состояние<span class="table-sort__arrow" aria-hidden="true">▼</span></button></th>
                         </tr>
                       </thead>
                       <tbody id="leaderboardTbody">
@@ -1116,7 +1116,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2026 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.8.1</span>
+        <span class="footer__version">v0.8.1.1</span>
       </div>
     </div>
   </footer>

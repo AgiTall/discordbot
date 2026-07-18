@@ -1964,6 +1964,7 @@ async def setup_hook():
         await bot.load_extension("cogs.naturalist")
         await bot.load_extension("cogs.miner")
         await bot.load_extension("cogs.collector")
+        await bot.load_extension("cogs.admin")
     except Exception as e:
         logging.error(f"Failed to load LevelingCog: {e}")
 bot.setup_hook = setup_hook
@@ -1974,6 +1975,7 @@ economy_lock = asyncio.Lock()
 RESET_CONFIRMATION_PHRASES = ("Я знаю что я делаю", "I know what I'm doing")
 ALL_TARGET_ALIASES = {"all", "@everyone", "everyone", "все", "всем", "всех"}
 ADMIN_COMMAND_NAMES = {
+    "admin",
     "reset-all",
     "delete-role",
     "restart-roles",
@@ -2739,12 +2741,31 @@ def build_help_pages(is_admin):
     if is_admin:
         admin.add_field(
             name="Основные",
-            value="`/check`, `/give-money`, `/remove-money`, `/set-money`, `/give-gold` и т.д.",
+            value=(
+                "`/admin inspect` — полная диагностика игрока.\n"
+                "`/admin cooldown` — сброс любой активности.\n"
+                "`/admin progress` — уровни и опыт профессий/ранга."
+            ),
             inline=False,
         )
         admin.add_field(
-            name="Профессии",
-            value="`/fill-dealer`, `/give-moonshine-ingredient`, `/set-moonshine-upgrade`, `/set-moonshine-skill`, `/finish-moonshine`, `/reset-moonshine`",
+            name="Инвентарь и профессии",
+            value=(
+                "`/admin item` — выдать, изъять или установить предметы.\n"
+                "`/admin mine` — попытки, глубина, кирка и припасы шахтёра.\n"
+                "`/admin role` — выдача и синхронизация профессий.\n"
+                "`/admin investment` — исправление учёта инвестиций.\n"
+                "`/admin reset` — полный сброс выбранной профессии с подтверждением."
+            ),
+            inline=False,
+        )
+        admin.add_field(
+            name="Валюта и самогонщик",
+            value=(
+                "`/check`, `/give-money`, `/remove-money`, `/set-money`, `/give-gold` и т.д.\n"
+                "`/fill-dealer`, `/give-moonshine-ingredient`, `/set-moonshine-upgrade`, "
+                "`/set-moonshine-skill`, `/finish-moonshine`, `/reset-moonshine`"
+            ),
             inline=False,
         )
         admin.add_field(

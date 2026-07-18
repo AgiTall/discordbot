@@ -49,6 +49,7 @@ const COMMANDS = [
   { name: 'naturalist',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766700904284370.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Натуралист: образцы, справочник животных и магазин транквилизаторов.' },
   { name: 'excavation',      emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Использовать карту сокровищ для раскопок — найдите клад!' },
   { name: 'mine',            emoji: '<img src="https://cdn.discordapp.com/emojis/1521863885689192518.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Шахтёр: добыча руды, плавка слитков, улучшения и продажа ресурсов.' },
+  { name: 'collector',       emoji: '<img src="https://cdn.discordapp.com/emojis/1515766697913745438.png" style="width:1em;height:1em;vertical-align:-0.15em;">', category: 'role', tag: 'role', desc: 'Коллекционер: поиск редкостей по картам, наборы, инструменты и продажа находок.' },
   { name: 'catalog',         emoji: '📖', category: 'role', tag: 'role', desc: 'Открыть каталог Wheeler, Rawson & Co. и приобрести товары.' },
   { name: 'investments',     emoji: '🏢', category: 'econ', tag: 'econ', desc: 'Открыть компании, прогресс снабжения и управление инвестициями.' },
 
@@ -112,6 +113,14 @@ const COMMANDS = [
   { name: 'set-message', emoji: '📝', category: 'admin', tag: 'admin', desc: 'Изменить системные сообщения бота.' },
   { name: 'reset-work', emoji: '⏱️', category: 'admin', tag: 'admin', desc: 'Сбросить перезарядку команды /work.' },
   { name: 'reset-dealer', emoji: '🚚', category: 'admin', tag: 'admin', desc: 'Сбросить перезарядку торговой доставки.' },
+  { name: 'admin inspect', emoji: '🩺', category: 'admin', tag: 'admin', desc: 'Показать полное состояние игрока во всех механиках.', args: '<участник>' },
+  { name: 'admin cooldown', emoji: '⏱️', category: 'admin', tag: 'admin', desc: 'Сбросить выбранный кулдаун или сразу все активности игрока.', args: '<участник> <активность>' },
+  { name: 'admin progress', emoji: '📈', category: 'admin', tag: 'admin', desc: 'Установить общий ранг либо уровень и XP профессии.', args: '<участник> <профессия> <уровень> [XP]' },
+  { name: 'admin item', emoji: '🎒', category: 'admin', tag: 'admin', desc: 'Выдать, изъять или установить предметы каталога и профессий.', args: '<участник> <действие> <хранилище> <предмет> <количество>' },
+  { name: 'admin role', emoji: '🎭', category: 'admin', tag: 'admin', desc: 'Выдать, забрать или синхронизировать игровую профессию.', args: '<участник> <роль> <действие>' },
+  { name: 'admin investment', emoji: '🏦', category: 'admin', tag: 'admin', desc: 'Исправить личный вклад инвестора и общий прогресс компании.', args: '<участник> <действие> <сумма>' },
+  { name: 'admin reset', emoji: '⚠️', category: 'admin', tag: 'admin', desc: 'Полностью сбросить выбранную профессию с явным подтверждением.', args: '<участник> <профессия> <подтверждение>' },
+  { name: 'admin mine', emoji: '⛏️', category: 'admin', tag: 'admin', desc: 'Изменить попытки, глубину, прочность кирки и припасы шахтёра.', args: '<участник> <параметр> <действие> <значение>' },
 ];
 
 // =============================================
@@ -163,6 +172,20 @@ function escapeHtml(value) {
     '"': '&quot;',
     "'": '&#039;',
   })[character]);
+}
+
+/** Преобразовать Discord-разметку <:name:id> / <a:name:id> в CDN-изображение. */
+function discordEmojiHtml(value, fallback = '') {
+  const raw = String(value || fallback || '').trim();
+  const match = raw.match(/^<(a?):([A-Za-z0-9_]+):(\d+)>$/);
+  if (!match) return escapeHtml(raw);
+  const [, animated, name, id] = match;
+  const extension = animated ? 'gif' : 'png';
+  return `<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/${id}.${extension}?size=32&quality=lossless" alt=":${escapeHtml(name)}:" loading="lazy">`;
+}
+
+function economyEmojiHtml(emojis, key, fallback = '') {
+  return discordEmojiHtml(emojis?.[key], fallback);
 }
 
 /** Активная страница из URL */
@@ -562,6 +585,73 @@ function trackChanges() {
 let economyStatsGuildId = null;
 let wealthChartInstance = null;
 let gangsChartInstance = null;
+let leaderboardRows = [];
+let leaderboardEmojis = {};
+let leaderboardGoldRate = 1;
+let leaderboardSort = { key: "wealth", direction: "desc" };
+
+function renderLeaderboard() {
+  const tbody = document.getElementById("leaderboardTbody");
+  if (!tbody) return;
+
+  if (!leaderboardRows.length) {
+    tbody.innerHTML = "<tr><td colspan=\"7\" class=\"table-empty\">В экономике этого сервера пока нет игроков.</td></tr>";
+    return;
+  }
+
+  const numericValue = (user, key) => {
+    if (key === "safe") return Number(user.safe_cash || 0) + Number(user.safe_gold || 0) * leaderboardGoldRate;
+    if (key === "gold") return Number(user.total_gold || 0);
+    return Number(user[key] || 0);
+  };
+  const direction = leaderboardSort.direction === "asc" ? 1 : -1;
+  const sortedRows = [...leaderboardRows].sort((a, b) => {
+    const result = leaderboardSort.key === "name"
+      ? String(a.name || "").localeCompare(String(b.name || ""), "ru", { sensitivity: "base" })
+      : numericValue(a, leaderboardSort.key) - numericValue(b, leaderboardSort.key);
+    return result * direction || String(a.name || "").localeCompare(String(b.name || ""), "ru");
+  });
+
+  const cashEmoji = economyEmojiHtml(leaderboardEmojis, 'cash', '$');
+  const goldEmoji = economyEmojiHtml(leaderboardEmojis, 'gold', '🪙');
+  const wealthEmoji = economyEmojiHtml(leaderboardEmojis, 'wealth', '💰');
+  const safeEmoji = economyEmojiHtml(leaderboardEmojis, 'safe', '🔒');
+  tbody.innerHTML = sortedRows.map((u, i) => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px;color:var(--text-muted);">${i + 1}</td>
+      <td style="padding:10px;font-weight:bold;color:var(--gold);">${escapeHtml(u.name)}</td>
+      <td style="padding:10px;">${Number(u.level || 0).toLocaleString("ru-RU")}</td>
+      <td style="padding:10px;">${Number(u.cash || 0).toLocaleString("ru-RU")} ${cashEmoji}</td>
+      <td style="padding:10px;">${safeEmoji} ${Number(u.safe_cash || 0).toLocaleString("ru-RU")} ${cashEmoji} · ${Number(u.safe_gold || 0).toLocaleString("ru-RU")} ${goldEmoji}</td>
+      <td style="padding:10px;">${Number(u.total_gold || 0).toLocaleString("ru-RU")} ${goldEmoji}</td>
+      <td style="padding:10px;font-weight:bold;">${Math.round(Number(u.wealth || 0)).toLocaleString("ru-RU")} ${wealthEmoji}</td>
+    </tr>
+  `).join("");
+}
+
+function initLeaderboardSorting() {
+  document.querySelectorAll("[data-leaderboard-sort]").forEach(button => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.leaderboardSort;
+      leaderboardSort = {
+        key,
+        direction: leaderboardSort.key === key && leaderboardSort.direction === "desc" ? "asc" : "desc"
+      };
+      document.querySelectorAll("[data-leaderboard-sort]").forEach(sortButton => {
+        const active = sortButton.dataset.leaderboardSort === key;
+        const th = sortButton.closest("th");
+        sortButton.classList.toggle("is-active", active);
+        sortButton.querySelector(".table-sort__arrow").textContent = active
+          ? (leaderboardSort.direction === "asc" ? "▲" : "▼")
+          : "";
+        th?.setAttribute("aria-sort", active
+          ? (leaderboardSort.direction === "asc" ? "ascending" : "descending")
+          : "none");
+      });
+      renderLeaderboard();
+    });
+  });
+}
 
 async function loadEconomyStats(guildId) {
   const tbody = document.getElementById("leaderboardTbody");
@@ -572,29 +662,22 @@ async function loadEconomyStats(guildId) {
     const res = await fetch(`/api/guilds/${guildId}/stats`);
     if (!res.ok) throw new Error("Failed to fetch stats");
     const data = await res.json();
+    const emojis = data.emojis || {};
+    const cashEmoji = economyEmojiHtml(emojis, 'cash', '$');
+    const goldEmoji = economyEmojiHtml(emojis, 'gold', '🪙');
+    const wealthEmoji = economyEmojiHtml(emojis, 'wealth', '💰');
+    const statsEmoji = economyEmojiHtml(emojis, 'stats', '🏆');
+    const safeEmoji = economyEmojiHtml(emojis, 'safe', '🔒');
+    const statsHeadingEmoji = document.getElementById('leaderboardStatsEmoji');
+    if (statsHeadingEmoji) statsHeadingEmoji.innerHTML = statsEmoji;
     
     // Populate Leaderboard
-    tbody.innerHTML = "";
-    if (data.leaderboard && data.leaderboard.length > 0) {
-      data.leaderboard.forEach((u, i) => {
-        const tr = document.createElement("tr");
-        tr.style.borderBottom = "1px solid var(--border)";
-        tr.innerHTML = `
-          <td style="padding:10px;color:var(--text-muted);">${i + 1}</td>
-          <td style="padding:10px;font-weight:bold;color:var(--gold);">${escapeHtml(u.name)}</td>
-          <td style="padding:10px;">${u.level}</td>
-          <td style="padding:10px;">${u.cash.toLocaleString("ru-RU")} $</td>
-          <td style="padding:10px;">${u.safe_cash.toLocaleString("ru-RU")} $ · ${u.safe_gold.toLocaleString("ru-RU")} 🪙</td>
-          <td style="padding:10px;">${u.total_gold.toLocaleString("ru-RU")} 🪙</td>
-          <td style="padding:10px;font-weight:bold;">${Math.round(u.wealth).toLocaleString("ru-RU")} 💰</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    } else {
-      tbody.innerHTML = "<tr><td colspan=\"7\" class=\"table-empty\">В экономике этого сервера пока нет игроков.</td></tr>";
-    }
+    leaderboardRows = Array.isArray(data.leaderboard) ? data.leaderboard : [];
+    leaderboardEmojis = emojis;
+    leaderboardGoldRate = Number(data.globals?.gold_rate || 1);
+    renderLeaderboard();
 
-    renderCompanyStats(data.company);
+    renderCompanyStats(data.company, cashEmoji);
 
     // Chart.js Default Config for Dark Theme
     if (typeof Chart !== "undefined") {
@@ -682,7 +765,7 @@ async function loadEconomyStats(guildId) {
   }
 }
 
-function renderCompanyStats(company) {
+function renderCompanyStats(company, cashEmoji = '$') {
   if (!company) return;
   const roman = ["0", "I", "II", "III", "IV"];
   const level = Number(company.level || 1);
@@ -700,19 +783,19 @@ function renderCompanyStats(company) {
   const remainingNode = document.getElementById("companyRemaining");
 
   if (levelNode) levelNode.textContent = `${roman[level] || level} / ${roman[maxLevel] || maxLevel}`;
-  if (investedNode) investedNode.textContent = `${Number(company.invested || 0).toLocaleString("ru-RU")} $`;
-  if (viewerInvestedNode) viewerInvestedNode.textContent = `${Number(company.viewer_invested || 0).toLocaleString("ru-RU")} $`;
+  if (investedNode) investedNode.innerHTML = `${Number(company.invested || 0).toLocaleString("ru-RU")} ${cashEmoji}`;
+  if (viewerInvestedNode) viewerInvestedNode.innerHTML = `${Number(company.viewer_invested || 0).toLocaleString("ru-RU")} ${cashEmoji}`;
   if (viewerDiscountNode) viewerDiscountNode.textContent = `${Number(company.viewer_discount || 0)}%`;
   if (progressNode) progressNode.setAttribute("aria-valuenow", String(Math.round(percent)));
   if (progressFill) progressFill.style.width = `${percent}%`;
   if (progressLabel) {
-    progressLabel.textContent = target
-      ? `${Number(company.invested || 0).toLocaleString("ru-RU")} / ${Number(target).toLocaleString("ru-RU")} $`
+    progressLabel.innerHTML = target
+      ? `${Number(company.invested || 0).toLocaleString("ru-RU")} / ${Number(target).toLocaleString("ru-RU")} ${cashEmoji}`
       : "Максимальный уровень снабжения";
   }
   if (remainingNode) {
-    remainingNode.textContent = target
-      ? `Осталось ${Number(company.remaining || 0).toLocaleString("ru-RU")} $`
+    remainingNode.innerHTML = target
+      ? `Осталось ${Number(company.remaining || 0).toLocaleString("ru-RU")} ${cashEmoji}`
       : "Все товары открыты";
   }
 
@@ -730,7 +813,7 @@ function renderCompanyStats(company) {
     <tr>
       <td>${index + 1}</td>
       <td><strong>${escapeHtml(investor.name)}</strong></td>
-      <td class="money-cell">${Number(investor.amount).toLocaleString("ru-RU")} $</td>
+      <td class="money-cell">${Number(investor.amount).toLocaleString("ru-RU")} ${cashEmoji}</td>
     </tr>
   `).join("");
 }
@@ -1940,6 +2023,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initHamburger();
   initHeroButtons();
   initCommandsPage();
+  initLeaderboardSorting();
   initDashboard();
   initLevelsPage();
   initCookieBanner();

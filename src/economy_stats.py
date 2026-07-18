@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 
+from emoji_config import (
+    DEFAULT_BALANCE_FINANCE_EMOJI,
+    DEFAULT_CASH_EMOJI,
+    DEFAULT_GOLD_EMOJI,
+    DEFAULT_MAP_EMOJI,
+    DEFAULT_SAFE_EMOJI,
+    DEFAULT_STATS_EMOJI,
+)
 from src.company_logic import (
     COMPANY_DEFINITIONS,
     WHEELER_RAWSON,
@@ -12,6 +20,29 @@ from src.company_logic import (
     next_level_threshold,
     personal_investment,
 )
+
+
+WEB_EMOJI_FIELDS = {
+    "cash": ("cash_emoji", DEFAULT_CASH_EMOJI),
+    "gold": ("gold_emoji", DEFAULT_GOLD_EMOJI),
+    "map": ("map_emoji", DEFAULT_MAP_EMOJI),
+    "stats": ("stats_emoji", DEFAULT_STATS_EMOJI),
+    "safe": ("safe_emoji", DEFAULT_SAFE_EMOJI),
+    "wealth": ("balance_ui_finance", DEFAULT_BALANCE_FINANCE_EMOJI),
+}
+
+
+def build_web_emoji_payload(guild_data: Mapping) -> dict[str, str]:
+    """Return guild-configured emoji markup for website economy views."""
+    payload = {}
+    for public_key, (store_key, fallback) in WEB_EMOJI_FIELDS.items():
+        value = guild_data.get(store_key, fallback)
+        try:
+            value = str(value or fallback).strip()
+        except Exception:
+            value = fallback
+        payload[public_key] = value or fallback
+    return payload
 
 
 def _money(value) -> float:
@@ -114,6 +145,7 @@ def build_economy_stats(
     investor_list.sort(key=lambda entry: (-entry["amount"], entry["name"].casefold()))
 
     return {
+        "emojis": build_web_emoji_payload(guild_data),
         "leaderboard": user_list[:10],
         "gangs": gang_list,
         "company": {

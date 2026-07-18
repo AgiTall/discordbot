@@ -3324,6 +3324,34 @@ h6,
 }
 
 .economy-table tbody tr:hover { background: rgba(143,18,24,0.08); }
+
+.table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.table-sort:hover,
+.table-sort:focus-visible,
+.table-sort.is-active { color: var(--gold); }
+.table-sort:focus-visible { outline: 1px solid var(--gold); outline-offset: 3px; }
+.table-sort__arrow { min-width: 0.8em; font-size: 0.72em; }
+
+.discord-emoji {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  object-fit: contain;
+  vertical-align: -0.2em;
+}
 .money-cell { color: #dfc895; }
 
 .footer {

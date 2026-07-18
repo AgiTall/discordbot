@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from app.utils.dependencies import CurrentUser, require_guild_access
+from src.economy_stats import build_web_emoji_payload
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,7 @@ async def get_my_profile(
         "safe_gold": float(account.get("safe_gold", 0.0)),
         "owned_roles": list(account.get("owned_roles", [])),
         "gang_name": account.get("gang_name"),
+        "emojis": build_web_emoji_payload(guild_data),
     }
 
 

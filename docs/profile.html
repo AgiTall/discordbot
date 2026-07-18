@@ -18,7 +18,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.8.1</span>
+        <span class="navbar__badge">v0.8.1.1</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -99,7 +99,7 @@
               <div id="playerProfileContent" hidden>
                 <h3 class="heading-md" id="myDisplayName" style="margin-bottom:18px">Персонаж</h3>
                 <div class="economy-grid">
-                  <div class="economy-stat"><div class="economy-stat__value" id="myCash">$0</div><div class="economy-stat__label">Наличные</div></div>
+                  <div class="economy-stat"><div class="economy-stat__value" id="myCash">0</div><div class="economy-stat__label">Наличные</div></div>
                   <div class="economy-stat"><div class="economy-stat__value" id="myGold">0</div><div class="economy-stat__label">Золото</div></div>
                   <div class="economy-stat"><div class="economy-stat__value" id="myMaps">0</div><div class="economy-stat__label">Карты сокровищ</div></div>
                   <div class="economy-stat"><div class="economy-stat__value" id="myRoles">0</div><div class="economy-stat__label">Профессий открыто</div></div>
@@ -124,7 +124,7 @@
                 
                 <div class="economy-grid">
                   <div class="economy-stat">
-                    <div class="economy-stat__value" id="myGangBalance">$0</div>
+                    <div class="economy-stat__value" id="myGangBalance">0</div>
                     <div class="economy-stat__label">Общак банды</div>
                   </div>
                   <div class="economy-stat">
@@ -251,9 +251,9 @@
         }
         const profile = await profileResponse.json();
         document.getElementById('myDisplayName').textContent = profile.display_name;
-        document.getElementById('myCash').textContent = '$' + profile.cash.toLocaleString('ru-RU');
-        document.getElementById('myGold').textContent = profile.gold.toLocaleString('ru-RU');
-        document.getElementById('myMaps').textContent = profile.treasure_maps;
+        document.getElementById('myCash').innerHTML = `${profile.cash.toLocaleString('ru-RU')} ${economyEmojiHtml(profile.emojis, 'cash', '$')}`;
+        document.getElementById('myGold').innerHTML = `${profile.gold.toLocaleString('ru-RU')} ${economyEmojiHtml(profile.emojis, 'gold', '🪙')}`;
+        document.getElementById('myMaps').innerHTML = `${profile.treasure_maps} ${economyEmojiHtml(profile.emojis, 'map', '🗺️')}`;
         document.getElementById('myRoles').textContent = profile.owned_roles.length;
         playerLoading.setAttribute('hidden', '');
         playerContent.removeAttribute('hidden');
@@ -272,7 +272,7 @@
         const data = await res.json();
         document.getElementById('myGangName').textContent = data.gang.name;
         document.getElementById('myGangRole').textContent = data.my_role === 'leader' ? 'Лидер (Глава)' : 'Участник';
-        document.getElementById('myGangBalance').textContent = '$' + data.gang.balance.toLocaleString('ru-RU');
+        document.getElementById('myGangBalance').innerHTML = `${data.gang.balance.toLocaleString('ru-RU')} ${economyEmojiHtml(profile.emojis, 'cash', '$')}`;
         document.getElementById('myGangMembers').textContent = data.gang.member_count;
         document.getElementById('myGangUpgrades').textContent = Object.keys(data.gang.camp_upgrades || {}).length;
 

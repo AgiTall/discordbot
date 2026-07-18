@@ -1,6 +1,6 @@
 import unittest
 
-from src.economy_stats import build_economy_stats
+from src.economy_stats import build_economy_stats, build_web_emoji_payload
 
 
 class EconomyStatsTests(unittest.TestCase):
@@ -52,6 +52,23 @@ class EconomyStatsTests(unittest.TestCase):
         stats = build_economy_stats({"users": {"x": {"cash": "broken", "gold": -5}}})
         self.assertEqual(stats["leaderboard"][0]["wealth"], 0)
         self.assertEqual(stats["globals"]["total_cash"], 0)
+
+    def test_website_receives_guild_configured_economy_emojis(self):
+        guild_data = {
+            "cash_emoji": "<:server_cash:111>",
+            "gold_emoji": "<a:server_gold:222>",
+            "map_emoji": "<:server_map:333>",
+            "stats_emoji": "<:server_stats:444>",
+            "safe_emoji": "<:server_safe:555>",
+            "balance_ui_finance": "<:server_wealth:666>",
+        }
+
+        emojis = build_web_emoji_payload(guild_data)
+
+        self.assertEqual(emojis["cash"], "<:server_cash:111>")
+        self.assertEqual(emojis["gold"], "<a:server_gold:222>")
+        self.assertEqual(emojis["wealth"], "<:server_wealth:666>")
+        self.assertEqual(build_economy_stats(guild_data)["emojis"], emojis)
 
 
 if __name__ == "__main__":

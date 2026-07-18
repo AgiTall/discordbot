@@ -173,6 +173,8 @@ class DashboardApiTests(IsolatedAsyncioTestCase):
         bot = SimpleNamespace(get_guild=lambda guild_id: guild)
         store = SimpleNamespace(
             guild_data=lambda guild_id: {
+                "cash_emoji": "<:cash:100>",
+                "gold_emoji": "<:gold:101>",
                 "users": {
                     "42": {
                         "cash": 150.5,
@@ -192,3 +194,5 @@ class DashboardApiTests(IsolatedAsyncioTestCase):
         self.assertEqual(response["display_name"], "Arthur")
         self.assertEqual(response["cash"], 150.5)
         self.assertEqual(response["owned_roles"], ["miner"])
+        self.assertEqual(response["emojis"]["cash"], "<:cash:100>")
+        self.assertEqual(response["emojis"]["gold"], "<:gold:101>")
