@@ -399,6 +399,7 @@ def build_balance_embed(guild, member, account: dict, rate: float) -> discord.Em
     from emoji_config import (
         DEFAULT_BALANCE_FINANCE_EMOJI, DEFAULT_BALANCE_ROLES_EMOJI,
         DEFAULT_BALANCE_ECONOMY_EMOJI, DEFAULT_BALANCE_GANG_EMOJI,
+        DEFAULT_BALANCE_WEAPON_EMOJI,
     )
 
     cash           = account["cash"]
@@ -431,10 +432,10 @@ def build_balance_embed(guild, member, account: dict, rate: float) -> discord.Em
         return " · ".join(formatted)
 
     weapon_section = (
-        "🔫 Активное оружие\n"
+        f"{DEFAULT_BALANCE_WEAPON_EMOJI} Активное оружие\n"
         f"├─ Короткоствольное: {weapon_slot_text(loadout.get('sidearms', []))}\n"
         f"├─ Крупное: {weapon_slot_text(loadout.get('longarms', []))}\n"
-        "└─ Снаряжение и боезапас: `/weapons`"
+        "└─ Управление снаряжением: кнопка «Оружие» в `/balance`"
     )
 
     gang_name  = account.get("gang_name")

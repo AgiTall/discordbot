@@ -113,7 +113,7 @@ class BountyTacticButton(discord.ui.Button):
                 if not any(account["weapon_loadout"].values()):
                     self.bot.save_economy()
                     await interaction.response.send_message(
-                        "Возьмите купленное оружие через `/weapon-equip`.", ephemeral=True
+                        "Возьмите купленное оружие через `/balance` → «Оружие».", ephemeral=True
                     )
                     return
                 if not any(

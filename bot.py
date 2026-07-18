@@ -1175,7 +1175,7 @@ def format_balance_property_section(account):
         showcase_text += f" и ещё {len(showcase) - 3}"
 
     return (
-        "🎒 Имущество\n"
+        f"{DEFAULT_BALANCE_PROPERTY_EMOJI} Имущество\n"
         f"├─ Каталог: **{len(owned_items)} видов / {total_items} предметов** · `/catalog`\n"
         f"└─ Витрина: **{showcase_text}**"
     )
@@ -1214,10 +1214,10 @@ def format_balance_weapon_section(account):
         return " · ".join(formatted)
 
     return (
-        "🔫 Активное оружие\n"
+        f"{DEFAULT_BALANCE_WEAPON_EMOJI} Активное оружие\n"
         f"├─ Короткоствольное: {format_slot(loadout['sidearms'])}\n"
         f"├─ Крупное: {format_slot(loadout['longarms'])}\n"
-        "└─ Снаряжение и боезапас: `/weapons`"
+        "└─ Управление снаряжением: кнопка «Оружие» ниже"
     )
 
 
@@ -2366,7 +2366,7 @@ def build_balance_embed(guild, member, account, rate):
         f"{role_sections}\n"
         f"\n{property_section}\n\n"
         f"{weapon_section}\n\n"
-        "🧭 Активности\n"
+        f"{DEFAULT_BALANCE_ACTIVITIES_EMOJI} Активности\n"
         "├─ Заработок: `/work` · ограбление: `/rob`\n"
         f"├─ Раскопки: {'`/excavation`' if treasure_maps > 0 else f'{get_lock_emoji()} нужна карта сокровищ'}\n"
         f"└─ {CASINO_LOGO_EMOJI} Казино: `/dice` · `/poker` · `/blackjack`\n\n"
@@ -4095,11 +4095,13 @@ async def balance_command(interaction: discord.Interaction):
 
         embed = build_balance_embed(interaction.guild, interaction.user, account, rate)
 
+    from cogs.catalog import BalanceWeaponButtonView
+    view = BalanceWeaponButtonView(interaction.guild_id, interaction.user)
     balance_image = get_balance_image_file()
     if balance_image:
-        await interaction.followup.send(embed=embed, file=balance_image, ephemeral=True)
+        await interaction.followup.send(embed=embed, file=balance_image, view=view, ephemeral=True)
     else:
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 @bot.tree.command(name="work", description="Заработать случайную сумму денег")

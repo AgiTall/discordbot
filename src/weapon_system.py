@@ -1,5 +1,7 @@
 """Persistent weapon loadout, ammunition and condition helpers."""
 
+from emoji_config import AMMO_EMOJIS, DEFAULT_BALANCE_WEAPON_EMOJI, WEAPON_EMOJI_IDS
+
 SIDEARM_CLASSES = {"revolver", "pistol"}
 LONGARM_CLASSES = {"repeater", "rifle", "shotgun"}
 
@@ -45,37 +47,10 @@ WEAPON_DISPLAY_NAMES = {
     "shotgun_semiauto": "Полуавтоматический дробовик",
 }
 
-WEAPON_EMOJI_IDS = {
-    "sniperrifle_rollingblock": 1527598337795166288,
-    "sniperrifle_carcano": 1527598336234881164,
-    "shotgun_semiauto": 1527598334515085362,
-    "shotgun_sawedoff": 1527598332736966686,
-    "shotgun_repeating": 1527598330899730513,
-    "shotgun_pump": 1527598328609505291,
-    "shotgun_doublebarrel_exotic": 1527598326894170162,
-    "shotgun_doublebarrel": 1527598325308723280,
-    "rifle_varmint": 1527598323840585811,
-    "rifle_springfield": 1527598322087628930,
-    "rifle_elephant": 1527598319528968303,
-    "rifle_boltaction": 1527598317817827449,
-    "revolver_schofield": 1527598316140101642,
-    "revolver_lemat": 1527598313870852147,
-    "revolver_doubleaction_gambler": 1527598312608497674,
-    "revolver_doubleaction": 1527598310792233000,
-    "revolver_cattleman": 1527598299501035660,
-    "repeater_lancaster": 1527598297710071858,
-    "repeater_henry": 1527598295734685748,
-    "repeater_carbine": 1527598294010695801,
-    "pistol_volcanic": 1527598284447940739,
-    "pistol_semiauto": 1527598232459411607,
-    "pistol_mauser": 1527598229410287648,
-}
-
-
 def weapon_emoji(item_key: str) -> str:
     emoji_id = WEAPON_EMOJI_IDS.get(item_key)
     # The ID identifies the emoji; a short markup name avoids Discord's name limit.
-    return f"<:gun:{emoji_id}>" if emoji_id else "🔫"
+    return f"<:gun:{emoji_id}>" if emoji_id else DEFAULT_BALANCE_WEAPON_EMOJI
 
 
 _CLASS_CATEGORY = {
@@ -98,14 +73,6 @@ AMMO_TYPE_NAMES = {
     "high_velocity": "скоростные",
     "express": "экспресс",
     "explosive": "разрывные экспресс",
-}
-
-AMMO_EMOJIS = {
-    "split_point": "<:bullet_split_point:1527591455395418232>",
-    "normal": "<:bullet_normal:1527591453784670308>",
-    "high_velocity": "<:bullet_high_velocity:1527591452207485118>",
-    "explosive": "<:bullet_express_explosive:1527591450043355216>",
-    "express": "<:bullet_express:1527591448214503535>",
 }
 
 AMMO_ROLL_BONUSES = {

@@ -166,7 +166,7 @@ CATALOG_ITEMS = {
     },
     "gun_oil": {
         "name": "Оружейное масло",
-        "description": "Полностью восстанавливает состояние одного оружия до 100%. Использование: `/gun-oil`.",
+        "description": "Полностью восстанавливает состояние одного оружия до 100%. Использование: `/balance` → «Оружие».",
         "base_price": 12,
         "currency": "cash",
         "emoji": GUN_OIL_EMOJI,
@@ -654,7 +654,7 @@ class CatalogBuyButton(discord.ui.Button):
                 quantity = self.item_data["quantity"]
                 if capacity <= 0:
                     await interaction.response.send_message(
-                        f"Сначала возьмите с собой {WEAPON_CLASS_NAMES[class_key]} через `/weapon-equip`.",
+                        f"Сначала возьмите с собой {WEAPON_CLASS_NAMES[class_key]} через `/balance` → «Оружие».",
                         ephemeral=True,
                     )
                     return
@@ -795,6 +795,225 @@ class CatalogView(discord.ui.View):
         return True
 
 
+def build_weapons_embed(account):
+    normalize_weapon_state(account, CATALOG_ITEMS)
+    loadout = account["weapon_loadout"]
+
+    def weapon_line(key):
+        item = CATALOG_ITEMS[key]
+        condition = account["weapon_condition"].get(key, 100.0)
+        effectiveness = round(condition_stat_multiplier(condition) * 100)
+        return (
+            f"{weapon_emoji(key)} **{item['name']}** — состояние {condition:g}% · "
+            f"характеристики {effectiveness}%"
+        )
+
+    sidearms = [weapon_line(key) for key in loadout["sidearms"]]
+    longarms = [weapon_line(key) for key in loadout["longarms"]]
+    ammo_lines = []
+    for class_key, class_name in WEAPON_CLASS_NAMES.items():
+        capacity = ammo_capacity(account, class_key, CATALOG_ITEMS)
+        current = ammo_total(account, class_key)
+        selected = account["selected_ammo"][class_key]
+        ammo_lines.append(
+            f"• {class_name.capitalize()}: **{current}/{capacity}** · "
+            f"заряжены: {AMMO_TYPE_NAMES[selected]}"
+        )
+
+    oil = int(account.get("inventory", {}).get("gun_oil", 0) or 0)
+    embed = discord.Embed(
+        title="🔫 Оружие и боезапас",
+        description="Выберите оружие ниже, чтобы взять его, убрать или почистить.",
+        color=discord.Color.from_rgb(139, 109, 68),
+    )
+    embed.add_field(
+        name="Короткоствольное · максимум 2 одного класса",
+        value="\n".join(sidearms) or "*Слоты пусты*",
+        inline=False,
+    )
+    embed.add_field(
+        name="Крупное оружие · максимум 2",
+        value="\n".join(longarms) or "*Слоты пусты*",
+        inline=False,
+    )
+    embed.add_field(name="Боезапас", value="\n".join(ammo_lines), inline=False)
+    embed.add_field(name="Уход", value=f"{GUN_OIL_EMOJI} Оружейное масло: **{oil} шт.**", inline=False)
+    return embed
+
+
+class WeaponSelect(discord.ui.Select):
+    def __init__(self, account, selected=None):
+        owned = owned_weapon_keys(account, CATALOG_ITEMS)
+        options = [
+            discord.SelectOption(
+                label=CATALOG_ITEMS[key]["name"][:100],
+                value=key,
+                emoji=weapon_emoji(key),
+                default=key == selected,
+            )
+            for key in owned[:25]
+        ]
+        super().__init__(
+            placeholder="Выберите купленное оружие..." if options else "У вас пока нет оружия",
+            options=options or [discord.SelectOption(label="Нет купленного оружия", value="none")],
+            disabled=not options,
+            row=0,
+        )
+
+    async def callback(self, interaction):
+        self.view.selected_weapon = self.values[0]
+        await self.view.refresh(interaction)
+
+
+class AmmoClassSelect(discord.ui.Select):
+    def __init__(self, selected="revolver"):
+        super().__init__(
+            placeholder="Класс оружия для патронов",
+            options=[
+                discord.SelectOption(label=name.capitalize(), value=key, default=key == selected)
+                for key, name in WEAPON_CLASS_NAMES.items()
+            ],
+            row=2,
+        )
+
+    async def callback(self, interaction):
+        self.view.ammo_class = self.values[0]
+        await self.view.refresh(interaction)
+
+
+class AmmoTypeSelect(discord.ui.Select):
+    def __init__(self, selected="normal"):
+        super().__init__(
+            placeholder="Тип патронов",
+            options=[
+                discord.SelectOption(label=name, value=key, emoji=AMMO_EMOJIS[key], default=key == selected)
+                for key, name in AMMO_TYPE_NAMES.items()
+            ],
+            row=3,
+        )
+
+    async def callback(self, interaction):
+        self.view.ammo_type = self.values[0]
+        await self.view.refresh(interaction)
+
+
+class WeaponManagementView(discord.ui.View):
+    def __init__(self, guild_id, member, account):
+        super().__init__(timeout=300)
+        self.guild_id = guild_id
+        self.member = member
+        self.selected_weapon = None
+        self.ammo_class = "revolver"
+        self.ammo_type = account.get("selected_ammo", {}).get(self.ammo_class, "normal")
+        self.rebuild(account)
+
+    def rebuild(self, account):
+        self.clear_items()
+        self.add_item(WeaponSelect(account, self.selected_weapon))
+        equipped = self.selected_weapon in (
+            account["weapon_loadout"]["sidearms"] + account["weapon_loadout"]["longarms"]
+        )
+        self.take_button.disabled = not self.selected_weapon or equipped
+        self.remove_button.disabled = not self.selected_weapon or not equipped
+        self.clean_button.disabled = not self.selected_weapon
+        self.add_item(self.take_button)
+        self.add_item(self.remove_button)
+        self.add_item(self.clean_button)
+        self.add_item(AmmoClassSelect(self.ammo_class))
+        self.add_item(AmmoTypeSelect(self.ammo_type))
+        self.add_item(self.load_ammo_button)
+
+    async def interaction_check(self, interaction):
+        set_economy_guild_id(interaction.guild_id)
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваше оружейное меню!", ephemeral=True)
+            return False
+        return True
+
+    async def refresh(self, interaction, notice=None):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            normalize_weapon_state(account, CATALOG_ITEMS)
+            self.rebuild(account)
+            save_economy()
+            embed = build_weapons_embed(account)
+        if notice:
+            embed.description = notice
+        await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+
+    @discord.ui.button(label="Взять", emoji="✅", style=discord.ButtonStyle.success, row=1)
+    async def take_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            ok, message = equip_weapon(account, self.selected_weapon, CATALOG_ITEMS)
+            if ok:
+                save_economy()
+        await self.refresh(interaction, f"{'✅' if ok else '⚠️'} {message}")
+
+    @discord.ui.button(label="Убрать", emoji="➖", style=discord.ButtonStyle.secondary, row=1)
+    async def remove_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            removed = unequip_weapon(account, self.selected_weapon)
+            if removed:
+                save_economy()
+        await self.refresh(interaction, "✅ Оружие убрано." if removed else "⚠️ Оружие уже не выбрано.")
+
+    @discord.ui.button(label="Почистить", emoji="🧽", style=discord.ButtonStyle.primary, row=1)
+    async def clean_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            inventory = account.setdefault("inventory", {})
+            condition = account["weapon_condition"].get(self.selected_weapon, 100.0)
+            if inventory.get("gun_oil", 0) <= 0:
+                message = "⚠️ Нет оружейного масла. Купите его в `/catalog`."
+            elif condition >= 100.0:
+                message = "⚠️ Оружие уже в идеальном состоянии."
+            else:
+                inventory["gun_oil"] -= 1
+                account["weapon_condition"][self.selected_weapon] = 100.0
+                save_economy()
+                message = f"{GUN_OIL_EMOJI} Оружие очищено: {condition:g}% → **100%**."
+        await self.refresh(interaction, message)
+
+    @discord.ui.button(label="Зарядить выбранные", emoji="💥", style=discord.ButtonStyle.primary, row=4)
+    async def load_ammo_button(self, interaction, button):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            stock = account["ammo"][self.ammo_class][self.ammo_type]
+            if stock <= 0:
+                message = f"⚠️ Таких патронов для класса «{WEAPON_CLASS_NAMES[self.ammo_class]}» нет."
+            else:
+                account["selected_ammo"][self.ammo_class] = self.ammo_type
+                save_economy()
+                message = f"{AMMO_EMOJIS[self.ammo_type]} Заряжены **{AMMO_TYPE_NAMES[self.ammo_type]}** патроны · {stock} шт."
+        await self.refresh(interaction, message)
+
+
+class BalanceWeaponButtonView(discord.ui.View):
+    def __init__(self, guild_id, member):
+        super().__init__(timeout=300)
+        self.guild_id = guild_id
+        self.member = member
+
+    @discord.ui.button(label="Оружие", emoji="🔫", style=discord.ButtonStyle.primary)
+    async def weapons_button(self, interaction, button):
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваш баланс!", ephemeral=True)
+            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                normalize_weapon_state(account, CATALOG_ITEMS)
+                save_economy()
+                embed = build_weapons_embed(account)
+                view = WeaponManagementView(interaction.guild_id, interaction.user, account)
+            await interaction.response.edit_message(embed=embed, attachments=[], view=view)
+        finally:
+            reset_economy_guild_id(token)
+
+
 # ─── Cog ───
 
 class CatalogCog(commands.Cog):
@@ -864,7 +1083,7 @@ class CatalogCog(commands.Cog):
             )
             embed.add_field(name="Боезапас", value="\n".join(ammo_lines), inline=False)
             embed.add_field(name="Уход", value=f"{GUN_OIL_EMOJI} Оружейное масло: **{oil} шт.**", inline=False)
-            embed.set_footer(text="/weapon-equip · /weapon-unequip · /ammo-select · /gun-oil")
+            embed.set_footer(text="Управление оружием: /balance → кнопка «Оружие»")
             await interaction.response.send_message(embed=embed, ephemeral=True)
         finally:
             reset_economy_guild_id(token)
@@ -1182,3 +1401,7 @@ class CatalogCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(CatalogCog(bot))
+    # Оружейные действия доступны из кнопки «Оружие» в /balance, поэтому не
+    # засоряют список slash-команд отдельными пунктами.
+    for command_name in ("weapons", "weapon-equip", "weapon-unequip", "gun-oil", "ammo-select"):
+        bot.tree.remove_command(command_name)

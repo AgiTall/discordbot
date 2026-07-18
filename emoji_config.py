@@ -1,7 +1,8 @@
 """
 Центральный конфиг кастомных Discord-эмодзи бота.
 
-Формат: <:имя:id>
+Формат статичного эмодзи: ``<:имя:id>``
+Формат анимированного:    ``<a:имя:id>``
 Чтобы заменить эмодзи — меняйте только этот файл.
 
 Используется в:
@@ -9,6 +10,46 @@
   src/moonshiner_logic.py  — интерфейс и звёзды самогонщика
   src/naturalist_logic.py  — кнопки натуралиста
 """
+
+
+# ══════════════════════════════════════════════════════════
+#  ОБЩИЕ ЭМОДЗИ ИНТЕРФЕЙСА
+# ══════════════════════════════════════════════════════════
+#
+# Сюда можно подставлять кастомные Discord-эмодзи постепенно. Пока значение
+# не заменено, бот продолжит показывать обычный Unicode-эмодзи и не сломается.
+# Одну константу можно использовать во всех сообщениях с одинаковым смыслом.
+
+# Статусы и действия
+EMOJI_SUCCESS = "<:succes:1527886013794353273>"       # успех
+EMOJI_ERROR   = "<:nah:1527886012267757671>"  
+EMOJI_WARNING = "<:warning:1527888398050787328>"       # предупреждение
+EMOJI_BLOCKED = "<:nahnah:1527888976696971304>"       # запрещено
+EMOJI_SEARCH  = "<:blip_radius_search:1527889057458425897>"       # поиск
+EMOJI_EDIT    = "<:redact:1527891990140686468>"       # редактировать
+EMOJI_DELETE  = "<:trash:1527916785020567643>"       # удалить
+EMOJI_ADD     = "<:plus:1527927616579965009>"       # добавить
+
+# Навигация и интерфейс
+EMOJI_SETTINGS     = "<:settings:1527911603222220891>"   # настройки
+EMOJI_HELP         = "<:blip_ambient_secret:1527910658828533810>"   # помощь
+EMOJI_LIST         = "<:blip_mp_letter:1527912730898468904>"   # список
+EMOJI_BOOK         = "<:catalog:1527918388117114920>"   # каталог / коллекция
+EMOJI_LEVEL        = "<:blip_swap:1527928066872049754>"   # уровень / прогресс
+EMOJI_ANNOUNCEMENT = "<:gromkofone:1527922929088725042>"   # объявление
+EMOJI_MEMBERS      = "<:blip_adversary_large:1527912594042523669>"   # участники
+EMOJI_LEADER       = "<:leader:1527912116772798524>"   # лидер
+EMOJI_UNLOCK       = "<:grenpin:1527602575463944232>"   # открыто
+
+# Экономика и игровой мир
+EMOJI_SHOP       = "<:blip_shop_store:1527913509017358396>"     # магазин
+EMOJI_POTION     = "<:blip_mp_syringe:1527913272106287164>"     # зелье / препараты
+EMOJI_PACKAGE    = "<:blip_ambient_crate:1527913672423374888>"     # груз / посылка
+EMOJI_WEAPON     = "<:blip_weapon:1527882537622437958>"     # оружие
+EMOJI_DICE       = "<:dice:1527916008076087316>"     # кости
+EMOJI_TROPHY     = "<:blip_trophy:1527913786743455805>"     # награда
+EMOJI_SAMPLE     = "<:blip_animal:1527914774493397132>"     # образец
+EMOJI_PAW        = "<:blip_animal_leg:1527914708533907537>"     # легендарное животное
 
 # ══════════════════════════════════════════════════════════
 #  ЭКОНОМИКА: ОСНОВНАЯ ВАЛЮТА И ПРЕДМЕТЫ
@@ -37,6 +78,9 @@ DEFAULT_BALANCE_FINANCE_EMOJI = "<:blip_cash_bag:1518341268814692643>"  # фин
 DEFAULT_BALANCE_ROLES_EMOJI   = "<:roles:1518342174406869093>"          # роли
 DEFAULT_BALANCE_ECONOMY_EMOJI = "<:finanse:1518342360260411453>"        # экономика
 DEFAULT_BALANCE_GANG_EMOJI    = "<:gang:1518342529756561698>"           # фракция / банда
+DEFAULT_BALANCE_PROPERTY_EMOJI   = "<:blip_ambient_delivery:1527913890644492348>"  # имущество
+DEFAULT_BALANCE_WEAPON_EMOJI     = "<:blip_weapon:1527882537622437958>"  # активное оружие
+DEFAULT_BALANCE_ACTIVITIES_EMOJI = "<:blip_mp_gun_for_hire:1527914070496514148>"  # активности
 
 # ══════════════════════════════════════════════════════════
 #  РОЛИ (ПРОФЕССИИ)
@@ -129,16 +173,54 @@ COLLECTOR_METAL_DETECTOR_EMOJI = "<:weapon_kit_metal_detector:152757465963640013
 COLLECTOR_SHOVEL_EMOJI = "<:shovel:1518547808012079114>"
 
 # ══════════════════════════════════════════════════════════
+#  ОРУЖИЕ И ПАТРОНЫ (используются в оружейном меню /balance)
+# ══════════════════════════════════════════════════════════
+
+WEAPON_EMOJI_IDS = {
+    "sniperrifle_rollingblock": 1527598337795166288,
+    "sniperrifle_carcano": 1527598336234881164,
+    "shotgun_semiauto": 1527598334515085362,
+    "shotgun_sawedoff": 1527598332736966686,
+    "shotgun_repeating": 1527598330899730513,
+    "shotgun_pump": 1527598328609505291,
+    "shotgun_doublebarrel_exotic": 1527598326894170162,
+    "shotgun_doublebarrel": 1527598325308723280,
+    "rifle_varmint": 1527598323840585811,
+    "rifle_springfield": 1527598322087628930,
+    "rifle_elephant": 1527598319528968303,
+    "rifle_boltaction": 1527598317817827449,
+    "revolver_schofield": 1527598316140101642,
+    "revolver_lemat": 1527598313870852147,
+    "revolver_doubleaction_gambler": 1527598312608497674,
+    "revolver_doubleaction": 1527598310792233000,
+    "revolver_cattleman": 1527598299501035660,
+    "repeater_lancaster": 1527598297710071858,
+    "repeater_henry": 1527598295734685748,
+    "repeater_carbine": 1527598294010695801,
+    "pistol_volcanic": 1527598284447940739,
+    "pistol_semiauto": 1527598232459411607,
+    "pistol_mauser": 1527598229410287648,
+}
+
+AMMO_EMOJIS = {
+    "split_point": "<:bullet_split_point:1527591455395418232>",
+    "normal": "<:bullet_normal:1527591453784670308>",
+    "high_velocity": "<:bullet_high_velocity:1527591452207485118>",
+    "explosive": "<:bullet_express_explosive:1527591450043355216>",
+    "express": "<:bullet_express:1527591448214503535>",
+}
+
+# ══════════════════════════════════════════════════════════
 #  НАТУРАЛИСТ: КНОПКИ МЕНЮ
 #  (стандартные Unicode-смайлы помечены # ← заменить)
 # ══════════════════════════════════════════════════════════
 
 DEFAULT_NATURALIST_BUTTON_EMOJIS = {
-    "sample":     "🔬",                              # ← заменить на кастомный
+    "sample":     EMOJI_SAMPLE,
     "sell":       "<:money:1518183921903472701>",    # продать (= DEFAULT_CASH_EMOJI)
-    "collection": "📖",                              # ← заменить на кастомный
-    "legendary":  "🐾",                              # ← заменить на кастомный
-    "shop":       "🧪",                              # ← заменить на кастомный
+    "collection": EMOJI_BOOK,
+    "legendary":  EMOJI_PAW,
+    "shop":       EMOJI_POTION,
     "refresh":    "<:update:1518269540012789860>",   # обновить (= EQUIP_EMOJI)
 }
 
