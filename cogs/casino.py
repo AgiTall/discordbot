@@ -8,6 +8,7 @@ from emoji_config import CASINO_LOGO_EMOJI
 
 CARD_SUITS = ["♠", "♥", "♦", "♣"]
 CARD_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
+BLACKJACK_ANNOUNCEMENT_MIN_BET = 100
 
 def format_card(card):
     return format_card_emoji(card)
@@ -39,6 +40,11 @@ def blackjack_hand_value(cards):
     return total
 
 
+def should_announce_blackjack_win(*, bet, is_blackjack=False, won_after_double=False):
+    """Only announce meaningful blackjack wins in the public casino channel."""
+    return bet >= BLACKJACK_ANNOUNCEMENT_MIN_BET and (is_blackjack or won_after_double)
+
+
 
 class BlackjackView(discord.ui.View):
     def __init__(self, bot, user_id, bet, deck, player_hand, dealer_hand):
@@ -47,10 +53,17 @@ class BlackjackView(discord.ui.View):
         self.user_id = user_id
         self.deck = deck
         self.dealer_hand = dealer_hand
-        self.hands = [{"cards": player_hand, "bet": bet, "result_text": "", "finished": False}]
+        self.hands = [{
+            "cards": player_hand,
+            "bet": bet,
+            "result_text": "",
+            "finished": False,
+            "doubled": False,
+        }]
         self.active_hand_idx = 0
         self.message = None
         self.initial_bet = bet
+        self.balance_text = ""
 
         self._update_buttons()
 
@@ -110,8 +123,18 @@ class BlackjackView(discord.ui.View):
                 val_text += f"\n*Итог: {hand['result_text']}*"
             
             embed.add_field(name=name, value=val_text, inline=False)
+
+        if self.balance_text:
+            embed.add_field(name="Баланс", value=self.balance_text, inline=False)
             
         return embed
+
+    def set_balance_text(self, previous_balance, payout, current_balance):
+        self.balance_text = (
+            f"**{self.bot.format_money(previous_balance)}** + "
+            f"(**{self.bot.format_money(payout)}**) = "
+            f"**{self.bot.format_money(current_balance)}**"
+        )
 
     def disable_all_buttons(self):
         for item in self.children:
@@ -148,7 +171,10 @@ class BlackjackView(discord.ui.View):
         if payout > 0:
             async with self.bot.economy_lock:
                 account = self.bot.get_account(self.user_id)
+                previous_balance = account["cash"]
                 account["cash"] += payout
+                if outcome == "blackjack":
+                    self.set_balance_text(previous_balance, payout, account["cash"])
                 self.bot.save_economy()
 
     async def finish_game(self, interaction=None):
@@ -161,9 +187,12 @@ class BlackjackView(discord.ui.View):
 
         dealer_value = blackjack_hand_value(self.dealer_hand)
         total_payout = 0.0
+        has_win = False
+        won_after_double = False
         
         async with self.bot.economy_lock:
             account = self.bot.get_account(self.user_id)
+            previous_balance = account["cash"]
             for hand in self.hands:
                 player_value = blackjack_hand_value(hand["cards"])
                 bet = hand["bet"]
@@ -182,6 +211,8 @@ class BlackjackView(discord.ui.View):
                     hand["result_text"] = f"Вы выиграли. Выплата: **{self.bot.format_money(payout)}**"
                     account["cash"] += payout
                     total_payout += payout
+                    has_win = True
+                    won_after_double = won_after_double or hand["doubled"]
                 elif outcome == "push":
                     payout = bet
                     hand["result_text"] = f"Ничья. Ставка возвращена: **{self.bot.format_money(payout)}**"
@@ -189,12 +220,17 @@ class BlackjackView(discord.ui.View):
                     total_payout += payout
                 else:
                     hand["result_text"] = "Вы проиграли. Ставка остаётся у дилера."
+            if has_win:
+                self.set_balance_text(previous_balance, total_payout, account["cash"])
             self.bot.save_economy()
 
         embed = self.build_embed(reveal_dealer=True)
         if interaction:
             await interaction.response.edit_message(embed=embed, view=self)
-            if total_payout >= self.initial_bet * 2 and self.initial_bet >= 100:
+            if should_announce_blackjack_win(
+                bet=self.initial_bet,
+                won_after_double=won_after_double,
+            ):
                 await interaction.channel.send(
                     f"{CASINO_LOGO_EMOJI} {interaction.user.mention} только что выиграл в блэкджек! "
                     f"Выплата: **{self.bot.format_money(total_payout)}**!"
@@ -239,6 +275,7 @@ class BlackjackView(discord.ui.View):
             self.bot.save_economy()
             
         hand["bet"] *= 2
+        hand["doubled"] = True
         hand["cards"].append(self.deck.pop())
         
         if blackjack_hand_value(hand["cards"]) > 21:
@@ -268,7 +305,13 @@ class BlackjackView(discord.ui.View):
         
         hand["cards"] = [card1, self.deck.pop()]
         
-        new_hand = {"cards": [card2, self.deck.pop()], "bet": bet, "result_text": "", "finished": False}
+        new_hand = {
+            "cards": [card2, self.deck.pop()],
+            "bet": bet,
+            "result_text": "",
+            "finished": False,
+            "doubled": False,
+        }
         self.hands.append(new_hand)
         
         self._update_buttons()
@@ -345,7 +388,10 @@ class CasinoCog(commands.Cog):
             view.message = await interaction.followup.send(
                 embed=view.build_embed(reveal_dealer=True), view=view, ephemeral=True
             )
-            if outcome in ("blackjack", "win") and bet >= 100:
+            if should_announce_blackjack_win(
+                bet=bet,
+                is_blackjack=outcome == "blackjack",
+            ):
                 await interaction.channel.send(
                     f"{CASINO_LOGO_EMOJI} {interaction.user.mention} только что сорвал куш в блэкджек! "
                     f"Выигрыш: **{self.bot.format_money(bet * (2.5 if outcome == 'blackjack' else 2))}**!"

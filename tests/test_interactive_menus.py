@@ -28,6 +28,14 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertNotIn("companies", names)
         self.assertNotIn("invest", names)
 
+    def test_company_level_up_is_sent_to_the_configured_news_channel(self):
+        catalog = (ROOT / "cogs" / "catalog.py").read_text(encoding="utf-8")
+        self.assertIn("async def send_company_level_up_announcement", catalog)
+        self.assertIn('guild_data.get("news_channel_id")', catalog)
+        self.assertIn("await channel.send(embed=embed)", catalog)
+        self.assertIn("if new_level > old_level:", catalog)
+        self.assertIn("await send_company_level_up_announcement(interaction, level_up)", catalog)
+
     def test_gold_exchange_is_owned_by_balance_menu(self):
         bot_commands = registered_command_names(ROOT / "bot.py")
         self.assertNotIn("gold-rate", bot_commands)
