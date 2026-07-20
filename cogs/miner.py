@@ -1062,8 +1062,14 @@ class MinerCog(commands.Cog, name="MinerCog"):
         import traceback
         log.error(f"MinerCog error: {error}")
         traceback.print_exception(type(error), error, error.__traceback__)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(f"Произошла ошибка: {error}", ephemeral=True)
+        message = "Шахта временно недоступна. Попробуйте ещё раз через минуту."
+        if interaction.response.is_done():
+            try:
+                await interaction.edit_original_response(content=message, embed=None, view=None)
+            except discord.HTTPException:
+                await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
 
     @app_commands.command(name="mine", description="Шахтёр: открыть меню шахты")
     async def mine_cmd(self, interaction: discord.Interaction):
@@ -1073,15 +1079,20 @@ class MinerCog(commands.Cog, name="MinerCog"):
             )
             return
 
+        # PostgreSQL and economy storage are synchronous. Acknowledge the
+        # interaction first so Discord does not expire it while they respond.
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         token = set_economy_guild_id(interaction.guild_id)
         try:
             async with economy_lock:
                 account = get_account(interaction.user.id)
                 if not has_game_role(interaction.user, MINER_ROLE_KEY, account):
                     save_economy()
-                    await interaction.response.send_message(
-                        get_custom_message("role_required").format(role="Шахтёр"),
-                        ephemeral=True,
+                    await interaction.edit_original_response(
+                        content=get_custom_message("role_required").format(
+                            role="Шахтёр"
+                        ),
                     )
                     return
                 save_economy()
@@ -1106,11 +1117,11 @@ class MinerCog(commands.Cog, name="MinerCog"):
         view = MinerMainView(self.bot, self.db, interaction.user.id, gid, uid)
         image = get_miner_image_file()
         if image:
-            await interaction.response.send_message(
-                embed=embed, view=view, file=image, ephemeral=True
+            await interaction.edit_original_response(
+                embed=embed, view=view, attachments=[image]
             )
         else:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.edit_original_response(embed=embed, view=view)
 
 
 # ─────────────────────────────────────────────────

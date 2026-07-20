@@ -78,6 +78,21 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertIn('label="Кузнец", emoji=EMOJI_MINE_SMELT', miner)
         self.assertIn('label="Ювелир", emoji=EMOJI_MINE_FORGE', miner)
 
+    def test_mine_acknowledges_interaction_before_database_work(self):
+        miner = (ROOT / "cogs" / "miner.py").read_text(encoding="utf-8")
+        command = miner[miner.index("async def mine_cmd"):]
+        self.assertLess(
+            command.index("await interaction.response.defer"),
+            command.index("self.db.get_player"),
+        )
+        self.assertIn("await interaction.edit_original_response", command)
+
+    def test_mine_database_connection_is_lazy(self):
+        source = (ROOT / "src" / "mine_logic.py").read_text(encoding="utf-8")
+        start = source.index("def __init__(self, db_url")
+        constructor = source[start:source.index("@staticmethod", start)]
+        self.assertNotIn("psycopg2.connect", constructor)
+
     def test_bounty_leaderboard_lives_inside_bounty_menu(self):
         bounty_path = ROOT / "cogs" / "bounty.py"
         names = registered_command_names(bounty_path)

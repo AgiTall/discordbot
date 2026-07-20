@@ -442,16 +442,8 @@ class MineDB:
         # creating a new non-persistent database.
         if not db_url or "://" not in db_url:
             db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            raise RuntimeError("DATABASE_URL is required for mine storage")
-
-        self.db_url = self._normalize_db_url(db_url)
-        self.conn = psycopg2.connect(
-            self.db_url,
-            cursor_factory=psycopg2.extras.DictCursor,
-        )
-        self.conn.autocommit = True
-        self._init_tables()
+        self.db_url = self._normalize_db_url(db_url) if db_url else None
+        self.conn = None
 
     @staticmethod
     def _normalize_db_url(url: str) -> str:
@@ -462,6 +454,17 @@ class MineDB:
         )
 
     def _ensure_conn(self):
+        if self.conn is None:
+            if not self.db_url:
+                raise RuntimeError("DATABASE_URL is required for mine storage")
+            self.conn = psycopg2.connect(
+                self.db_url,
+                cursor_factory=psycopg2.extras.DictCursor,
+            )
+            self.conn.autocommit = True
+            self._init_tables()
+            return
+
         try:
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
@@ -589,7 +592,9 @@ class MineDB:
             )
 
     def close(self):
-        self.conn.close()
+        if self.conn is not None:
+            self.conn.close()
+            self.conn = None
 
 
 # ─────────────────────────────────────────────────
