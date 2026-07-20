@@ -22,6 +22,12 @@ def registered_command_names(path):
 
 
 class InteractiveMenuContracts(unittest.TestCase):
+    def test_miner_load_is_not_blocked_by_another_extension(self):
+        source = (ROOT / "bot.py").read_text(encoding="utf-8")
+        self.assertIn('"cogs.miner",', source)
+        self.assertIn("for extension in extensions:", source)
+        self.assertIn("logging.exception(\"Failed to load extension %s\", extension)", source)
+
     def test_balance_owns_roles_and_gang_creation(self):
         catalog = (ROOT / "cogs" / "catalog.py").read_text(encoding="utf-8")
         self.assertIn('label="Купить роли"', catalog)
@@ -36,6 +42,9 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertNotIn("blackjack", names)
         self.assertIn('label="Ещё раз с той же ставкой"', casino)
         self.assertIn('label="Новая ставка"', casino)
+        self.assertIn("token = bot.set_economy_guild_id(interaction.guild_id)", casino)
+        self.assertIn("bot.reset_economy_guild_id(token)", casino)
+        self.assertIn("self.bot.set_economy_guild_id(self.guild_id)", casino)
 
     def test_investments_is_the_only_company_investment_command(self):
         names = registered_command_names(ROOT / "cogs" / "catalog.py")

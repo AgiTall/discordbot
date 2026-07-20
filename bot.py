@@ -1956,17 +1956,27 @@ async def setup_hook():
     bot.format_money = format_money
     try:
         await bot.add_cog(leveling.LevelingCog(bot))
-        await bot.load_extension("cogs.casino")
-        await bot.load_extension("cogs.catalog")
-        await bot.load_extension("cogs.gangs")
-        await bot.load_extension("cogs.robbery")
-        await bot.load_extension("cogs.bounty")
-        await bot.load_extension("cogs.naturalist")
-        await bot.load_extension("cogs.miner")
-        await bot.load_extension("cogs.collector")
-        await bot.load_extension("cogs.admin")
-    except Exception as e:
-        logging.error(f"Failed to load LevelingCog: {e}")
+    except Exception:
+        logging.exception("Failed to load LevelingCog")
+
+    # Один сломанный раздел не должен останавливать регистрацию всех команд,
+    # которые идут после него (раньше из-за этого мог пропасть /mine).
+    extensions = (
+        "cogs.casino",
+        "cogs.catalog",
+        "cogs.gangs",
+        "cogs.robbery",
+        "cogs.bounty",
+        "cogs.naturalist",
+        "cogs.miner",
+        "cogs.collector",
+        "cogs.admin",
+    )
+    for extension in extensions:
+        try:
+            await bot.load_extension(extension)
+        except Exception:
+            logging.exception("Failed to load extension %s", extension)
 bot.setup_hook = setup_hook
 
 economy_data = EconomyStore()

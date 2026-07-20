@@ -47,9 +47,10 @@ def should_announce_blackjack_win(*, bet, is_blackjack=False, won_after_double=F
 
 
 class BlackjackView(discord.ui.View):
-    def __init__(self, bot, user_id, bet, deck, player_hand, dealer_hand):
+    def __init__(self, bot, guild_id, user_id, bet, deck, player_hand, dealer_hand):
         super().__init__(timeout=180)
         self.bot = bot
+        self.guild_id = guild_id
         self.user_id = user_id
         self.deck = deck
         self.dealer_hand = dealer_hand
@@ -338,14 +339,18 @@ class BlackjackView(discord.ui.View):
 
         self.disable_all_buttons()
 
-        async with self.bot.economy_lock:
-            account = self.bot.get_account(self.user_id)
-            for hand in self.hands:
-                if not hand["finished"]:
-                    account["cash"] += hand["bet"]
-                    hand["result_text"] = f"Таймаут. Возврат: **{self.bot.format_money(hand['bet'])}**"
-                    hand["finished"] = True
-            self.bot.save_economy()
+        token = self.bot.set_economy_guild_id(self.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(self.user_id)
+                for hand in self.hands:
+                    if not hand["finished"]:
+                        account["cash"] += hand["bet"]
+                        hand["result_text"] = f"Таймаут. Возврат: **{self.bot.format_money(hand['bet'])}**"
+                        hand["finished"] = True
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
 
         if self.message:
             try:
@@ -354,7 +359,7 @@ class BlackjackView(discord.ui.View):
                 pass
 
 
-async def start_selected_game(interaction, bot, game, bet):
+async def _start_selected_game(interaction, bot, game, bet):
     if game == "blackjack":
         cog = bot.get_cog("CasinoCog")
         await cog.start_blackjack(interaction, bet)
@@ -404,6 +409,15 @@ async def start_selected_game(interaction, bot, game, bet):
     await interaction.response.send_message(
         embed=embed, view=CasinoQuickReplayView(bot, interaction.user.id, game, bet), ephemeral=True
     )
+
+
+async def start_selected_game(interaction, bot, game, bet):
+    """Run modal/button casino actions in the economy of this Discord server."""
+    token = bot.set_economy_guild_id(interaction.guild_id)
+    try:
+        await _start_selected_game(interaction, bot, game, bet)
+    finally:
+        bot.reset_economy_guild_id(token)
 
 
 class CasinoBetModal(discord.ui.Modal):
@@ -547,7 +561,10 @@ class CasinoCog(commands.Cog):
         random.shuffle(deck)
         player_hand = [deck.pop(), deck.pop()]
         dealer_hand = [deck.pop(), deck.pop()]
-        view = BlackjackView(self.bot, interaction.user.id, bet, deck, player_hand, dealer_hand)
+        view = BlackjackView(
+            self.bot, interaction.guild_id, interaction.user.id, bet,
+            deck, player_hand, dealer_hand,
+        )
 
         await interaction.response.defer(ephemeral=True)
         player_blackjack = blackjack_hand_value(player_hand) == 21
