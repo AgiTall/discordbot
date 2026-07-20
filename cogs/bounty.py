@@ -4,11 +4,13 @@ from discord import app_commands
 import random
 from src.weapon_system import (
     AMMO_TYPE_NAMES,
+    WEAPON_CLASS_NAMES,
     has_usable_ammo,
     normalize_weapon_state,
     use_weapon_shot,
 )
 from src.bounty_logic import *
+
 
 class BountyOwnerView(discord.ui.View):
     def __init__(self, bot, user_id, timeout=600):
@@ -29,44 +31,167 @@ class BountyOwnerView(discord.ui.View):
         return True
 
 
-class BountyDifficultyButton(discord.ui.Button):
-    def __init__(self, bot, difficulty_key):
-        self.bot = bot
+class BountyTargetButton(discord.ui.Button):
+    """Кнопка выбора уровня преступника — сразу выполняет попытку поимки."""
 
-        difficulty = BOUNTY_DIFFICULTIES[difficulty_key]
+    def __init__(self, bot, target_key):
+        self.bot = bot
+        target = BOUNTY_TARGETS[target_key]
+
+        # Легендарный — особый стиль
+        if target_key == "legendary":
+            style = discord.ButtonStyle.danger
+        elif target_key == "expensive":
+            style = discord.ButtonStyle.primary
+        else:
+            style = discord.ButtonStyle.secondary
+
         super().__init__(
-            label=difficulty["name"],
-            style=discord.ButtonStyle.primary,
-            emoji=get_bounty_button_emoji(difficulty_key),
-            custom_id=f"bounty:difficulty:{difficulty_key}",
+            label=target["name"],
+            style=style,
+            emoji=get_bounty_button_emoji(target_key),
+            custom_id=f"bounty:target:{target_key}",
         )
-        self.difficulty_key = difficulty_key
+        self.target_key = target_key
 
     async def callback(self, interaction):
-        difficulty = BOUNTY_DIFFICULTIES[self.difficulty_key]
-        target_name = random.choice(difficulty["targets"])
-        embed = build_bot_embed(
-            "Выбор тактики",
-            (
+        target = BOUNTY_TARGETS[self.target_key]
+        target_name = random.choice(target["targets"])
+
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(interaction.user.id)
+                bounty = get_bounty_account(account)
+
+                if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        get_custom_message("role_required").format(
+                            role="Охотник за головами"
+                        ),
+                        ephemeral=True,
+                    )
+                    return
+
+                cooldown = get_bounty_cooldown(bounty)
+                if cooldown > 0:
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        f"Следующий контракт будет доступен через **{format_duration(cooldown)}**.",
+                        ephemeral=True,
+                    )
+                    return
+
+                # Проверяем наличие оружия и патронов
+                from cogs.catalog import CATALOG_ITEMS
+                normalize_weapon_state(account, CATALOG_ITEMS)
+                if not any(account["weapon_loadout"].values()):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        "Возьмите купленное оружие через `/balance` → «Оружие».", ephemeral=True
+                    )
+                    return
+                if not has_usable_ammo(account, CATALOG_ITEMS):
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        "Для оружия в руках нет подходящих патронов. "
+                        "Купите их в `/catalog` или смените оружие через `/balance`.",
+                        ephemeral=True,
+                    )
+                    return
+
+                # Один выстрел — одна попытка
+                shot = use_weapon_shot(account, CATALOG_ITEMS)
+                if not shot:
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        "Боезапас закончился прямо в самый неподходящий момент.",
+                        ephemeral=True,
+                    )
+                    return
+
+                # Рассчитываем шанс поимки
+                catch_chance = calculate_catch_chance(self.target_key, shot, bounty["level"])
+                roll = random.randint(1, 100)
+                caught = roll <= catch_chance
+
+                bounty["last_bounty_at"] = now_local().isoformat(timespec="seconds")
+
+                weapon_name = CATALOG_ITEMS[shot["weapon"]]["name"]
+                weapon_class_name = WEAPON_CLASS_NAMES.get(shot["class"], shot["class"])
+                ammo_name = AMMO_TYPE_NAMES[shot["ammo_type"]]
+
+                weapon_line = (
+                    f"🔫 **{weapon_name}** ({weapon_class_name}) · "
+                    f"патроны: {ammo_name} · "
+                    f"состояние: {shot['condition_after']:g}%"
+                )
+
+                chance_breakdown = (
+                    f"Шанс поимки: **{catch_chance}%** "
+                    f"(база {target['base_chance']}% + оружие + патроны + уровень)"
+                )
+
+                if caught:
+                    reward = round(
+                        random.randint(target["reward_min"], target["reward_max"]), 2
+                    )
+                    gold_reward = target["gold"]
+                    xp_reward = target["xp"]
+                    account["cash"] += reward
+                    account["gold"] += gold_reward
+                    bounty["captures"] += 1
+                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
+
+                    title = f"✅ Цель поймана — {target['label']}"
+                    result_text = (
+                        f"Награда: **{self.bot.format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
+                        f"Опыт охотника: **+{xp_reward}**."
+                    )
+                    if levels:
+                        result_text += f"\nНовый уровень: **{bounty['level']}**! 🎉"
+                    color = discord.Color.green() if self.target_key != "legendary" else discord.Color.gold()
+                else:
+                    xp_reward = max(20, target["xp"] // 5)
+                    bounty["escaped"] += 1
+                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
+
+                    title = f"❌ Цель сбежала — {target['label']}"
+                    result_text = f"Вы получили **+{xp_reward}** опыта за попытку."
+                    if levels:
+                        result_text += f"\nНовый уровень: **{bounty['level']}**."
+                    color = discord.Color.red()
+
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+
+        embed = discord.Embed(
+            title=title,
+            description=(
                 f"Цель: **{target_name}**\n"
-                f"Сложность броска преступника: **d20 + {difficulty['mod']}**\n\n"
-                "Выберите подход: нужно выиграть 2 из 3 бросков."
+                f"{weapon_line}\n"
+                f"{chance_breakdown}\n"
+                f"🎲 Бросок: **{roll}** из 100\n\n"
+                f"{result_text}"
             ),
-            color=discord.Color.dark_gold(),
+            color=color,
         )
         if os.path.exists(BOUNTY_IMAGE_FILE):
             embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
         await interaction.response.edit_message(
-            embed=embed,
-            view=BountyTacticView(self.bot, interaction.user.id, self.difficulty_key, target_name),
+            embed=embed, view=BountyMainView(self.bot, interaction.user.id)
         )
 
 
 class BountyMainView(BountyOwnerView):
     def __init__(self, bot, user_id):
         super().__init__(bot, user_id)
-        for difficulty_key in BOUNTY_DIFFICULTIES:
-            self.add_item(BountyDifficultyButton(self.bot, difficulty_key))
+        for target_key in BOUNTY_TARGETS:
+            self.add_item(BountyTargetButton(self.bot, target_key))
         self.add_item(BountyLeaderboardButton(self.bot))
 
 
@@ -137,164 +262,6 @@ class BountyLeaderboardButton(discord.ui.Button):
         )
 
 
-class BountyTacticButton(discord.ui.Button):
-    def __init__(self, bot, tactic_key):
-        self.bot = bot
-
-        tactic = BOUNTY_TACTICS[tactic_key]
-        super().__init__(
-            label=tactic["name"],
-            style=discord.ButtonStyle.secondary,
-            emoji=get_bounty_button_emoji(tactic_key),
-            custom_id=f"bounty:tactic:{tactic_key}",
-        )
-        self.tactic_key = tactic_key
-
-    async def callback(self, interaction):
-        view = self.view
-        difficulty = BOUNTY_DIFFICULTIES[view.difficulty_key]
-        tactic = BOUNTY_TACTICS[self.tactic_key]
-
-        token = self.bot.set_economy_guild_id(interaction.guild_id)
-        try:
-            async with self.bot.economy_lock:
-                account = self.bot.get_account(interaction.user.id)
-                bounty = get_bounty_account(account)
-                if not has_game_role(interaction.user, BOUNTY_ROLE_KEY, account):
-                    self.bot.save_economy()
-                    await interaction.response.send_message(
-                        get_custom_message("role_required").format(
-                            role="Охотник за головами"
-                        ),
-                        ephemeral=True,
-                    )
-                    return
-
-                cooldown = get_bounty_cooldown(bounty)
-                if cooldown > 0:
-                    self.bot.save_economy()
-                    await interaction.response.send_message(
-                        f"Следующий контракт будет доступен через **{format_duration(cooldown)}**.",
-                        ephemeral=True,
-                    )
-                    return
-
-                # Combat contracts use the active catalog loadout. Importing here
-                # avoids coupling the pure bounty logic to the catalog extension.
-                from cogs.catalog import CATALOG_ITEMS
-                normalize_weapon_state(account, CATALOG_ITEMS)
-                if not any(account["weapon_loadout"].values()):
-                    self.bot.save_economy()
-                    await interaction.response.send_message(
-                        "Возьмите купленное оружие через `/balance` → «Оружие».", ephemeral=True
-                    )
-                    return
-                if not has_usable_ammo(account, CATALOG_ITEMS):
-                    self.bot.save_economy()
-                    await interaction.response.send_message(
-                        "Для оружия в руках нет подходящих патронов. "
-                        "Купите их в `/catalog` или смените оружие через `/balance`.",
-                        ephemeral=True,
-                    )
-                    return
-
-                level_mod = bounty["level"] // 5
-                rounds = []
-                player_wins = 0
-                target_wins = 0
-                for round_number in range(1, 4):
-                    shot = use_weapon_shot(account, CATALOG_ITEMS)
-                    if not shot:
-                        target_wins = 2
-                        rounds.append("Боезапас закончился — цель воспользовалась заминкой и ушла.")
-                        break
-                    player_roll = random.randint(1, 20)
-                    target_roll = random.randint(1, 20)
-                    weapon_mod = shot["ammo_bonus"] + shot["condition_modifier"]
-                    player_total = player_roll + tactic["mod"] + level_mod + weapon_mod
-                    target_total = target_roll + difficulty["mod"]
-                    if player_total >= target_total:
-                        player_wins += 1
-                        outcome = "успех"
-                    else:
-                        target_wins += 1
-                        outcome = "провал"
-                    rounds.append(
-                        f"{round_number}. Вы: {player_roll}+{tactic['mod']}+{level_mod}"
-                        f"{weapon_mod:+d} = "
-                        f"**{player_total}**; цель: {target_roll}+{difficulty['mod']} = "
-                        f"**{target_total}** — {outcome}\n"
-                        f"   {CATALOG_ITEMS[shot['weapon']]['name']} · "
-                        f"{AMMO_TYPE_NAMES[shot['ammo_type']]} · "
-                        f"состояние {shot['condition_after']:g}%"
-                    )
-                    if self.tactic_key == "ambush" and outcome == "провал":
-                        target_wins = 2
-                        rounds.append("Засада сорвалась: цель сразу ушла от преследования.")
-                        break
-                    if player_wins >= 2 or target_wins >= 2:
-                        break
-
-                bounty["last_bounty_at"] = now_local().isoformat(timespec="seconds")
-                if player_wins >= 2:
-                    reward = random.randint(
-                        difficulty["reward_min"], difficulty["reward_max"]
-                    )
-                    reward = round(reward * tactic["reward_multiplier"], 2)
-                    gold_reward = difficulty["gold"]
-                    xp_reward = difficulty["xp"]
-                    account["cash"] += reward
-                    account["gold"] += gold_reward
-                    bounty["captures"] += 1
-                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
-                    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
-                    title = "Цель поймана"
-                    result = (
-                        f"Награда: **{self.bot.format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
-                        f"Опыт охотника: **+{xp_reward}**."
-                    )
-                    if levels:
-                        result += f"\nНовый уровень: **{bounty['level']}**."
-                else:
-                    xp_reward = max(20, difficulty["xp"] // 5)
-                    bounty["escaped"] += 1
-                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
-                    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
-                    title = "Цель сбежала"
-                    result = f"Вы получили **+{xp_reward}** опыта за попытку."
-                    if levels:
-                        result += f"\nНовый уровень: **{bounty['level']}**."
-
-                self.bot.save_economy()
-        finally:
-            self.bot.reset_economy_guild_id(token)
-
-        embed = discord.Embed(
-            title=title,
-            description=(
-                f"Цель: **{view.target_name}**\n"
-                f"Тактика: **{tactic['name']}** — {tactic['description']}\n\n"
-                + "\n".join(rounds)
-                + f"\n\n{result}"
-            ),
-            color=discord.Color.dark_gold(),
-        )
-        if os.path.exists(BOUNTY_IMAGE_FILE):
-            embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
-        await interaction.response.edit_message(
-            embed=embed, view=BountyMainView(self.bot, interaction.user.id)
-        )
-
-
-class BountyTacticView(BountyOwnerView):
-    def __init__(self, bot, user_id, difficulty_key, target_name):
-        super().__init__(bot, user_id)
-        self.difficulty_key = difficulty_key
-        self.target_name = target_name
-        for tactic_key in BOUNTY_TACTICS:
-            self.add_item(BountyTacticButton(self.bot, tactic_key))
-
-
 class BountyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -341,6 +308,7 @@ class BountyCog(commands.Cog):
             )
         else:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(BountyCog(bot))

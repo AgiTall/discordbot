@@ -22,6 +22,21 @@ def registered_command_names(path):
 
 
 class InteractiveMenuContracts(unittest.TestCase):
+    def test_balance_owns_roles_and_gang_creation(self):
+        catalog = (ROOT / "cogs" / "catalog.py").read_text(encoding="utf-8")
+        self.assertIn('label="Купить роли"', catalog)
+        self.assertIn('label="Создать банду"', catalog)
+        self.assertIn('label="Инвестиции"', catalog)
+        self.assertIn('bot.tree.remove_command("roles")', catalog)
+
+    def test_casino_is_a_replayable_menu(self):
+        casino = (ROOT / "cogs" / "casino.py").read_text(encoding="utf-8")
+        names = registered_command_names(ROOT / "cogs" / "casino.py")
+        self.assertIn("casino", names)
+        self.assertNotIn("blackjack", names)
+        self.assertIn('label="Ещё раз с той же ставкой"', casino)
+        self.assertIn('label="Новая ставка"', casino)
+
     def test_investments_is_the_only_company_investment_command(self):
         names = registered_command_names(ROOT / "cogs" / "catalog.py")
         self.assertIn("investments", names)

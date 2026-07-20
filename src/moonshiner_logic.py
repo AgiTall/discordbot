@@ -24,7 +24,7 @@ MOONSHINE_CONDENSER_PRICE = 825.0
 MOONSHINE_DISTILLER_PRICE = 875.0
 
 
-MOONSHINE_BATCH_COST = 50.0
+MOONSHINE_BATCH_COST = 30.0
 
 
 def _economy_data():
@@ -34,151 +34,41 @@ def _economy_data():
 
 
 MOONSHINE_STRENGTHS = {
-    "weak": {"name": "Слабый", "duration_skill": 24 * 60, "duration_no_skill": 30 * 60},
-    "medium": {"name": "Средний", "duration_skill": 36 * 60, "duration_no_skill": 45 * 60},
-    "strong": {"name": "Крепкий", "duration_skill": 48 * 60, "duration_no_skill": 60 * 60},
+    "weak":   {"name": "Слабый",   "duration_skill": 24 * 60, "duration_no_skill": 30 * 60},
+    "medium": {"name": "Средний",  "duration_skill": 36 * 60, "duration_no_skill": 45 * 60},
+    "strong": {"name": "Крепкий",  "duration_skill": 48 * 60, "duration_no_skill": 60 * 60},
 }
 
-
+# Обычные бражки: 1⭐=110$, 2⭐=147$, 3⭐=165$
 MOONSHINE_MASH_RECIPES = [
-    {
-        "key": "weak_1",
-        "number": 1,
-        "strength_key": "weak",
-        "stars": 1,
-        "required_level": 1,
-        "payout": 82.50,
-    },
-    {
-        "key": "medium_5",
-        "number": 5,
-        "strength_key": "medium",
-        "stars": 2,
-        "required_level": 2,
-        "payout": 158.81,
-    },
-    {
-        "key": "strong_9",
-        "number": 9,
-        "strength_key": "strong",
-        "stars": 3,
-        "required_level": 3,
-        "payout": 247.50,
-    },
+    {"key": "weak_1",   "number": 1, "strength_key": "weak",   "stars": 1, "required_level": 1, "payout": 110.0},
+    {"key": "medium_5", "number": 5, "strength_key": "medium", "stars": 2, "required_level": 2, "payout": 147.0},
+    {"key": "strong_9", "number": 9, "strength_key": "strong", "stars": 3, "required_level": 3, "payout": 165.0},
 ]
 
-
+# Особые рецепты — на ~50% дороже обычной бражки того же уровня
+# 1⭐=165$, 2⭐=220$, 3⭐=248$
 MOONSHINE_SPECIAL_RECIPES = [
-    {
-        "key": "mahogany_sunrise",
-        "name": "Рассвет среди магоний",
-        "stars": 3,
-        "ingredients": {
-            "Консервированная клубника": 1,
-            "Черника овальнолистная": 1,
-            "Магония": 1,
-        },
-        "payout": 247.50,
-    },
-    {
-        "key": "berry_apple",
-        "name": "Ягодно-яблочный",
-        "stars": 2,
-        "ingredients": {
-            "Яблоко": 1,
-            "Ежевика": 1,
-            "Цветок ванили": 1,
-        },
-        "payout": 226.87,
-    },
-    {
-        "key": "berry_cobbler",
-        "name": "Ягодный пирог",
-        "stars": 2,
-        "ingredients": {
-            "Консервированные персики": 1,
-            "Малина": 1,
-            "Персик": 1,
-        },
-        "payout": 226.87,
-    },
-    {
-        "key": "berry_mint",
-        "name": "Ягодно-мятный",
-        "stars": 1,
-        "ingredients": {
-            "Консервированная клубника": 1,
-            "Ежевика": 1,
-            "Мята": 1,
-        },
-        "payout": 206.25,
-    },
-    {
-        "key": "evergreen",
-        "name": "Хвойный",
-        "stars": 2,
-        "ingredients": {
-            "Черника овальнолистная": 1,
-            "Гаультерия": 1,
-            "Женьшень": 1,
-        },
-        "payout": 226.87,
-    },
-    {
-        "key": "poison_poppy",
-        "name": "Ядовитый мак",
-        "stars": 3,
-        "ingredients": {
-            "Пустынный мак": 1,
-            "Олеандр": 1,
-            "Абсент": 1,
-        },
-        "payout": 247.50,
-    },
-    {
-        "key": "spiced_island",
-        "name": "Пряный остров",
-        "stars": 3,
-        "ingredients": {
-            "Консервированные абрикосы": 1,
-            "Смородина": 1,
-            "Карибский ром": 1,
-        },
-        "payout": 247.50,
-    },
-    {
-        "key": "tropical_punch",
-        "name": "Тропический пунш",
-        "stars": 2,
-        "ingredients": {
-            "Консервированные ананасы": 1,
-            "Груша": 1,
-            "Цветок ванили": 1,
-        },
-        "payout": 226.87,
-    },
-    {
-        "key": "wild_cider",
-        "name": "Дикий сидр",
-        "stars": 1,
-        "ingredients": {
-            "Яблоко": 1,
-            "Женьшень": 1,
-            "Смородина": 1,
-        },
-        "payout": 206.25,
-    },
-    {
-        "key": "wild_creek",
-        "name": "Дикий ручей",
-        "stars": 3,
-        "ingredients": {
-            "Мята": 1,
-            "Цветок ванили": 1,
-            "Слива поручейная": 1,
-        },
-        "payout": 247.50,
-    },
+    {"key": "mahogany_sunrise", "name": "Рассвет среди магоний",  "stars": 3,
+     "ingredients": {"Консервированная клубника": 1, "Черника овальнолистная": 1, "Магония": 1}, "payout": 248.0},
+    {"key": "berry_apple",      "name": "Ягодно-яблочный",        "stars": 2,
+     "ingredients": {"Яблоко": 1, "Ежевика": 1, "Цветок ванили": 1},                             "payout": 220.0},
+    {"key": "berry_cobbler",    "name": "Ягодный пирог",          "stars": 2,
+     "ingredients": {"Консервированные персики": 1, "Малина": 1, "Персик": 1},                   "payout": 220.0},
+    {"key": "berry_mint",       "name": "Ягодно-мятный",          "stars": 1,
+     "ingredients": {"Консервированная клубника": 1, "Ежевика": 1, "Мята": 1},                   "payout": 165.0},
+    {"key": "evergreen",        "name": "Хвойный",                "stars": 2,
+     "ingredients": {"Черника овальнолистная": 1, "Гаультерия": 1, "Женьшень": 1},               "payout": 220.0},
+    {"key": "poison_poppy",     "name": "Ядовитый мак",           "stars": 3,
+     "ingredients": {"Пустынный мак": 1, "Олеандр": 1, "Абсент": 1},                             "payout": 248.0},
+    {"key": "spiced_island",    "name": "Пряный остров",          "stars": 3,
+     "ingredients": {"Консервированные абрикосы": 1, "Смородина": 1, "Карибский ром": 1},        "payout": 248.0},
+    {"key": "tropical_punch",   "name": "Тропический пунш",       "stars": 2,
+     "ingredients": {"Консервированные ананасы": 1, "Груша": 1, "Цветок ванили": 1},             "payout": 220.0},
+    {"key": "wild_cider",       "name": "Дикий сидр",             "stars": 1,
+     "ingredients": {"Яблоко": 1, "Женьшень": 1, "Смородина": 1},                                "payout": 165.0},
+    {"key": "wild_creek",       "name": "Дикий ручей",            "stars": 3,
+     "ingredients": {"Мята": 1, "Цветок ванили": 1, "Слива поручейная": 1},                      "payout": 248.0},
 ]
 
 

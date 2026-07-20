@@ -32,7 +32,7 @@ from emoji_config import (
 # live in the same PostgreSQL instance as the rest of the bot data.
 MINE_DB_FILE = "data/mine.db"
 MINER_ROLE_KEY = "miner"
-DAILY_MINE_LIMIT = 3
+DAILY_MINE_LIMIT = 5
 OIL_PER_MINES = 3   # 1 фляга масла расходуется каждые N кубов
 
 # ─────────────────────────────────────────────────
@@ -68,13 +68,13 @@ PICKAXES = {
 SHOP_ITEMS = {
     "oil": {
         "name": "Масло для фонаря",
-        "price": 1.50,
+        "price": 1.00,
         "unit": "фляга",
         "description": "Фонарь горит 3 куба на одну флягу. Без масла — штраф и риск не найти руду.",
     },
     "wood": {
         "name": "Крепёжный лес",
-        "price": 2.0,
+        "price": 1.50,
         "unit": "бревно",
         "description": "Ставится в выработку на глубине >50 м. Предотвращает обвал.",
     },
@@ -621,27 +621,6 @@ def reset_daily_if_needed(player: dict):
     """Сбросить daily_mines_left если наступил новый день (UTC)."""
     today = date.today().isoformat()
     if player.get("last_mine_date", "") != today:
-        player["daily_mines_left"] = DAILY_MINE_LIMIT
-
-
-# ─────────────────────────────────────────────────
-#  УКРАШЕНИЯ: ХЕЛПЕРЫ
-# ─────────────────────────────────────────────────
-
-def make_jewelry_key(metal: str, gem_key: str, type_key: str) -> str:
-    """Сформировать ключ инвентаря украшения."""
-    return f"{JEWELRY_KEY_PREFIX}{metal}_{gem_key}_{type_key}"
-
-
-def parse_jewelry_key(key: str):
-    """Разобрать ключ украшения → (metal, gem_key, type_key) или None."""
-    if not key.startswith(JEWELRY_KEY_PREFIX):
-        return None
-    rest = key[len(JEWELRY_KEY_PREFIX):]
-    for metal in ("gold", "silver"):
-        if rest.startswith(metal + "_"):
-            rest2 = rest[len(metal) + 1:]
-            for gem_key in GEMS:
                 if rest2.startswith(gem_key + "_"):
                     type_key = rest2[len(gem_key) + 1:]
                     if type_key in FORGE_TEMPLATES:
@@ -739,10 +718,8 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
         else:
             result["events"].append(f"{EMOJI_WARNING} {random.choice(GAS_WARNINGS)}")
 
-    # Газ без защиты: добыча не идёт, попытка сгорела
-    if result["gas"] and not result["gas_blocked"]:
-        result["events"].append(f"{EMOJI_BLOCKED} Приступ кашля — вы были вынуждены покинуть забой.")
-        return result
+    # -- Газ без защиты: попытка НЕ сгорает, добыча снижается вдвое
+    gas_penalty = result["gas"] and not result["gas_blocked"]
 
     # ── Обвал ────────────────────────────────────
     if player["current_depth"] > 50 and random.random() < layer["collapse_risk"]:
@@ -795,22 +772,6 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
     for ore_key, ore_data in layer["ores"].items():
         adjusted_chance = ore_data["chance"] + ore_bonus * 0.5
         cumulative += adjusted_chance
-        if roll < cumulative:
-            amount = random.randint(*ore_data["amount"])
-            result["ore"] = ore_key
-            result["ore_amount"] = amount
-
-            if result["collapse"]:
-                lost = max(1, amount // 2)
-                amount = max(0, amount - lost)
-                result["ore_amount"] = amount
-                result["events"].append(f"💔 Обвал уничтожил часть добытого. Потеряно: {lost} шт.")
-
-            if amount > 0:
-                inv_add(player, ore_key, amount)
-            return result
-
-    # ── Пусто ─────────────────────────────────────
     if result["collapse"]:
         result["events"].append("Обвал завалил проход — ничего не взяли.")
     else:

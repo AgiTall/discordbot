@@ -75,9 +75,11 @@ class BlackjackView(discord.ui.View):
         active_hand = self.hands[self.active_hand_idx]
         cards = active_hand["cards"]
 
+        hand_value = blackjack_hand_value(cards)
         for child in self.children:
             if child.custom_id == "hit":
-                child.disabled = False
+                # Кнопка «Взять» недоступна при 21 — незачем рисковать
+                child.disabled = hand_value >= 21
             elif child.custom_id == "stand":
                 child.disabled = False
             elif child.custom_id == "double":
@@ -105,7 +107,7 @@ class BlackjackView(discord.ui.View):
             title=f"{CASINO_LOGO_EMOJI} Казино · Blackjack",
             color=discord.Color.dark_green(),
         )
-        
+
         dealer_sum = dealer_value if reveal_dealer else blackjack_card_value(self.dealer_hand[0])
         embed.add_field(
             name="Карты дилера",
@@ -117,16 +119,16 @@ class BlackjackView(discord.ui.View):
             name = f"Ваши карты (Рука {i+1})" if len(self.hands) > 1 else "Ваши карты"
             if i == self.active_hand_idx and not self.is_all_finished():
                 name = "👉 " + name
-            
+
             val_text = f"{format_cards(hand['cards'])}\nСумма: **{blackjack_hand_value(hand['cards'])}**\nСтавка: **{self.bot.format_money(hand['bet'])}**"
             if hand["result_text"]:
                 val_text += f"\n*Итог: {hand['result_text']}*"
-            
+
             embed.add_field(name=name, value=val_text, inline=False)
 
         if self.balance_text:
             embed.add_field(name="Баланс", value=self.balance_text, inline=False)
-            
+
         return embed
 
     def set_balance_text(self, previous_balance, payout, current_balance):
@@ -140,13 +142,16 @@ class BlackjackView(discord.ui.View):
         for item in self.children:
             item.disabled = True
 
+    def replay_view(self):
+        return CasinoReplayView(self.bot, self.user_id, self.initial_bet)
+
     def is_all_finished(self):
         return all(h["finished"] for h in self.hands)
 
     async def process_next_hand(self, interaction):
         self.hands[self.active_hand_idx]["finished"] = True
         self.active_hand_idx += 1
-        
+
         if self.active_hand_idx >= len(self.hands):
             await self.finish_game(interaction)
         else:
@@ -157,7 +162,7 @@ class BlackjackView(discord.ui.View):
         self.disable_all_buttons()
         hand = self.hands[0]
         hand["finished"] = True
-        
+
         if outcome == "blackjack":
             payout = round(hand["bet"] * 2.5, 2)
             hand["result_text"] = f"Blackjack! Выплата: **{self.bot.format_money(payout)}**"
@@ -167,7 +172,7 @@ class BlackjackView(discord.ui.View):
         else:
             payout = 0.0
             hand["result_text"] = "Вы проиграли. Блэкджек у дилера."
-            
+
         if payout > 0:
             async with self.bot.economy_lock:
                 account = self.bot.get_account(self.user_id)
@@ -179,9 +184,10 @@ class BlackjackView(discord.ui.View):
 
     async def finish_game(self, interaction=None):
         self.disable_all_buttons()
-        
+
         needs_dealer = any(blackjack_hand_value(h["cards"]) <= 21 for h in self.hands)
         if needs_dealer:
+            # Дилер берёт карты, пока сумма меньше 17
             while blackjack_hand_value(self.dealer_hand) < 17 and self.deck:
                 self.dealer_hand.append(self.deck.pop())
 
@@ -189,14 +195,14 @@ class BlackjackView(discord.ui.View):
         total_payout = 0.0
         has_win = False
         won_after_double = False
-        
+
         async with self.bot.economy_lock:
             account = self.bot.get_account(self.user_id)
             previous_balance = account["cash"]
             for hand in self.hands:
                 player_value = blackjack_hand_value(hand["cards"])
                 bet = hand["bet"]
-                
+
                 if player_value > 21:
                     outcome = "loss"
                 elif dealer_value > 21 or player_value > dealer_value:
@@ -205,7 +211,7 @@ class BlackjackView(discord.ui.View):
                     outcome = "push"
                 else:
                     outcome = "loss"
-                    
+
                 if outcome == "win":
                     payout = round(bet * 2, 2)
                     hand["result_text"] = f"Вы выиграли. Выплата: **{self.bot.format_money(payout)}**"
@@ -226,7 +232,7 @@ class BlackjackView(discord.ui.View):
 
         embed = self.build_embed(reveal_dealer=True)
         if interaction:
-            await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.response.edit_message(embed=embed, view=self.replay_view())
             if should_announce_blackjack_win(
                 bet=self.initial_bet,
                 won_after_double=won_after_double,
@@ -245,9 +251,13 @@ class BlackjackView(discord.ui.View):
     async def hit_button(self, interaction, button):
         hand = self.hands[self.active_hand_idx]
         hand["cards"].append(self.deck.pop())
-        
-        if blackjack_hand_value(hand["cards"]) > 21:
+        hand_value = blackjack_hand_value(hand["cards"])
+
+        if hand_value > 21:
             hand["result_text"] = "Перебор!"
+            await self.process_next_hand(interaction)
+        elif hand_value == 21:
+            # Автоматический стоп при 21 — незачем брать ещё карту
             await self.process_next_hand(interaction)
         else:
             self._update_buttons()
@@ -261,50 +271,50 @@ class BlackjackView(discord.ui.View):
     async def double_button(self, interaction, button):
         hand = self.hands[self.active_hand_idx]
         bet = hand["bet"]
-        
+
         async with self.bot.economy_lock:
             account = self.bot.get_account(self.user_id)
             if account["cash"] + 0.0001 < bet:
                 self.bot.save_economy()
                 await interaction.response.send_message(
-                    f"Недостаточно денег для дабла. Нужно еще **{self.bot.format_money(bet)}**.", 
+                    f"Недостаточно денег для дабла. Нужно еще **{self.bot.format_money(bet)}**.",
                     ephemeral=True
                 )
                 return
             account["cash"] -= bet
             self.bot.save_economy()
-            
+
         hand["bet"] *= 2
         hand["doubled"] = True
         hand["cards"].append(self.deck.pop())
-        
+
         if blackjack_hand_value(hand["cards"]) > 21:
             hand["result_text"] = "Перебор!"
-            
+
         await self.process_next_hand(interaction)
 
     @discord.ui.button(label="Сплит", style=discord.ButtonStyle.primary, custom_id="split")
     async def split_button(self, interaction, button):
         hand = self.hands[self.active_hand_idx]
         bet = hand["bet"]
-        
+
         async with self.bot.economy_lock:
             account = self.bot.get_account(self.user_id)
             if account["cash"] + 0.0001 < bet:
                 self.bot.save_economy()
                 await interaction.response.send_message(
-                    f"Недостаточно денег для сплита. Нужно еще **{self.bot.format_money(bet)}**.", 
+                    f"Недостаточно денег для сплита. Нужно еще **{self.bot.format_money(bet)}**.",
                     ephemeral=True
                 )
                 return
             account["cash"] -= bet
             self.bot.save_economy()
-            
+
         card1 = hand["cards"][0]
         card2 = hand["cards"][1]
-        
+
         hand["cards"] = [card1, self.deck.pop()]
-        
+
         new_hand = {
             "cards": [card2, self.deck.pop()],
             "bet": bet,
@@ -313,16 +323,21 @@ class BlackjackView(discord.ui.View):
             "doubled": False,
         }
         self.hands.append(new_hand)
-        
+
+        # Если после сплита у первой руки сразу 21 — автоматически переходим к следующей
+        if blackjack_hand_value(hand["cards"]) == 21:
+            hand["finished"] = True
+            self.active_hand_idx += 1
+
         self._update_buttons()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
     async def on_timeout(self):
         if self.is_all_finished():
             return
-            
+
         self.disable_all_buttons()
-        
+
         async with self.bot.economy_lock:
             account = self.bot.get_account(self.user_id)
             for hand in self.hands:
@@ -331,7 +346,7 @@ class BlackjackView(discord.ui.View):
                     hand["result_text"] = f"Таймаут. Возврат: **{self.bot.format_money(hand['bet'])}**"
                     hand["finished"] = True
             self.bot.save_economy()
-            
+
         if self.message:
             try:
                 await self.message.edit(embed=self.build_embed(reveal_dealer=True), view=self)
@@ -339,19 +354,181 @@ class BlackjackView(discord.ui.View):
                 pass
 
 
+async def start_selected_game(interaction, bot, game, bet):
+    if game == "blackjack":
+        cog = bot.get_cog("CasinoCog")
+        await cog.start_blackjack(interaction, bet)
+        return
+    import bot as bot_module
+    async with bot.economy_lock:
+        account = bot.get_account(interaction.user.id)
+        if account["cash"] + 0.0001 < bet:
+            bot.save_economy()
+            await interaction.response.send_message(
+                f"Недостаточно денег для ставки **{bot.format_money(bet)}**.", ephemeral=True
+            )
+            return
+        if game == "dice":
+            player_roll, dealer_roll = random.randint(1, 6), random.randint(1, 6)
+            if player_roll > dealer_roll:
+                account["cash"] += bet
+                result = f"Вы выиграли **{bot.format_money(bet)}**."
+            elif player_roll < dealer_roll:
+                account["cash"] -= bet
+                result = f"Вы проиграли **{bot.format_money(bet)}**."
+            else:
+                result = "Ничья. Ставка возвращается."
+            description = f"🎲 Вы: **{player_roll}**\n🎲 Дилер: **{dealer_roll}**\n\n{result}"
+            title = "Казино · Кости"
+        else:
+            deck = build_card_deck()
+            random.shuffle(deck)
+            player_hand, dealer_hand = deck[:5], deck[5:10]
+            player_score, player_name = bot_module.evaluate_poker_hand(player_hand)
+            dealer_score, dealer_name = bot_module.evaluate_poker_hand(dealer_hand)
+            if player_score > dealer_score:
+                account["cash"] += bet
+                result = f"Вы выиграли **{bot.format_money(bet)}**."
+            elif player_score < dealer_score:
+                account["cash"] -= bet
+                result = f"Вы проиграли **{bot.format_money(bet)}**."
+            else:
+                result = "Ничья. Ставка возвращается."
+            description = (
+                f"Вы: **{format_cards(player_hand)}** — {player_name}\n"
+                f"Дилер: **{format_cards(dealer_hand)}** — {dealer_name}\n\n{result}"
+            )
+            title = "Казино · Покер"
+        bot.save_economy()
+    embed = discord.Embed(title=f"{CASINO_LOGO_EMOJI} {title}", description=description, color=discord.Color.dark_green())
+    await interaction.response.send_message(
+        embed=embed, view=CasinoQuickReplayView(bot, interaction.user.id, game, bet), ephemeral=True
+    )
+
+
+class CasinoBetModal(discord.ui.Modal):
+    bet = discord.ui.TextInput(
+        label="Ставка",
+        placeholder="0 — играть без ставки",
+        default="0",
+        max_length=20,
+    )
+
+    def __init__(self, bot, user_id, game):
+        super().__init__(title="Новая ставка")
+        self.bot = bot
+        self.user_id = user_id
+        self.game = game
+
+    async def on_submit(self, interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Это не ваше казино.", ephemeral=True)
+            return
+        try:
+            bet = float(str(self.bet.value).strip().replace(",", "."))
+        except ValueError:
+            bet = -1
+        bet, error = self.bot.validate_bet(bet)
+        if error:
+            await interaction.response.send_message(error, ephemeral=True)
+            return
+        await start_selected_game(interaction, self.bot, self.game, bet)
+
+
+class CasinoLobbyView(discord.ui.View):
+    def __init__(self, bot, user_id):
+        super().__init__(timeout=600)
+        self.bot = bot
+        self.user_id = user_id
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message("Это не ваше казино.", ephemeral=True)
+        return False
+
+    async def open_bet(self, interaction, game):
+        await interaction.response.send_modal(CasinoBetModal(self.bot, self.user_id, game))
+
+    @discord.ui.button(label="Blackjack", emoji="🃏", style=discord.ButtonStyle.primary)
+    async def blackjack_button(self, interaction, button):
+        await self.open_bet(interaction, "blackjack")
+
+    @discord.ui.button(label="Кости", emoji="🎲", style=discord.ButtonStyle.secondary)
+    async def dice_button(self, interaction, button):
+        await self.open_bet(interaction, "dice")
+
+    @discord.ui.button(label="Покер", emoji="♠️", style=discord.ButtonStyle.secondary)
+    async def poker_button(self, interaction, button):
+        await self.open_bet(interaction, "poker")
+
+
+class CasinoReplayView(discord.ui.View):
+    def __init__(self, bot, user_id, bet):
+        super().__init__(timeout=600)
+        self.bot = bot
+        self.user_id = user_id
+        self.bet = bet
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message("Это не ваша партия.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Ещё раз с той же ставкой", emoji="🔁", style=discord.ButtonStyle.success)
+    async def same_bet_button(self, interaction, button):
+        await start_selected_game(interaction, self.bot, "blackjack", self.bet)
+
+    @discord.ui.button(label="Новая ставка", emoji="✏️", style=discord.ButtonStyle.primary)
+    async def new_bet_button(self, interaction, button):
+        await interaction.response.send_modal(
+            CasinoBetModal(self.bot, self.user_id, "blackjack")
+        )
+
+    @discord.ui.button(label="К играм", emoji="↩️", style=discord.ButtonStyle.secondary)
+    async def lobby_button(self, interaction, button):
+        embed = discord.Embed(
+            title=f"{CASINO_LOGO_EMOJI} Казино",
+            description="Выберите игру и ставку.",
+            color=discord.Color.dark_green(),
+        )
+        await interaction.response.edit_message(
+            embed=embed, view=CasinoLobbyView(self.bot, self.user_id)
+        )
+
+
+class CasinoQuickReplayView(discord.ui.View):
+    def __init__(self, bot, user_id, game, bet):
+        super().__init__(timeout=600)
+        self.bot, self.user_id, self.game, self.bet = bot, user_id, game, bet
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message("Это не ваша партия.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Ещё раз с той же ставкой", emoji="🔁", style=discord.ButtonStyle.success)
+    async def same_bet_button(self, interaction, button):
+        await start_selected_game(interaction, self.bot, self.game, self.bet)
+
+    @discord.ui.button(label="Новая ставка", emoji="✏️", style=discord.ButtonStyle.primary)
+    async def new_bet_button(self, interaction, button):
+        await interaction.response.send_modal(CasinoBetModal(self.bot, self.user_id, self.game))
+
+
 
 class CasinoCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="blackjack", description="Сыграть blackjack с дилером")
-    @app_commands.describe(bet="Ставка деньгами. 0 — без ставки")
-    async def blackjack_command(self, interaction: discord.Interaction, bet: float = 0.0):
+    async def start_blackjack(self, interaction: discord.Interaction, bet: float = 0.0):
         bet, error = self.bot.validate_bet(bet)
         if error:
             await interaction.response.send_message(error, ephemeral=True)
             return
-    
+
         async with self.bot.economy_lock:
             account = self.bot.get_account(interaction.user.id)
             if account["cash"] + 0.0001 < bet:
@@ -362,20 +539,20 @@ class CasinoCog(commands.Cog):
                     ephemeral=True,
                 )
                 return
-    
+
             account["cash"] -= bet
             self.bot.save_economy()
-    
+
         deck = build_card_deck()
         random.shuffle(deck)
         player_hand = [deck.pop(), deck.pop()]
         dealer_hand = [deck.pop(), deck.pop()]
         view = BlackjackView(self.bot, interaction.user.id, bet, deck, player_hand, dealer_hand)
-    
+
         await interaction.response.defer(ephemeral=True)
         player_blackjack = blackjack_hand_value(player_hand) == 21
         dealer_blackjack = blackjack_hand_value(dealer_hand) == 21
-    
+
         if player_blackjack or dealer_blackjack:
             if player_blackjack and dealer_blackjack:
                 outcome = "push"
@@ -383,10 +560,11 @@ class CasinoCog(commands.Cog):
                 outcome = "blackjack"
             else:
                 outcome = "loss"
-    
+
             await view.settle_immediate_blackjack(outcome)
+            replay_view = view.replay_view()
             view.message = await interaction.followup.send(
-                embed=view.build_embed(reveal_dealer=True), view=view, ephemeral=True
+                embed=view.build_embed(reveal_dealer=True), view=replay_view, ephemeral=True
             )
             if should_announce_blackjack_win(
                 bet=bet,
@@ -397,19 +575,36 @@ class CasinoCog(commands.Cog):
                     f"Выигрыш: **{self.bot.format_money(bet * (2.5 if outcome == 'blackjack' else 2))}**!"
                 )
             return
-    
+
         view.message = await interaction.followup.send(
             embed=view.build_embed(), view=view, wait=True, ephemeral=True
         )
-        
+
+    @app_commands.command(name="casino", description="Открыть казино")
+    async def casino_command(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title=f"{CASINO_LOGO_EMOJI} Казино",
+            description=(
+                "Выберите игру. Ставку можно указать перед каждой партией — "
+                "после неё не придётся снова вводить команду."
+            ),
+            color=discord.Color.dark_green(),
+        )
+        await interaction.response.send_message(
+            embed=embed, view=CasinoLobbyView(self.bot, interaction.user.id), ephemeral=True
+        )
+
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         import traceback
         print(f"Casino Cog error: {error}")
         traceback.print_exception(type(error), error, error.__traceback__)
         if not interaction.response.is_done():
             await interaction.response.send_message(f"Произошла ошибка: {error}", ephemeral=True)
-    
-    
+
+
 
 async def setup(bot):
     await bot.add_cog(CasinoCog(bot))
+    # Игры открываются из единого /casino, а не засоряют список команд.
+    for command_name in ("blackjack", "dice", "poker"):
+        bot.tree.remove_command(command_name)

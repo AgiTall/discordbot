@@ -38,6 +38,52 @@ def user_in_gang(account):
 #  GANG CREATION (modal + confirm view)
 # ══════════════════════════════════════════════════════════
 
+class GangCreateFromBalanceModal(discord.ui.Modal, title="Создать банду"):
+    gang_name = discord.ui.TextInput(label="Название", min_length=3, max_length=32)
+    hex_color = discord.ui.TextInput(label="Цвет HEX", placeholder="#8B4513", default="#8B4513")
+    leader_title = discord.ui.TextInput(label="Титул лидера", default="Главарь", max_length=32)
+    description = discord.ui.TextInput(label="Описание", style=discord.TextStyle.paragraph, max_length=1000)
+    criteria = discord.ui.TextInput(label="Критерии отбора", style=discord.TextStyle.paragraph, max_length=1000)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        name = str(self.gang_name.value).strip()
+        color = str(self.hex_color.value).strip()
+        if not color.startswith("#") or len(color) not in (4, 7):
+            await interaction.response.send_message(
+                "Цвет должен быть в формате HEX, например `#8B4513`.", ephemeral=True
+            )
+            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                gangs = get_gangs(interaction.guild_id)
+                if user_in_gang(account):
+                    message = "Вы уже состоите в банде."
+                elif name.casefold() in (item.casefold() for item in gangs):
+                    message = f"Банда **{name}** уже существует."
+                elif account.get("gold", 0.0) < GANG_CREATE_COST:
+                    message = f"Для создания банды нужно {GANG_CREATE_COST} золота."
+                else:
+                    message = None
+            if message:
+                await interaction.response.send_message(message, ephemeral=True)
+                return
+            embed = discord.Embed(
+                title="Создание банды",
+                description=f"Проверьте данные и подтвердите покупку за {GANG_CREATE_COST} {get_gold_emoji()}.",
+                color=discord.Color.dark_gold(),
+            )
+            view = GangCreateConfirmView(
+                interaction.guild_id, interaction.user, name, color, "", "",
+                str(self.description.value), str(self.criteria.value),
+                str(self.leader_title.value).strip() or "Главарь",
+            )
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        finally:
+            reset_economy_guild_id(token)
+
+
 class GangSetupModal(discord.ui.Modal, title='Данные для агитации'):
     logo_url = discord.ui.TextInput(label='Логотип (URL)', placeholder='https://...', required=False)
     bg_url = discord.ui.TextInput(label='Фон (URL)', placeholder='https://...', required=False)
@@ -2201,3 +2247,4 @@ class GangsCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(GangsCog(bot))
+    bot.tree.remove_command("gang-create")

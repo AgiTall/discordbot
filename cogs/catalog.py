@@ -446,7 +446,35 @@ CATALOG_ITEMS = {
         "type": "unique",
         "image": "ref/guns/weapon_shotgun_semiauto.png"
     },
-    # === Охота и рыбалка (заготовки) ===
+    # === Охота и рыбалка ===
+    "reviver": {
+        "name": "Оживитель",
+        "description": (
+            "Возвращает животное в чувство после обездвиживания. "
+            "Повышает шанс получения образца натуралистом. "
+            "Хранится в инвентаре, тратится при каждой охоте."
+        ),
+        "base_price": 8,
+        "currency": "cash",
+        "emoji": "🧪",
+        "category": "hunting",
+        "type": "consumable",
+        "quantity": 1,
+    },
+    "sleeping_dart": {
+        "name": "Снотворная стрела",
+        "description": (
+            "Специальная стрела с усыпляющим веществом для бесшумной охоты. "
+            "Значительно повышает шанс получения образца натуралистом. "
+            "Хранится в инвентаре, тратится при каждой охоте."
+        ),
+        "base_price": 15,
+        "currency": "cash",
+        "emoji": "💉",
+        "category": "hunting",
+        "type": "consumable",
+        "quantity": 1,
+    },
     # Боеприпасы добавляются ниже из единой таблицы, чтобы цены и пачки не расходились.
     # === Лошади и сбруя (заготовки) ===
     # === Провиант (заготовки) ===
@@ -1233,6 +1261,39 @@ class BalanceWeaponButtonView(discord.ui.View):
         finally:
             reset_economy_guild_id(token)
 
+    @discord.ui.button(label="Купить роли", emoji="🎭", style=discord.ButtonStyle.success, row=1)
+    async def roles_button(self, interaction, button):
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваш баланс!", ephemeral=True)
+            return
+        from bot import roles_command
+        await roles_command.callback(interaction)
+
+    @discord.ui.button(label="Создать банду", emoji="🤝", style=discord.ButtonStyle.primary, row=1)
+    async def create_gang_button(self, interaction, button):
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваш баланс!", ephemeral=True)
+            return
+        from cogs.gangs import GangCreateFromBalanceModal
+        await interaction.response.send_modal(GangCreateFromBalanceModal())
+
+    @discord.ui.button(label="Инвестиции", emoji="📈", style=discord.ButtonStyle.secondary, row=1)
+    async def investments_button(self, interaction, button):
+        if interaction.user.id != self.member.id:
+            await interaction.response.send_message("Это не ваш баланс!", ephemeral=True)
+            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                embed = build_company_embed(economy_data.current(), interaction.user.id)
+            await interaction.response.edit_message(
+                embed=embed,
+                attachments=[],
+                view=InvestmentsView(interaction.guild_id, interaction.user),
+            )
+        finally:
+            reset_economy_guild_id(token)
+
     @discord.ui.button(
         label="Обмен золота",
         emoji=get_gold_emoji(),
@@ -1535,6 +1596,21 @@ class InvestmentsView(discord.ui.View):
             async with economy_lock:
                 embed = build_company_embed(economy_data.current(), interaction.user.id)
             await interaction.response.edit_message(embed=embed, view=self)
+        finally:
+            reset_economy_guild_id(token)
+
+    @discord.ui.button(label="Вернуться к балансу", emoji="↩️", style=discord.ButtonStyle.secondary)
+    async def back_button(self, interaction, button):
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                rate = update_gold_rate()
+                account = get_account(interaction.user.id)
+                embed = build_balance_embed(interaction.guild, interaction.user, account, rate)
+            await interaction.response.edit_message(
+                embed=embed,
+                view=BalanceWeaponButtonView(self.guild_id, self.member),
+            )
         finally:
             reset_economy_guild_id(token)
 
@@ -1946,3 +2022,5 @@ async def setup(bot):
     # засоряют список slash-команд отдельными пунктами.
     for command_name in ("weapons", "weapon-equip", "weapon-unequip", "gun-oil", "ammo-select"):
         bot.tree.remove_command(command_name)
+    bot.tree.remove_command("roles")
+    bot.tree.remove_command("investments")
