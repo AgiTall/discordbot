@@ -10,6 +10,18 @@ CARD_SUITS = ["♠", "♥", "♦", "♣"]
 CARD_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
 BLACKJACK_ANNOUNCEMENT_MIN_BET = 100
 
+
+def get_casino_bank(bot):
+    import bot as bot_module
+    return max(0.0, float(bot_module.economy_data.get("casino_bank", 0.0)))
+
+
+def add_to_casino_bank(bot, amount):
+    import bot as bot_module
+    balance = round(get_casino_bank(bot) + max(0.0, float(amount)), 2)
+    bot_module.economy_data["casino_bank"] = balance
+    return balance
+
 def format_card(card):
     return format_card_emoji(card)
 
@@ -182,6 +194,10 @@ class BlackjackView(discord.ui.View):
                 if outcome == "blackjack":
                     self.set_balance_text(previous_balance, payout, account["cash"])
                 self.bot.save_economy()
+        elif hand["bet"] > 0:
+            async with self.bot.economy_lock:
+                add_to_casino_bank(self.bot, hand["bet"])
+                self.bot.save_economy()
 
     async def finish_game(self, interaction=None):
         self.disable_all_buttons()
@@ -227,6 +243,7 @@ class BlackjackView(discord.ui.View):
                     total_payout += payout
                 else:
                     hand["result_text"] = "Вы проиграли. Ставка остаётся у дилера."
+                    add_to_casino_bank(self.bot, bet)
             if has_win:
                 self.set_balance_text(previous_balance, total_payout, account["cash"])
             self.bot.save_economy()
@@ -380,6 +397,7 @@ async def _start_selected_game(interaction, bot, game, bet):
                 result = f"Вы выиграли **{bot.format_money(bet)}**."
             elif player_roll < dealer_roll:
                 account["cash"] -= bet
+                add_to_casino_bank(bot, bet)
                 result = f"Вы проиграли **{bot.format_money(bet)}**."
             else:
                 result = "Ничья. Ставка возвращается."
@@ -396,6 +414,7 @@ async def _start_selected_game(interaction, bot, game, bet):
                 result = f"Вы выиграли **{bot.format_money(bet)}**."
             elif player_score < dealer_score:
                 account["cash"] -= bet
+                add_to_casino_bank(bot, bet)
                 result = f"Вы проиграли **{bot.format_money(bet)}**."
             else:
                 result = "Ничья. Ставка возвращается."
@@ -532,6 +551,79 @@ class CasinoQuickReplayView(discord.ui.View):
         await interaction.response.send_modal(CasinoBetModal(self.bot, self.user_id, self.game))
 
 
+class AdminBankAmountModal(discord.ui.Modal):
+    amount = discord.ui.TextInput(label="Сумма", placeholder="Например: 1000", max_length=20)
+
+    def __init__(self, bot, user_id, action):
+        super().__init__(title="Взять из банка" if action == "take" else "Положить в банк")
+        self.bot, self.user_id, self.action = bot, user_id, action
+
+    async def on_submit(self, interaction):
+        if interaction.user.id != self.user_id or not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("Управлять банком могут только администраторы.", ephemeral=True)
+            return
+        try:
+            amount = round(float(str(self.amount.value).strip().replace(",", ".")), 2)
+        except ValueError:
+            amount = 0.0
+        if amount <= 0:
+            await interaction.response.send_message("Введите сумму больше нуля.", ephemeral=True)
+            return
+
+        import bot as bot_module
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(interaction.user.id)
+                bank = get_casino_bank(self.bot)
+                if self.action == "take":
+                    if bank + 0.0001 < amount:
+                        await interaction.response.send_message(
+                            f"В банке недостаточно денег. Доступно: **{self.bot.format_money(bank)}**.", ephemeral=True
+                        )
+                        return
+                    bank = round(bank - amount, 2)
+                    account["cash"] = round(account["cash"] + amount, 2)
+                    verb = "взяли из"
+                else:
+                    if account["cash"] + 0.0001 < amount:
+                        await interaction.response.send_message(
+                            f"У вас недостаточно денег. Доступно: **{self.bot.format_money(account['cash'])}**.", ephemeral=True
+                        )
+                        return
+                    account["cash"] = round(account["cash"] - amount, 2)
+                    bank = round(bank + amount, 2)
+                    verb = "положили в"
+                bot_module.economy_data["casino_bank"] = bank
+                self.bot.save_economy()
+            await interaction.response.send_message(
+                f"Вы {verb} банк **{self.bot.format_money(amount)}**.\n"
+                f"Капитал казино: **{self.bot.format_money(bank)}**.", ephemeral=True
+            )
+        finally:
+            self.bot.reset_economy_guild_id(token)
+
+
+class AdminBankView(discord.ui.View):
+    def __init__(self, bot, user_id):
+        super().__init__(timeout=600)
+        self.bot, self.user_id = bot, user_id
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id == self.user_id and interaction.user.guild_permissions.administrator:
+            return True
+        await interaction.response.send_message("Это меню доступно только вызвавшему его администратору.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Взять", emoji="📤", style=discord.ButtonStyle.danger)
+    async def take_button(self, interaction, button):
+        await interaction.response.send_modal(AdminBankAmountModal(self.bot, self.user_id, "take"))
+
+    @discord.ui.button(label="Положить", emoji="📥", style=discord.ButtonStyle.success)
+    async def put_button(self, interaction, button):
+        await interaction.response.send_modal(AdminBankAmountModal(self.bot, self.user_id, "put"))
+
+
 
 class CasinoCog(commands.Cog):
     def __init__(self, bot):
@@ -609,6 +701,20 @@ class CasinoCog(commands.Cog):
         )
         await interaction.response.send_message(
             embed=embed, view=CasinoLobbyView(self.bot, interaction.user.id), ephemeral=True
+        )
+
+    @app_commands.command(name="admin-bank", description="Админ: управление капиталом казино")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    async def admin_bank_command(self, interaction: discord.Interaction):
+        bank = get_casino_bank(self.bot)
+        embed = discord.Embed(
+            title=f"{CASINO_LOGO_EMOJI} Админский банк",
+            description=f"Капитал казино: **{self.bot.format_money(bank)}**",
+            color=discord.Color.dark_gold(),
+        )
+        await interaction.response.send_message(
+            embed=embed, view=AdminBankView(self.bot, interaction.user.id), ephemeral=True
         )
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):

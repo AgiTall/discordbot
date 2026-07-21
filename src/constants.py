@@ -247,6 +247,7 @@ BOT_EMBED_COLOR = discord.Color.gold()
 
 ADMIN_COMMAND_NAMES = {
     "admin",
+    "admin-bank",
     "reset-all", "delete-role", "restart-roles", "check",
     "give-money", "remove-money", "set-money",
     "give-gold", "remove-gold", "set-gold",

@@ -153,6 +153,7 @@ def default_economy() -> dict:
         "last_treasure_map_drop_date":  None,
         "role_icons":                   {},
         "role_discounts":               {},
+        "casino_bank":                  0.0,
         "companies":                    normalize_companies({}),
         "users":                        {},
     }
@@ -214,6 +215,10 @@ def normalize_economy_data(data: dict) -> dict:
     data.setdefault("last_treasure_map_drop_date", None)
     data.setdefault("role_icons", {})
     data.setdefault("role_discounts", {})
+    try:
+        data["casino_bank"] = max(0.0, round(float(data.get("casino_bank", 0.0)), 2))
+    except (TypeError, ValueError):
+        data["casino_bank"] = 0.0
     data["companies"] = normalize_companies(data.get("companies"))
     data.setdefault("users", {})
 
