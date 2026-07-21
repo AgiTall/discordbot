@@ -2333,8 +2333,71 @@ def build_roles_embed(guild, member=None, account=None):
 
 
 def build_balance_embed(guild, member, account, rate):
-    from src.role_utils import build_balance_embed as _build
-    return _build(guild, member, account, rate)
+    cash = account["cash"]
+    gold = account["gold"]
+    treasure_maps = account["treasure_maps"]
+    role_sections = format_balance_role_sections(guild, member, account)
+    gang_section = format_balance_gang_section(member, account)
+    property_section = format_balance_property_section(account)
+    weapon_section = format_balance_weapon_section(account)
+
+    inventory = account.get("inventory", {})
+    if not isinstance(inventory, dict):
+        inventory = {}
+    try:
+        has_safe = float(inventory.get("safe", 0)) > 0
+    except (TypeError, ValueError):
+        has_safe = False
+    try:
+        safe_cash = max(0.0, float(account.get("safe_cash", 0.0)))
+    except (TypeError, ValueError):
+        safe_cash = 0.0
+    try:
+        safe_gold = max(0.0, float(account.get("safe_gold", 0.0)))
+    except (TypeError, ValueError):
+        safe_gold = 0.0
+    if has_safe:
+        safe_line = (
+            f"├─ {get_safe_emoji()} Сейф: "
+            f"{format_number(safe_cash)} {get_cash_emoji()} / "
+            f"{format_number(safe_gold)} {get_gold_emoji()}"
+        )
+    else:
+        safe_line = (
+            f"├─ {get_lock_emoji()} {get_safe_emoji()} Сейф не куплен · `/catalog`"
+        )
+
+    fin_emoji = economy_data.get("balance_ui_finance", DEFAULT_BALANCE_FINANCE_EMOJI)
+    roles_emoji = economy_data.get("balance_ui_roles", DEFAULT_BALANCE_ROLES_EMOJI)
+    eco_emoji = economy_data.get("balance_ui_economy", DEFAULT_BALANCE_ECONOMY_EMOJI)
+
+    description = (
+        f"{fin_emoji} Финансы\n"
+        f"├─ {get_cash_emoji()} Деньги: {format_money_plain(cash)}\n"
+        f"├─ {get_gold_emoji()} Золото: {format_gold_plain(gold)}\n"
+        f"{safe_line}\n"
+        f"└─ {get_map_emoji()} Карты: {format_treasure_maps_plain(treasure_maps)}\n\n"
+        f"{gang_section}\n\n"
+        f"{roles_emoji} Профессии\n"
+        f"{role_sections}\n"
+        f"\n{property_section}\n\n"
+        f"{weapon_section}\n\n"
+        f"{DEFAULT_BALANCE_ACTIVITIES_EMOJI} Активности\n"
+        "├─ Заработок: `/work` · ограбление: `/rob`\n"
+        f"├─ Раскопки: {'`/excavation`' if treasure_maps > 0 else f'{get_lock_emoji()} нужна карта сокровищ'}\n"
+        f"└─ {CASINO_LOGO_EMOJI} Казино: `/dice` · `/poker` · `/blackjack`\n\n"
+        f"{eco_emoji} Экономика\n"
+        f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}"
+    )
+    embed = discord.Embed(
+        title=f"{get_stats_emoji()}Статистика: {member.display_name}",
+        description=description,
+        color=discord.Color.dark_gold(),
+    )
+    if os.path.exists(BALANCE_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{BALANCE_IMAGE_ATTACHMENT_NAME}")
+    embed.set_footer(text="Закрытые профессии открываются через /roles.")
+    return embed
 
 
 async def buy_game_role(interaction, role_key):
