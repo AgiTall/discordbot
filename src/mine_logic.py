@@ -374,6 +374,43 @@ ALL_SELL_PRICES.update(BAR_SELL_PRICE)
 ALL_SELL_PRICES.update(FIND_SELL)
 ALL_SELL_PRICES.update(GEM_SELL)
 
+def make_jewelry_key(metal: str, gem: str, type_key: str) -> str:
+    return f"{JEWELRY_KEY_PREFIX}{metal}_{gem}_{type_key}"
+
+def get_jewelry_name(jewel_key: str) -> str:
+    parts = jewel_key.replace(JEWELRY_KEY_PREFIX, "").split("_")
+    if len(parts) >= 3:
+        metal, gem, type_key = parts[0], parts[1], parts[2]
+        template = FORGE_TEMPLATES.get(type_key)
+        if template:
+            noun = template["noun"]
+            gender = template["gender"]
+            metal_adj = METAL_ADJ.get(metal, {}).get(gender, metal)
+            gem_prep = GEM_PREP.get(gem, "")
+            name_parts = [metal_adj, noun, gem_prep]
+            return " ".join([p for p in name_parts if p]).capitalize()
+    return jewel_key
+
+def get_jewelry_sell_price(jewel_key: str) -> float:
+    parts = jewel_key.replace(JEWELRY_KEY_PREFIX, "").split("_")
+    if len(parts) >= 3:
+        metal, gem = parts[0], parts[1]
+        metal_bar = f"{metal}_bar"
+        bar_val = BAR_SELL_PRICE.get(metal_bar, 10.0 if metal == "gold" else 0.0)
+        gem_val = GEM_SELL.get(gem, 0.0)
+        return round((bar_val + gem_val) * JEWELRY_VALUE_MULT, 2)
+    return 0.0
+
+def get_item_name(key: str) -> str:
+    if key.startswith(JEWELRY_KEY_PREFIX):
+        return get_jewelry_name(key)
+    return ALL_SELLABLE_NAMES.get(key, key)
+
+def get_item_price(key: str) -> float:
+    if key.startswith(JEWELRY_KEY_PREFIX):
+        return get_jewelry_sell_price(key)
+    return ALL_SELL_PRICES.get(key, 0.0)
+
 # ─────────────────────────────────────────────────
 #  АТМОСФЕРНЫЕ ТЕКСТЫ
 # ─────────────────────────────────────────────────
