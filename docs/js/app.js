@@ -1453,9 +1453,10 @@ function populateChannelSelects(channels) {
     const currentValues = select.multiple
       ? Array.from(select.selectedOptions).map(option => option.value)
       : [select.value];
+    const emptyOptionLabel = select.id === 'autoReactionChannel' ? 'Все каналы' : 'Не выбран';
     select.innerHTML = select.multiple
       ? channelOptions
-      : `<option value="">Не выбран</option>${channelOptions}`;
+      : `<option value="">${emptyOptionLabel}</option>${channelOptions}`;
     currentValues.filter(Boolean).forEach(currentVal => {
       if (!channels.some(c => String(c.id) === String(currentVal))) {
         select.innerHTML += `<option value="${currentVal}">Недоступный канал: ${currentVal}</option>`;
@@ -1481,12 +1482,61 @@ let editingAutoReactionIndex = null;
 let modalReactionEmojis = [];
 let modalReactionTriggers = [];
 let modalReactionExcluded = [];
+let activeAutoReactionEmojiCategory = 'smileys';
 
-const COMMON_REACTION_EMOJIS = [
-  '👍', '👎', '❤️', '🔥', '🎉', '😂', '😢', '😡', '🤠', '⭐',
-  '✅', '❌', '👀', '💯', '🏆', '💰', '🔫', '⛏️', '🍻', '🤝',
-  '🐎', '🌵', '💎', '🪙', '🗺️', '🎲', '🃏', '💀', '🚨', '✨',
+const REACTION_EMOJI_CATEGORIES = [
+  {
+    id: 'smileys', icon: '😀', title: 'Смайлики и эмоции',
+    emojis: '😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😝 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🤭 🤫 🤥 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤑 🤠 😈 👿 👹 👺 🤡 💩 👻 💀 ☠️ 👽 🤖 🎃 😺 😸 😹 😻 😼 😽 🙀 😿 😾'.split(' '),
+  },
+  {
+    id: 'people', icon: '👋', title: 'Люди и жесты',
+    emojis: '👋 🤚 🖐️ ✋ 🖖 👌 🤌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🦿 🦵 🦶 👂 👃 🧠 🫀 🫁 🦷 🦴 👀 👁️ 👅 👄 💋 👶 🧒 👦 👧 🧑 👱 👨 🧔 👩 🧓 👴 👵 🙍 🙎 🙅 🙆 💁 🙋 🧏 🙇 🤦 🤷 👮 👷 💂 🕵️ 👩‍⚕️ 👨‍🌾 👩‍🍳 👨‍🎓 👩‍🎤 👨‍🏫 👩‍🏭 👨‍💻 👩‍💼 👨‍🔧 👩‍🔬 👨‍🎨 👩‍🚒 👨‍✈️ 👩‍🚀 👨‍⚖️ 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🧞 🧟'.split(' '),
+  },
+  {
+    id: 'animals', icon: '🐻', title: 'Животные и природа',
+    emojis: '🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐻‍❄️ 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐒 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🪱 🐛 🦋 🐌 🐞 🐜 🪰 🪲 🪳 🦟 🦗 🕷️ 🦂 🐢 🐍 🦎 🐙 🦑 🦐 🦞 🦀 🐠 🐟 🐡 🐬 🐳 🦈 🐊 🐅 🐆 🦓 🦍 🦧 🐘 🦛 🦏 🐪 🦒 🦬 🐃 🐂 🐄 🐎 🐖 🐏 🦙 🐐 🦌 🐕 🐈 🐓 🦃 🦚 🦜 🦢 🦩 🕊️ 🐇 🦝 🦨 🦡 🦫 🦦 🦥 🐁 🐿️ 🦔 🌵 🎄 🌲 🌳 🌴 🌱 🌿 ☘️ 🍀 🎍 🪴 🎋 🍃 🍂 🍁 🍄 🐚 🪨 🌾 💐 🌷 🌹 🥀 🌺 🌸 🌼 🌻 🌞 🌝 🌚 🌙 ⭐ 🌟 ✨ ⚡ 🔥 🌈 ☀️ ☁️ ❄️ ☃️ 💨 💧 🌊'.split(' '),
+  },
+  {
+    id: 'food', icon: '🍎', title: 'Еда и напитки',
+    emojis: '🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🥑 🍆 🥔 🥕 🌽 🌶️ 🫑 🥒 🥬 🥦 🧄 🧅 🍄 🥜 🌰 🍞 🥐 🥖 🫓 🥨 🥯 🥞 🧇 🧀 🍖 🍗 🥩 🥓 🍔 🍟 🍕 🌭 🥪 🌮 🌯 🫔 🥙 🧆 🥚 🍳 🥘 🍲 🫕 🥣 🥗 🍿 🧈 🧂 🥫 🍱 🍘 🍙 🍚 🍛 🍜 🍝 🍠 🍢 🍣 🍤 🍥 🥮 🍡 🥟 🥠 🥡 🦪 🍦 🍧 🍨 🍩 🍪 🎂 🍰 🧁 🥧 🍫 🍬 🍭 🍮 🍯 🍼 🥛 ☕ 🫖 🍵 🍶 🍾 🍷 🍸 🍹 🍺 🍻 🥂 🥃 🥤 🧋 🧃 🧉 🧊'.split(' '),
+  },
+  {
+    id: 'activities', icon: '⚽', title: 'Активности',
+    emojis: '⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🪀 🏓 🏸 🏒 🏑 🥍 🏏 🪃 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛼 🛷 ⛸️ 🥌 🎿 ⛷️ 🏂 🪂 🏋️ 🤼 🤸 ⛹️ 🤺 🤾 🏌️ 🏇 🧘 🏄 🏊 🤽 🚣 🧗 🚵 🚴 🏆 🥇 🥈 🥉 🏅 🎖️ 🏵️ 🎗️ 🎫 🎟️ 🎪 🤹 🎭 🩰 🎨 🎬 🎤 🎧 🎼 🎹 🥁 🪘 🎷 🎺 🪗 🎸 🪕 🎻 🎲 ♟️ 🎯 🎳 🎮 🎰 🧩'.split(' '),
+  },
+  {
+    id: 'travel', icon: '🚗', title: 'Путешествия и места',
+    emojis: '🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🛻 🚚 🚛 🚜 🏍️ 🛵 🚲 🛴 🚨 🚔 🚍 🚘 🚖 🚡 🚠 🚟 🚃 🚋 🚞 🚝 🚄 🚅 🚈 🚂 🚆 🚇 🚊 🚉 ✈️ 🛫 🛬 🛩️ 🚀 🛸 🚁 ⛵ 🚤 🛥️ 🛳️ ⛴️ 🚢 ⚓ ⛽ 🚧 🚦 🗺️ 🗿 🗽 🗼 🏰 🏯 🏟️ 🎡 🎢 🎠 ⛲ ⛺ 🌁 🌃 🏙️ 🌄 🌅 🌆 🌇 🌉 ♨️'.split(' '),
+  },
+  {
+    id: 'objects', icon: '💡', title: 'Предметы',
+    emojis: '⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 💽 💾 💿 📀 🧮 🎥 📷 📸 📹 🔍 🔎 💡 🔦 🏮 📔 📕 📖 📗 📘 📙 📚 📓 📒 📃 📜 📄 📰 🗞️ 📑 🔖 🏷️ 💰 🪙 💴 💵 💶 💷 💸 💳 🧾 ✉️ 📧 📨 📩 📤 📥 📦 📫 📮 📝 💼 📁 📂 🗂️ 📅 📆 📇 📈 📉 📊 📋 📌 📍 📎 📏 📐 ✂️ 🔒 🔓 🔑 🔨 🪓 ⛏️ ⚒️ 🛠️ 🗡️ ⚔️ 🔫 🪃 🛡️ 🔧 🪛 🔩 ⚙️ 🗜️ ⚖️ 🔗 ⛓️ 🧰 🧲 🪜 ⚗️ 🧪 🧬 🔬 🔭 📡 💉 🩸 💊 🩹 🩺 🚪 🪑 🚽 🚿 🛁 🧹 🧺 🧻 🪣 🧼 🪥 🧽 🧯 🛒 🎁 🎈 🎉 🎊'.split(' '),
+  },
+  {
+    id: 'symbols', icon: '💟', title: 'Символы',
+    emojis: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ☮️ ✝️ ☪️ 🕉️ ☸️ ✡️ 🔯 🕎 ☯️ ☦️ 🛐 ⛎ ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓ 🆔 ⚛️ ☢️ ☣️ 📴 📳 🈶 🈚 🈸 🈺 🈷️ ✴️ 🆚 💮 🉐 ㊙️ ㊗️ 🈴 🈵 🈹 🈲 🅰️ 🅱️ 🆎 🆑 🅾️ 🆘 ❌ ⭕ 🛑 ⛔ 📛 🚫 💯 💢 ♨️ 🚷 🚯 🚳 🚱 🔞 📵 ⚠️ ❗ ❕ ❓ ❔ ‼️ ⁉️ 🔅 🔆 〽️ ⚜️ 🔱 ✅ ☑️ ✔️ ❎ ➕ ➖ ➗ ✖️ ♾️ ™️ ©️ ®️'.split(' '),
+  },
+  {
+    id: 'flags', icon: '🏳️', title: 'Флаги',
+    emojis: '🏁 🚩 🎌 🏴 🏳️ 🏳️‍🌈 🏳️‍⚧️ 🏴‍☠️ 🇺🇳 🇷🇺 🇰🇿 🇺🇦 🇧🇾 🇦🇲 🇦🇿 🇬🇪 🇺🇿 🇰🇬 🇹🇯 🇲🇩 🇺🇸 🇨🇦 🇲🇽 🇧🇷 🇦🇷 🇬🇧 🇫🇷 🇩🇪 🇮🇹 🇪🇸 🇵🇹 🇳🇱 🇧🇪 🇨🇭 🇦🇹 🇵🇱 🇨🇿 🇸🇰 🇭🇺 🇷🇴 🇧🇬 🇬🇷 🇹🇷 🇸🇪 🇳🇴 🇫🇮 🇩🇰 🇮🇸 🇮🇪 🇪🇺 🇨🇳 🇯🇵 🇰🇷 🇮🇳 🇮🇩 🇹🇭 🇻🇳 🇦🇺 🇳🇿 🇿🇦 🇪🇬 🇮🇱 🇸🇦 🇦🇪'.split(' '),
+  },
 ];
+
+const REACTION_EMOJI_ALIASES = {
+  '😂': 'смех слезы lol laugh', '🤣': 'смех ржу lol rofl', '🥰': 'любовь love',
+  '😭': 'плач слезы cry', '😡': 'злость angry', '🤠': 'ковбой cowboy western',
+  '👍': 'палец вверх лайк like yes да', '👎': 'палец вниз dislike no нет',
+  '🙏': 'спасибо молитва please thanks', '👏': 'аплодисменты clap', '🤝': 'рукопожатие договор deal',
+  '❤️': 'сердце любовь heart love', '💔': 'разбитое сердце heartbreak',
+  '🔥': 'огонь fire hot', '✨': 'блеск искры sparkles', '⭐': 'звезда star',
+  '✅': 'готово галочка done check', '❌': 'крест ошибка no cancel', '⚠️': 'внимание warning',
+  '🎉': 'праздник party поздравление', '🏆': 'кубок победа trophy win',
+  '💰': 'деньги мешок money', '🪙': 'монета золото coin gold', '💎': 'алмаз diamond',
+  '👀': 'глаза смотрю eyes look', '💯': 'сто hundred perfect', '💀': 'череп skull dead',
+  '🔫': 'оружие пистолет gun', '⛏️': 'кирка шахта pickaxe mine', '🍻': 'пиво cheers beer',
+  '🐎': 'лошадь horse', '🌵': 'кактус cactus', '🗺️': 'карта map', '🎲': 'кости dice',
+};
 
 function normalizeAutoReactionRule(rule = {}) {
   const legacyTrigger = rule.trigger ? [rule.trigger] : [];
@@ -1506,6 +1556,72 @@ function normalizeAutoReactionRule(rule = {}) {
 
 function autoReactionEmojiHtml(emoji) {
   return discordEmojiHtml(emoji, escapeHtml(emoji));
+}
+
+function setAutoReactionEmojiPickerOpen(isOpen) {
+  const picker = document.getElementById('autoReactionEmojiPicker');
+  const addButton = document.getElementById('autoReactionAddEmoji');
+  if (!picker || !addButton) return;
+  picker.hidden = !isOpen;
+  addButton.setAttribute('aria-expanded', String(isOpen));
+  addButton.classList.toggle('is-active', isOpen);
+}
+
+function addOrRemoveModalReactionEmoji(emoji) {
+  const normalized = String(emoji || '').trim();
+  if (!normalized) return;
+  if (modalReactionEmojis.includes(normalized)) {
+    modalReactionEmojis = modalReactionEmojis.filter(item => item !== normalized);
+  } else if (modalReactionEmojis.length < 10) {
+    modalReactionEmojis.push(normalized);
+  } else {
+    showToast(document.getElementById('toast'), 'Можно выбрать не больше 10 реакций.', true);
+    return;
+  }
+  renderModalReactionEmojis();
+  renderAutoReactionEmojiGrid(document.getElementById('autoReactionEmojiSearch')?.value || '');
+}
+
+function autoReactionEmojiOptions(query = '') {
+  const needle = query.trim().toLocaleLowerCase('ru');
+  const unicodeOptions = REACTION_EMOJI_CATEGORIES.flatMap(category =>
+    category.emojis.map(emoji => ({
+      name: emoji,
+      format: emoji,
+      category: category.id,
+      categoryTitle: category.title,
+      keywords: REACTION_EMOJI_ALIASES[emoji] || '',
+    }))
+  );
+  const serverOptions = guildEmojisCache.map(emoji => ({
+    name: emoji.name,
+    format: emoji.format,
+    category: 'server',
+    categoryTitle: 'Эмодзи сервера',
+    keywords: emoji.name,
+  }));
+  const options = [...unicodeOptions, ...serverOptions].filter((emoji, index, all) =>
+    all.findIndex(item => item.format === emoji.format) === index
+  );
+  if (!needle) return options.filter(emoji => emoji.category === activeAutoReactionEmojiCategory);
+  return options.filter(emoji =>
+    `${emoji.name} ${emoji.keywords} ${emoji.categoryTitle}`.toLocaleLowerCase('ru').includes(needle)
+  );
+}
+
+function renderAutoReactionEmojiCategories() {
+  const holder = document.getElementById('autoReactionEmojiCategories');
+  if (!holder) return;
+  const categories = [
+    ...REACTION_EMOJI_CATEGORIES,
+    { id: 'server', icon: '🏰', title: 'Эмодзи сервера' },
+  ];
+  holder.innerHTML = categories.map(category => `
+    <button type="button" role="tab" class="${category.id === activeAutoReactionEmojiCategory ? 'is-active' : ''}"
+      data-emoji-category="${category.id}" aria-selected="${category.id === activeAutoReactionEmojiCategory}"
+      aria-label="${escapeHtml(category.title)}" title="${escapeHtml(category.title)}">
+      ${category.icon}
+    </button>`).join('');
 }
 
 function autoReactionChannelName(channelId) {
@@ -1561,41 +1677,36 @@ function renderModalReactionEmojis() {
     button.addEventListener('click', () => {
       modalReactionEmojis.splice(Number(button.dataset.removeModalEmoji), 1);
       renderModalReactionEmojis();
-      renderAutoReactionEmojiGrid();
+      renderAutoReactionEmojiGrid(document.getElementById('autoReactionEmojiSearch')?.value || '');
     });
   });
+  const limit = document.getElementById('autoReactionEmojiLimit');
+  if (limit) limit.textContent = `${modalReactionEmojis.length}/10`;
 }
 
 function renderAutoReactionEmojiGrid(query = '') {
   const grid = document.getElementById('autoReactionEmojiGrid');
   if (!grid) return;
-  const needle = query.trim().toLocaleLowerCase('ru');
-  const options = [
-    ...COMMON_REACTION_EMOJIS.map(emoji => ({ name: emoji, format: emoji })),
-    ...guildEmojisCache.map(emoji => ({ name: emoji.name, format: emoji.format })),
-  ].filter((emoji, index, all) =>
-    all.findIndex(item => item.format === emoji.format) === index &&
-    (!needle || emoji.name.toLocaleLowerCase('ru').includes(needle))
-  );
+  const options = autoReactionEmojiOptions(query);
+  const activeCategory = activeAutoReactionEmojiCategory === 'server'
+    ? { title: 'Эмодзи сервера' }
+    : REACTION_EMOJI_CATEGORIES.find(category => category.id === activeAutoReactionEmojiCategory);
+  const title = document.getElementById('autoReactionEmojiCategoryTitle');
+  if (title) title.textContent = query.trim() ? 'Результаты поиска' : (activeCategory?.title || 'Эмодзи');
   grid.innerHTML = options.map(emoji => `
     <button type="button" class="auto-reaction-emoji-option ${modalReactionEmojis.includes(emoji.format) ? 'is-selected' : ''}"
-      data-modal-emoji="${escapeHtml(emoji.format)}" title="${escapeHtml(emoji.name)}">
+      data-modal-emoji="${escapeHtml(emoji.format)}" title="${escapeHtml(emoji.name)}"
+      aria-label="${escapeHtml(emoji.name)}" aria-pressed="${modalReactionEmojis.includes(emoji.format)}">
       ${autoReactionEmojiHtml(emoji.format)}
     </button>`).join('');
-  grid.querySelectorAll('[data-modal-emoji]').forEach(button => {
-    button.addEventListener('click', () => {
-      const emoji = button.dataset.modalEmoji;
-      if (modalReactionEmojis.includes(emoji)) {
-        modalReactionEmojis = modalReactionEmojis.filter(item => item !== emoji);
-      } else if (modalReactionEmojis.length < 10) {
-        modalReactionEmojis.push(emoji);
-      } else {
-        showToast(document.getElementById('toast'), 'Можно выбрать не больше 10 реакций.', true);
-      }
-      renderModalReactionEmojis();
-      renderAutoReactionEmojiGrid(document.getElementById('autoReactionEmojiSearch')?.value || '');
-    });
-  });
+  const empty = document.getElementById('autoReactionEmojiEmpty');
+  if (empty) {
+    empty.hidden = options.length > 0;
+    empty.textContent = activeAutoReactionEmojiCategory === 'server' && !guildEmojisCache.length && !query.trim()
+      ? 'На сервере нет доступных эмодзи'
+      : 'Эмодзи не найдены';
+  }
+  renderAutoReactionEmojiCategories();
 }
 
 function renderAutoReactionTags(containerId, terms, kind) {
@@ -1634,7 +1745,7 @@ function openAutoReactionModal(index = null) {
   if (!modal) return;
   editingAutoReactionIndex = Number.isInteger(index) ? index : null;
   const rule = editingAutoReactionIndex === null
-    ? normalizeAutoReactionRule()
+    ? { ...normalizeAutoReactionRule(), messageType: 'default' }
     : normalizeAutoReactionRule(autoReactionRules[editingAutoReactionIndex]);
   modalReactionEmojis = [...rule.emojis];
   modalReactionTriggers = [...rule.triggers];
@@ -1642,8 +1753,12 @@ function openAutoReactionModal(index = null) {
   document.getElementById('autoReactionDialogTitle').textContent = editingAutoReactionIndex === null ? 'Новое правило' : 'Изменить правило';
   document.getElementById('autoReactionChannel').value = rule.channelId;
   document.getElementById('autoReactionMessageType').value = rule.messageType;
-  document.getElementById('autoReactionEmojiPicker').hidden = true;
+  setAutoReactionEmojiPickerOpen(false);
+  activeAutoReactionEmojiCategory = 'smileys';
   document.getElementById('autoReactionEmojiSearch').value = '';
+  document.getElementById('autoReactionCustomEmojiInput').value = '';
+  document.getElementById('autoReactionTriggersInput').value = '';
+  document.getElementById('autoReactionExcludedInput').value = '';
   renderModalReactionEmojis();
   renderAutoReactionEmojiGrid();
   renderAutoReactionTags('autoReactionTriggers', modalReactionTriggers, 'trigger');
@@ -1655,6 +1770,7 @@ function openAutoReactionModal(index = null) {
 function closeAutoReactionModal() {
   const modal = document.getElementById('autoReactionModal');
   if (modal) modal.hidden = true;
+  setAutoReactionEmojiPickerOpen(false);
   document.body.classList.remove('modal-open');
 }
 
@@ -1694,18 +1810,55 @@ function initAutoReactionEditor(rules = []) {
   });
   document.getElementById('autoReactionAddEmoji')?.addEventListener('click', () => {
     const picker = document.getElementById('autoReactionEmojiPicker');
-    picker.hidden = !picker.hidden;
-    if (!picker.hidden) document.getElementById('autoReactionEmojiSearch').focus();
+    const willOpen = picker.hidden;
+    setAutoReactionEmojiPickerOpen(willOpen);
+    if (willOpen) {
+      renderAutoReactionEmojiGrid(document.getElementById('autoReactionEmojiSearch')?.value || '');
+      document.getElementById('autoReactionEmojiSearch').focus();
+    }
   });
   document.getElementById('autoReactionEmojiSearch')?.addEventListener('input', event => {
     renderAutoReactionEmojiGrid(event.target.value);
   });
+  document.getElementById('autoReactionEmojiCategories')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-emoji-category]');
+    if (!button) return;
+    activeAutoReactionEmojiCategory = button.dataset.emojiCategory;
+    const search = document.getElementById('autoReactionEmojiSearch');
+    search.value = '';
+    renderAutoReactionEmojiGrid();
+  });
+  document.getElementById('autoReactionEmojiGrid')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-modal-emoji]');
+    if (button) addOrRemoveModalReactionEmoji(button.dataset.modalEmoji);
+  });
   document.getElementById('autoReactionCustomEmoji')?.addEventListener('click', () => {
-    const value = prompt('Введите Unicode-эмодзи или код серверного эмодзи:');
-    if (value?.trim() && !modalReactionEmojis.includes(value.trim()) && modalReactionEmojis.length < 10) {
-      modalReactionEmojis.push(value.trim());
-      renderModalReactionEmojis();
-      renderAutoReactionEmojiGrid();
+    const input = document.getElementById('autoReactionCustomEmojiInput');
+    if (!input.value.trim()) return;
+    addOrRemoveModalReactionEmoji(input.value);
+    input.value = '';
+    input.focus();
+  });
+  document.getElementById('autoReactionCustomEmojiInput')?.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    document.getElementById('autoReactionCustomEmoji').click();
+  });
+  document.addEventListener('click', event => {
+    const picker = document.getElementById('autoReactionEmojiPicker');
+    const field = document.getElementById('autoReactionEmojiField');
+    if (picker && !picker.hidden && field && !field.contains(event.target)) {
+      setAutoReactionEmojiPickerOpen(false);
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || document.getElementById('autoReactionModal')?.hidden) return;
+    const picker = document.getElementById('autoReactionEmojiPicker');
+    if (picker && !picker.hidden) {
+      setAutoReactionEmojiPickerOpen(false);
+      document.getElementById('autoReactionAddEmoji')?.focus();
+    } else {
+      closeAutoReactionModal();
     }
   });
   [

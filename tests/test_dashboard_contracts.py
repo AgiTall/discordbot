@@ -64,6 +64,17 @@ class SettingsValidationTests(TestCase):
         dashboard = (ROOT / "docs" / "dashboard.html").read_text(encoding="utf-8")
         self.assertIn('src="js/app.js?v=', dashboard)
 
+    def test_auto_reaction_picker_has_categories_search_and_custom_input(self):
+        source = (ROOT / "docs" / "js" / "app.js").read_text(encoding="utf-8")
+        dashboard = (ROOT / "docs" / "dashboard.html").read_text(encoding="utf-8")
+
+        self.assertIn("REACTION_EMOJI_CATEGORIES", source)
+        self.assertIn("guildEmojisCache.map", source)
+        self.assertNotIn("prompt('Введите Unicode-эмодзи", source)
+        self.assertIn('id="autoReactionEmojiCategories"', dashboard)
+        self.assertIn('id="autoReactionEmojiSearch"', dashboard)
+        self.assertIn('id="autoReactionCustomEmojiInput"', dashboard)
+
 
 class GuildSettingsRoundTripTests(TestCase):
     class EconomyStore:

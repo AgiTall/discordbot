@@ -7,7 +7,7 @@
   <meta name="description"
     content="Панель настройки Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — войдите через Discord, выберите сервер и настройте бота.">
   <title>Настройки — Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=0.8.1.11">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -19,7 +19,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.8.1.11</span>
+        <span class="navbar__badge">v0.8.1.12</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -704,12 +704,33 @@
                       <div class="form-group">
                         <label>Реакции</label>
                         <p class="hint">Можно выбрать до 10 реакций</p>
-                        <div class="auto-reaction-selected-emojis" id="autoReactionSelectedEmojis"></div>
-                        <button type="button" class="auto-reaction-add-emoji" id="autoReactionAddEmoji" aria-label="Добавить реакцию">+</button>
-                        <div class="auto-reaction-emoji-picker" id="autoReactionEmojiPicker" hidden>
-                          <input class="form-control" id="autoReactionEmojiSearch" placeholder="Поиск эмодзи">
-                          <div class="auto-reaction-emoji-grid" id="autoReactionEmojiGrid"></div>
-                          <button type="button" class="btn btn--ghost btn--sm" id="autoReactionCustomEmoji">Ввести свой эмодзи</button>
+                        <div class="auto-reaction-emoji-field" id="autoReactionEmojiField">
+                          <div class="auto-reaction-selected-emojis" id="autoReactionSelectedEmojis"></div>
+                          <button type="button" class="auto-reaction-add-emoji" id="autoReactionAddEmoji"
+                            aria-label="Добавить реакцию" aria-haspopup="dialog" aria-expanded="false">+</button>
+                          <div class="auto-reaction-emoji-picker" id="autoReactionEmojiPicker" role="dialog"
+                            aria-label="Выбор эмодзи" hidden>
+                            <div class="auto-reaction-emoji-categories" id="autoReactionEmojiCategories"
+                              role="tablist" aria-label="Категории эмодзи"></div>
+                            <div class="auto-reaction-emoji-search">
+                              <span aria-hidden="true">⌕</span>
+                              <input id="autoReactionEmojiSearch" type="search" autocomplete="off"
+                                placeholder="Поиск" aria-label="Поиск эмодзи">
+                            </div>
+                            <div class="auto-reaction-emoji-picker__heading">
+                              <strong id="autoReactionEmojiCategoryTitle">Смайлики и эмоции</strong>
+                              <span id="autoReactionEmojiLimit">0/10</span>
+                            </div>
+                            <div class="auto-reaction-emoji-grid" id="autoReactionEmojiGrid"></div>
+                            <div class="auto-reaction-emoji-empty" id="autoReactionEmojiEmpty" hidden>
+                              Эмодзи не найдены
+                            </div>
+                            <div class="auto-reaction-custom-emoji">
+                              <input id="autoReactionCustomEmojiInput" maxlength="80"
+                                placeholder="Свой эмодзи или &lt;:name:id&gt;" aria-label="Свой эмодзи">
+                              <button type="button" id="autoReactionCustomEmoji">Добавить</button>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -1210,7 +1231,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2026 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.8.1.11</span>
+        <span class="footer__version">v0.8.1.12</span>
       </div>
     </div>
   </footer>
@@ -1227,7 +1248,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=0.8.1.10.2"></script>
+  <script src="js/app.js?v=0.8.1.11"></script>
 </body>
 
 <!-- Datalist для каналов -->

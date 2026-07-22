@@ -5920,9 +5920,9 @@ async def on_message(message):
 
         await bot.process_commands(message)
 
-        if message.guild and not message.author.bot and message.content:
+        if message.guild and not message.author.bot:
             for emoji in matching_reaction_emojis(
-                message.content,
+                message.content or "",
                 economy_data.get("auto_reactions", []),
                 channel_id=message.channel.id,
                 message_type=getattr(message.type, "name", "default"),

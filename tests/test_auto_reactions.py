@@ -71,6 +71,21 @@ class AutoReactionTests(unittest.TestCase):
             [],
         )
 
+    def test_rule_without_triggers_matches_attachment_only_message(self):
+        rules = [{
+            "channelId": "200",
+            "emojis": ["👀"],
+            "messageType": "default",
+            "triggers": [],
+            "excludedTriggers": [],
+        }]
+        self.assertEqual(
+            matching_reaction_emojis(
+                "", rules, channel_id=200, message_type="default"
+            ),
+            ["👀"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

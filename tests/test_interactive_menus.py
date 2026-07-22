@@ -121,6 +121,7 @@ class InteractiveMenuContracts(unittest.TestCase):
         handler = source[source.index("async def on_message(message):"):]
         self.assertIn("matching_reaction_emojis", handler)
         self.assertIn('economy_data.get("auto_reactions", [])', handler)
+        self.assertIn('message.content or ""', handler)
         self.assertIn("await message.add_reaction", handler)
 
     def test_bounty_leaderboard_lives_inside_bounty_menu(self):
