@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import IsolatedAsyncioTestCase, TestCase
 from unittest.mock import AsyncMock, patch
@@ -7,6 +8,9 @@ from app.routers.gangs import get_my_gang, get_my_profile
 from app.routers.settings import _validate_settings_payload
 from app.services.auth_service import create_session_from_code
 from src.guild_config import get_guild_settings, set_guild_settings
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class SettingsValidationTests(TestCase):
@@ -45,6 +49,14 @@ class SettingsValidationTests(TestCase):
                 {"workSuccessMessage": "Награда: {unknown}"},
             )
         self.assertEqual(raised.exception.status_code, 400)
+
+    def test_dashboard_initializes_auto_reactions_for_legacy_settings(self):
+        source = (ROOT / "docs" / "js" / "app.js").read_text(encoding="utf-8")
+        setup = source[source.index("function setupDashboardUi"):source.index("function initSidebarMobileToggle")]
+        self.assertIn("initAutoReactionEditor(settings?.autoReactions || [])", setup)
+
+        dashboard = (ROOT / "docs" / "dashboard.html").read_text(encoding="utf-8")
+        self.assertIn('src="js/app.js?v=', dashboard)
 
 
 class GuildSettingsRoundTripTests(TestCase):

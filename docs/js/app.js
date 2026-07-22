@@ -830,6 +830,8 @@ function setupDashboardUi(settings) {
 
   hideSkeletonLoader();
   applySettingsToForm(settings);
+  // Инициализируем редактор даже при ответе старого API без autoReactions.
+  initAutoReactionEditor(settings?.autoReactions || []);
   renderSetupHealth(settings);
   
   // Предзагрузка каналов и ролей сервера для UI
@@ -1123,10 +1125,7 @@ function collectFormData() {
 function applySettingsToForm(settings) {
   Object.entries(settings).forEach(([key, val]) => {
     if (key === 'rankRoles') return; // обрабатывается отдельно
-    if (key === 'autoReactions') {
-      initAutoReactionEditor(val);
-      return;
-    }
+    if (key === 'autoReactions') return; // отдельный динамический редактор
     const el = document.querySelector(`[data-setting="${key}"]`);
     if (!el) return;
     if (el.type === 'checkbox') {
