@@ -4,6 +4,7 @@ from src.moonshiner_logic import *
 from src.collector_logic import *
 from src.company_logic import normalize_companies
 from emoji_config import *
+from src.auto_reactions import matching_reaction_emojis, normalize_auto_reactions
 import os
 import logging
 
@@ -335,6 +336,7 @@ def default_economy():
         "treasure_channel_id": None,
         "news_channel_id": None,
         "thread_channel_ids": [],
+        "auto_reactions": [],
         "welcome_enabled": False,
         "welcome_channel_id": None,
         "welcome_role_id": None,
@@ -400,6 +402,7 @@ def normalize_economy_data(data):
     data.setdefault("treasure_channel_id", None)
     data.setdefault("news_channel_id", None)
     data.setdefault("thread_channel_ids", [])
+    data.setdefault("auto_reactions", [])
     data.setdefault("welcome_enabled", False)
     data.setdefault("welcome_channel_id", None)
     data.setdefault("welcome_role_id", None)
@@ -492,6 +495,7 @@ def normalize_economy_data(data):
         data["users"] = {}
     if not isinstance(data.get("thread_channel_ids"), list):
         data["thread_channel_ids"] = []
+    data["auto_reactions"] = normalize_auto_reactions(data.get("auto_reactions"))
 
     return data
 
@@ -1677,13 +1681,9 @@ def get_role_command_hint(role_key):
         )
     if role_key == "miner":
         return (
-            "\n\nКоманды шахтёра:\n"
-            "`/mine` — копать один куб породы (лимит 3 в день).\n"
-            "`/mine-status` — глубина, инвентарь, состояние кирки.\n"
-            "`/mine-buy` — купить расходники и кирки.\n"
-            "`/mine-sell` — продать руду, слитки и находки.\n"
-            "`/mine-smelt` — переплавить руду у кузнеца.\n"
-            "`/mine-forge` — создать украшение у ювелира."
+            "\n\nКоманда шахтёра:\n"
+            "`/mine` — открыть единое меню шахты: копка, инвентарь, лавка, "
+            "продажа, кузнец и ювелир (5 попыток в день)."
         )
     return ""
 
@@ -2598,7 +2598,7 @@ def build_help_pages(is_admin):
     overview.add_field(
         name="Быстрый старт",
         value=(
-            "`/balance`, `/work`, `/roles`, `/gang-info`, `/bounty`, `/naturalist`"
+            "`/balance`, `/work`, `/roles`, `/catalog`, `/casino`, `/mine`, `/collector`"
         ),
         inline=False,
     )
@@ -2654,7 +2654,9 @@ def build_help_pages(is_admin):
             "`/dealer` / `/dealer-delivery` — заполнение и доставка повозки торговца.\n"
             "`/moonshine` — варка и продажа самогона, прокачка аппарата.\n"
             "`/bounty` — контракты и доска охотников в одном меню.\n"
-            "`/naturalist` — справочник животных и сбор образцов."
+            "`/naturalist` — справочник животных и сбор образцов.\n"
+            "`/mine` — шахта, инвентарь, лавка, кузнец и ювелир.\n"
+            "`/collector` — поиск редкостей, наборы и инструменты."
         ),
         inline=False,
     )
@@ -2668,7 +2670,7 @@ def build_help_pages(is_admin):
     )
     pages["roles"] = {
         "label": "Роли и Профессии",
-        "description": "Торговец, Самогонщик, Охотник, Натуралист",
+        "description": "Все профессии и их игровые меню",
         "emoji": "🤠",
         "embed": roles
     }
@@ -2711,17 +2713,16 @@ def build_help_pages(is_admin):
         color=discord.Color.gold(),
     )
     games.add_field(
-        name="Доступные игры",
+        name="Единое меню казино",
         value=(
-            "`/dice bet` — кости против бота.\n"
-            "`/poker bet` — 5-карточный покер с заменой карт.\n"
-            "`/blackjack` — блэкджек с дилером."
+            "`/casino` — открыть казино, выбрать блэкджек, кости или покер, "
+            "указать ставку и сыграть повторно без нового вызова команды."
         ),
         inline=False,
     )
     pages["games"] = {
         "label": "Казино",
-        "description": "Кости, покер, блэкджек",
+        "description": "Блэкджек, кости и покер в одном меню",
         "emoji": CASINO_LOGO_EMOJI,
         "embed": games
     }
@@ -2733,20 +2734,19 @@ def build_help_pages(is_admin):
         color=discord.Color.gold(),
     )
     miner.add_field(
-        name="Основные команды",
+        name="Единое меню шахты",
         value=(
-            "`/mine` — копать один куб породы (лимит 3 в день).\n"
-            "`/mine-status` — глубина, инвентарь, состояние инструмента.\n"
-            "`/mine-buy` — купить расходники и кирки в лавке."
+            "`/mine` — открыть шахту (5 попыток в день).\n"
+            "В меню доступны копка, инвентарь, лавка расходников и улучшение кирки."
         ),
         inline=False,
     )
     miner.add_field(
         name="Торговля и ремесло",
         value=(
-            "`/mine-sell` — продать руду, слитки, находки, камни, украшения в факторию.\n"
-            "`/mine-smelt` — переплавить руду в слитки у кузнеца.\n"
-            "`/mine-forge` — отдать слиток + камень ювелиру для создания украшения."
+            "Кнопка **Продать** — продать ресурсы и украшения в факторию.\n"
+            "Кнопка **Кузнец** — переплавить руду в слитки.\n"
+            "Кнопка **Ювелир** — создать украшение из слитка и самоцвета."
         ),
         inline=False,
     )
@@ -2787,6 +2787,7 @@ def build_help_pages(is_admin):
         admin.add_field(
             name="Валюта и самогонщик",
             value=(
+                "`/admin-bank` — управление капиталом казино.\n"
                 "`/check`, `/give-money`, `/remove-money`, `/set-money`, `/give-gold` и т.д.\n"
                 "`/fill-dealer`, `/give-moonshine-ingredient`, `/set-moonshine-upgrade`, "
                 "`/set-moonshine-skill`, `/finish-moonshine`, `/reset-moonshine`"
@@ -5918,6 +5919,21 @@ async def on_message(message):
             return
 
         await bot.process_commands(message)
+
+        if message.guild and not message.author.bot and message.content:
+            for emoji in matching_reaction_emojis(
+                message.content,
+                economy_data.get("auto_reactions", []),
+            ):
+                try:
+                    reaction = discord.PartialEmoji.from_str(emoji)
+                    await message.add_reaction(reaction if reaction.id else emoji)
+                except (discord.Forbidden, discord.HTTPException, TypeError, ValueError):
+                    logging.info(
+                        "Не удалось поставить автореакцию %r в канале %s",
+                        emoji,
+                        message.channel.id,
+                    )
 
         guild_thread_channels = set()
         if message.guild:

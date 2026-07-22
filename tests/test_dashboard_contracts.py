@@ -29,6 +29,7 @@ class SettingsValidationTests(TestCase):
                 "goldRate": "750.50",
                 "workSuccessMessage": "{mention}: {scenario}, награда {reward}",
                 "roleRequiredMessage": "Нужна профессия {role}",
+                "autoReactions": [{"trigger": "победа", "emoji": "🏆"}],
             },
         )
 
@@ -94,6 +95,7 @@ class GuildSettingsRoundTripTests(TestCase):
                 "roleIconMoonshiner": "🥃",
                 "workSuccessMessage": "{mention}: {scenario}; {reward}",
                 "roleRequiredMessage": "Сначала получите роль {role}",
+                "autoReactions": [{"trigger": "  Дикий   Запад ", "emoji": "🤠"}],
             },
         )
 
@@ -102,7 +104,12 @@ class GuildSettingsRoundTripTests(TestCase):
         self.assertEqual(economy.data["gold_rate"], 812.25)
         self.assertEqual(economy.data["balance_ui_gang"], "<:gang:123456789>")
         self.assertEqual(economy.data["role_key_icons"]["moonshiner"], "🥃")
+        self.assertEqual(
+            economy.data["auto_reactions"],
+            [{"trigger": "Дикий Запад", "emoji": "🤠"}],
+        )
         self.assertEqual(saved["roleRequiredMessage"], "Сначала получите роль {role}")
+        self.assertEqual(saved["autoReactions"], [{"trigger": "Дикий Запад", "emoji": "🤠"}])
         self.assertEqual(get_guild_settings(economy, leveling, "100")["agitationChannelId"], "201")
 
 

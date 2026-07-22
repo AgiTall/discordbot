@@ -1,6 +1,8 @@
 """Слой настроек сервера: объединяет economy.db и leveling.db для веб-панели."""
 import json
 
+from src.auto_reactions import normalize_auto_reactions
+
 DEFAULT_WELCOME_MESSAGE = "Добро пожаловать на сервер, {mention}! 🎉"
 DEFAULT_FAREWELL_MESSAGE = "{user} покинул сервер. До свидания!"
 
@@ -109,6 +111,7 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
         "logEdit": bool(econ.get("log_edit")),
         "logVoice": bool(econ.get("log_voice")),
         "logCommands": bool(econ.get("log_commands")),
+        "autoReactions": normalize_auto_reactions(econ.get("auto_reactions")),
         "goldRate": float(econ.get("gold_rate") or 0),
         "cashEmoji": str(econ.get("cash_emoji") or "💵"),
         "goldEmoji": str(econ.get("gold_emoji") or "🪙"),
@@ -183,6 +186,9 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
     ]:
         if key in data:
             econ[field] = bool(data[key])
+
+    if "autoReactions" in data:
+        econ["auto_reactions"] = normalize_auto_reactions(data["autoReactions"])
 
     if "allowAllChannels" in data:
         leveling_db.set_setting(gid, "allow_all_channels", "true" if data["allowAllChannels"] else "false")

@@ -1111,6 +1111,10 @@ function collectFormData() {
     if (lvl && role) roles.push({ level: lvl, role, removeRole });
   });
   data.rankRoles = roles;
+  data.autoReactions = Array.from(document.querySelectorAll('.auto-reaction-card')).map(card => ({
+    trigger: card.querySelector('[data-auto-reaction-trigger]')?.value?.trim() || '',
+    emoji: card.querySelector('[data-auto-reaction-emoji]')?.value?.trim() || '',
+  })).filter(rule => rule.trigger && rule.emoji);
 
   return data;
 }
@@ -1119,6 +1123,10 @@ function collectFormData() {
 function applySettingsToForm(settings) {
   Object.entries(settings).forEach(([key, val]) => {
     if (key === 'rankRoles') return; // обрабатывается отдельно
+    if (key === 'autoReactions') {
+      initAutoReactionEditor(val);
+      return;
+    }
     const el = document.querySelector(`[data-setting="${key}"]`);
     if (!el) return;
     if (el.type === 'checkbox') {
@@ -1463,6 +1471,80 @@ function populateChannelSelects(channels) {
   if (datalist) {
     datalist.innerHTML = channels.map(c => `<option value="${c.id}"># ${escapeHtml(c.name)}</option>`).join('');
   }
+}
+
+function initAutoReactionEditor(rules = []) {
+  const list = document.getElementById('autoReactionsList');
+  const addBtn = document.getElementById('addAutoReactionBtn');
+  if (!list || !addBtn) return;
+
+  const normalized = Array.isArray(rules)
+    ? rules.slice(0, 20).filter(rule => rule && typeof rule === 'object' && rule.emoji)
+    : [];
+
+  if (!normalized.length) {
+    list.innerHTML = `
+      <div class="auto-reactions-empty">
+        <strong>Правил пока нет</strong>
+        <span>Добавьте слово и выберите реакцию, которую поставит бот.</span>
+      </div>`;
+  } else {
+    list.innerHTML = normalized.map((rule, index) => `
+      <div class="auto-reaction-card" data-auto-reaction-index="${index}">
+        <div class="form-group auto-reaction-card__trigger">
+          <label for="autoReactionTrigger${index}">Слово или фраза</label>
+          <input class="form-control" id="autoReactionTrigger${index}" data-auto-reaction-trigger
+            maxlength="100" value="${escapeHtml(rule.trigger)}" placeholder="Например: победа">
+        </div>
+        <div class="form-group auto-reaction-card__emoji">
+          <label for="autoReactionEmoji${index}">Реакция</label>
+          <div class="emoji-field">
+            <select class="form-control emoji-select" id="autoReactionEmoji${index}" data-auto-reaction-emoji>
+              <option value="">Выберите эмодзи...</option>
+              <option value="${escapeHtml(rule.emoji)}" selected>${escapeHtml(rule.emoji)}</option>
+            </select>
+            <span class="emoji-preview" id="preview_autoReactionEmoji${index}"></span>
+          </div>
+        </div>
+        <button type="button" class="auto-reaction-card__remove" data-remove-auto-reaction="${index}"
+          aria-label="Удалить автореакцию" title="Удалить">×</button>
+      </div>`).join('');
+  }
+
+  populateEmojiSelects(guildEmojisCache);
+  list.querySelectorAll('input, select').forEach(element => {
+    element.addEventListener('input', () => setUnsaved(true));
+    element.addEventListener('change', () => setUnsaved(true));
+  });
+  list.querySelectorAll('[data-remove-auto-reaction]').forEach(button => {
+    button.addEventListener('click', () => {
+      const current = collectAutoReactionRules();
+      current.splice(Number(button.dataset.removeAutoReaction), 1);
+      initAutoReactionEditor(current);
+      setUnsaved(true);
+    });
+  });
+
+  if (!addBtn.dataset.bound) {
+    addBtn.dataset.bound = 'true';
+    addBtn.addEventListener('click', () => {
+      const current = collectAutoReactionRules();
+      if (current.length >= 20) {
+        showToast(document.getElementById('toast'), 'Можно добавить не больше 20 правил.', true);
+        return;
+      }
+      current.push({ trigger: '', emoji: '👍' });
+      initAutoReactionEditor(current);
+      setUnsaved(true);
+    });
+  }
+}
+
+function collectAutoReactionRules() {
+  return Array.from(document.querySelectorAll('.auto-reaction-card')).map(card => ({
+    trigger: card.querySelector('[data-auto-reaction-trigger]')?.value?.trim() || '',
+    emoji: card.querySelector('[data-auto-reaction-emoji]')?.value?.trim() || '',
+  }));
 }
 
 function renderSetupHealth(settings) {

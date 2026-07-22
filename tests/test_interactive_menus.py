@@ -46,6 +46,29 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertIn("bot.reset_economy_guild_id(token)", casino)
         self.assertIn("self.bot.set_economy_guild_id(self.guild_id)", casino)
 
+    def test_help_uses_current_casino_and_mine_menus(self):
+        source = (ROOT / "bot.py").read_text(encoding="utf-8")
+        help_source = source[
+            source.index("def build_help_pages"):source.index(
+                "class HelpCategorySelect"
+            )
+        ]
+        self.assertIn("`/casino` — открыть казино", help_source)
+        self.assertIn("`/mine` — открыть шахту (5 попыток в день)", help_source)
+        self.assertIn("`/collector`", help_source)
+        self.assertIn("`/admin-bank`", help_source)
+        for removed_command in (
+            "`/dice bet`",
+            "`/poker bet`",
+            "`/blackjack`",
+            "`/mine-status`",
+            "`/mine-buy`",
+            "`/mine-sell`",
+            "`/mine-smelt`",
+            "`/mine-forge`",
+        ):
+            self.assertNotIn(removed_command, help_source)
+
     def test_investments_is_the_only_company_investment_command(self):
         names = registered_command_names(ROOT / "cogs" / "catalog.py")
         self.assertIn("investments", names)
@@ -92,6 +115,13 @@ class InteractiveMenuContracts(unittest.TestCase):
         start = source.index("def __init__(self, db_url")
         constructor = source[start:source.index("@staticmethod", start)]
         self.assertNotIn("psycopg2.connect", constructor)
+
+    def test_message_handler_applies_configured_auto_reactions(self):
+        source = (ROOT / "bot.py").read_text(encoding="utf-8")
+        handler = source[source.index("async def on_message(message):"):]
+        self.assertIn("matching_reaction_emojis", handler)
+        self.assertIn('economy_data.get("auto_reactions", [])', handler)
+        self.assertIn("await message.add_reaction", handler)
 
     def test_bounty_leaderboard_lives_inside_bounty_menu(self):
         bounty_path = ROOT / "cogs" / "bounty.py"

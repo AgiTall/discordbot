@@ -161,6 +161,33 @@ def _validate_settings_payload(guild, data: dict[str, Any]) -> None:
         if key in data and len(str(data[key]).strip()) > 80:
             raise HTTPException(status_code=400, detail=f"{key} длиннее 80 символов")
 
+    if "autoReactions" in data:
+        from src.auto_reactions import (
+            MAX_AUTO_REACTION_RULES,
+            MAX_REACTION_EMOJI_LENGTH,
+            MAX_TRIGGER_LENGTH,
+        )
+
+        rules = data["autoReactions"]
+        if not isinstance(rules, list):
+            raise HTTPException(status_code=400, detail="autoReactions должен быть списком")
+        if len(rules) > MAX_AUTO_REACTION_RULES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Можно настроить не больше {MAX_AUTO_REACTION_RULES} автореакций",
+            )
+        for rule in rules:
+            if not isinstance(rule, dict):
+                raise HTTPException(status_code=400, detail="Некорректное правило автореакции")
+            trigger = " ".join(str(rule.get("trigger", "")).split())
+            emoji = str(rule.get("emoji", "")).strip()
+            if not trigger or not emoji:
+                raise HTTPException(status_code=400, detail="Укажите триггер и эмодзи автореакции")
+            if len(trigger) > MAX_TRIGGER_LENGTH:
+                raise HTTPException(status_code=400, detail="Триггер автореакции длиннее 100 символов")
+            if len(emoji) > MAX_REACTION_EMOJI_LENGTH:
+                raise HTTPException(status_code=400, detail="Эмодзи автореакции длиннее 80 символов")
+
 
 # ── Endpoints ─────────────────────────────────────────────────
 
