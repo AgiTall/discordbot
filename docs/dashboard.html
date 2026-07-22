@@ -19,7 +19,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.8.1.10</span>
+        <span class="navbar__badge">v0.8.1.11</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -673,12 +673,77 @@
                   <div class="auto-reactions-toolbar">
                     <div>
                       <h3 class="heading-sm">Правила реакций</h3>
-                      <p class="hint">Регистр не учитывается. Триггер срабатывает только как целое слово или фраза.</p>
+                      <p class="hint">Настройте канал, реакции и слова, на которые должен отвечать бот.</p>
                     </div>
-                    <button type="button" class="btn btn--ghost btn--sm" id="addAutoReactionBtn">+ Добавить правило</button>
+                    <button type="button" class="btn btn--special btn--sm" id="addAutoReactionBtn">+ Создать правило</button>
                   </div>
                   <div id="autoReactionsList" class="auto-reactions-list"></div>
-                  <p class="hint auto-reactions-limit">До 20 правил. На одно сообщение добавляется не больше пяти разных реакций.</p>
+                  <p class="hint auto-reactions-limit">До 20 правил. В одном правиле можно выбрать до 10 реакций.</p>
+                </div>
+
+                <div class="auto-reaction-modal" id="autoReactionModal" hidden>
+                  <button type="button" class="auto-reaction-modal__backdrop" data-auto-reaction-close aria-label="Закрыть"></button>
+                  <div class="auto-reaction-dialog" role="dialog" aria-modal="true" aria-labelledby="autoReactionDialogTitle">
+                    <div class="auto-reaction-dialog__header">
+                      <div>
+                        <span class="auto-reaction-dialog__eyebrow">АВТОМАТИЧЕСКАЯ РЕАКЦИЯ</span>
+                        <h3 id="autoReactionDialogTitle">Новое правило</h3>
+                      </div>
+                      <button type="button" class="auto-reaction-dialog__close" data-auto-reaction-close aria-label="Закрыть">×</button>
+                    </div>
+
+                    <div class="auto-reaction-dialog__body">
+                      <div class="form-group">
+                        <label for="autoReactionChannel">Канал</label>
+                        <select class="form-control channel-select" id="autoReactionChannel">
+                          <option value="">Все каналы</option>
+                        </select>
+                        <p class="hint">Оставьте «Все каналы», чтобы правило работало по всему серверу.</p>
+                      </div>
+
+                      <div class="form-group">
+                        <label>Реакции</label>
+                        <p class="hint">Можно выбрать до 10 реакций</p>
+                        <div class="auto-reaction-selected-emojis" id="autoReactionSelectedEmojis"></div>
+                        <button type="button" class="auto-reaction-add-emoji" id="autoReactionAddEmoji" aria-label="Добавить реакцию">+</button>
+                        <div class="auto-reaction-emoji-picker" id="autoReactionEmojiPicker" hidden>
+                          <input class="form-control" id="autoReactionEmojiSearch" placeholder="Поиск эмодзи">
+                          <div class="auto-reaction-emoji-grid" id="autoReactionEmojiGrid"></div>
+                          <button type="button" class="btn btn--ghost btn--sm" id="autoReactionCustomEmoji">Ввести свой эмодзи</button>
+                        </div>
+                      </div>
+
+                      <div class="form-group">
+                        <label for="autoReactionMessageType">Типы сообщения</label>
+                        <select class="form-control" id="autoReactionMessageType">
+                          <option value="all">Все сообщения</option>
+                          <option value="default">Стандартное сообщение</option>
+                          <option value="reply">Ответ на сообщение</option>
+                        </select>
+                      </div>
+
+                      <div class="form-group">
+                        <label for="autoReactionTriggersInput">Совпадения в тексте</label>
+                        <p class="hint">Оставьте пустым, чтобы реагировать на все сообщения выбранного типа.</p>
+                        <div class="auto-reaction-tags" id="autoReactionTriggers"></div>
+                        <input class="form-control" id="autoReactionTriggersInput" maxlength="100"
+                          placeholder="Введите слово или фразу и нажмите Enter">
+                      </div>
+
+                      <div class="form-group">
+                        <label for="autoReactionExcludedInput">Исключённые совпадения</label>
+                        <p class="hint">Бот не отреагирует, если найдёт одно из этих слов или фраз.</p>
+                        <div class="auto-reaction-tags" id="autoReactionExcluded"></div>
+                        <input class="form-control" id="autoReactionExcludedInput" maxlength="100"
+                          placeholder="Введите исключение и нажмите Enter">
+                      </div>
+                    </div>
+
+                    <div class="auto-reaction-dialog__footer">
+                      <button type="button" class="btn btn--ghost" data-auto-reaction-close>Закрыть</button>
+                      <button type="button" class="btn btn--special" id="saveAutoReactionRule">Готово</button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1145,7 +1210,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2026 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.8.1.10</span>
+        <span class="footer__version">v0.8.1.11</span>
       </div>
     </div>
   </footer>
@@ -1162,7 +1227,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=0.8.1.10"></script>
+  <script src="js/app.js?v=0.8.1.10.2"></script>
 </body>
 
 <!-- Datalist для каналов -->

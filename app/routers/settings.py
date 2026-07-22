@@ -164,8 +164,11 @@ def _validate_settings_payload(guild, data: dict[str, Any]) -> None:
     if "autoReactions" in data:
         from src.auto_reactions import (
             MAX_AUTO_REACTION_RULES,
+            MAX_MATCHES_PER_RULE,
             MAX_REACTION_EMOJI_LENGTH,
+            MAX_REACTIONS_PER_RULE,
             MAX_TRIGGER_LENGTH,
+            MESSAGE_TYPES,
         )
 
         rules = data["autoReactions"]
@@ -179,14 +182,32 @@ def _validate_settings_payload(guild, data: dict[str, Any]) -> None:
         for rule in rules:
             if not isinstance(rule, dict):
                 raise HTTPException(status_code=400, detail="Некорректное правило автореакции")
-            trigger = " ".join(str(rule.get("trigger", "")).split())
-            emoji = str(rule.get("emoji", "")).strip()
-            if not trigger or not emoji:
-                raise HTTPException(status_code=400, detail="Укажите триггер и эмодзи автореакции")
-            if len(trigger) > MAX_TRIGGER_LENGTH:
-                raise HTTPException(status_code=400, detail="Триггер автореакции длиннее 100 символов")
-            if len(emoji) > MAX_REACTION_EMOJI_LENGTH:
-                raise HTTPException(status_code=400, detail="Эмодзи автореакции длиннее 80 символов")
+            channel_id = str(rule.get("channelId", rule.get("channel_id", "")) or "").strip()
+            if channel_id and channel_id not in channel_ids:
+                raise HTTPException(status_code=400, detail="Выбранный канал автореакции недоступен")
+
+            message_type = str(rule.get("messageType", rule.get("message_type", "all")) or "all")
+            if message_type not in MESSAGE_TYPES:
+                raise HTTPException(status_code=400, detail="Неизвестный тип сообщения автореакции")
+
+            emojis = rule.get("emojis", rule.get("emoji", []))
+            if isinstance(emojis, str):
+                emojis = [emojis]
+            if not isinstance(emojis, list) or not emojis:
+                raise HTTPException(status_code=400, detail="Выберите хотя бы одну реакцию")
+            if len(emojis) > MAX_REACTIONS_PER_RULE:
+                raise HTTPException(status_code=400, detail="Можно выбрать не больше 10 реакций")
+            if any(not str(emoji).strip() or len(str(emoji).strip()) > MAX_REACTION_EMOJI_LENGTH for emoji in emojis):
+                raise HTTPException(status_code=400, detail="Некорректный эмодзи автореакции")
+
+            for field in ("triggers", "excludedTriggers", "excluded_triggers"):
+                if field not in rule:
+                    continue
+                terms = rule[field]
+                if not isinstance(terms, list) or len(terms) > MAX_MATCHES_PER_RULE:
+                    raise HTTPException(status_code=400, detail="Слишком много текстовых совпадений")
+                if any(not str(term).strip() or len(" ".join(str(term).split())) > MAX_TRIGGER_LENGTH for term in terms):
+                    raise HTTPException(status_code=400, detail="Некорректное текстовое совпадение")
 
 
 # ── Endpoints ─────────────────────────────────────────────────

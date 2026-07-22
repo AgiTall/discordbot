@@ -2462,29 +2462,78 @@ input.rank-role-card__level-badge:focus {
 }
 
 .auto-reaction-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(190px, .65fr) 36px;
-  gap: 14px;
-  align-items: end;
-  padding: 16px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  padding: 18px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(25, 24, 27, .96), rgba(15, 15, 17, .98));
 }
 
-.auto-reaction-card__remove {
-  width: 36px;
-  height: 40px;
-  border: 1px solid var(--border);
+.auto-reaction-card__topline,
+.auto-reaction-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auto-reaction-card__topline strong {
+  color: var(--text-white);
+  font-size: .95rem;
+}
+
+.auto-reaction-card__topline > span,
+.auto-reaction-card__muted {
+  color: var(--text-muted);
+  font-size: .78rem;
+}
+
+.auto-reaction-card__emojis,
+.auto-reaction-card__matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.auto-reaction-card__emoji,
+.auto-reaction-selected-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: #242329;
+  font-size: 1.2rem;
+}
+
+.auto-reaction-card__emoji .discord-emoji,
+.auto-reaction-selected-emoji .discord-emoji,
+.auto-reaction-emoji-option .discord-emoji {
+  width: 24px;
+  height: 24px;
+}
+
+.auto-reaction-card__excluded {
+  margin-top: 12px;
+  color: #c98989;
+  font: .78rem/1.4 'Helvetica Neue', Arial, sans-serif;
+}
+
+.auto-reaction-card__actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.auto-reaction-card__delete {
+  border: 0;
   background: transparent;
-  color: var(--red);
-  font-size: 1.45rem;
+  color: #d56a6a;
+  font-size: .82rem;
   cursor: pointer;
-}
-
-.auto-reaction-card__remove:hover {
-  border-color: var(--red);
-  background: rgba(160, 38, 32, .08);
 }
 
 .auto-reactions-empty {
@@ -2496,10 +2545,206 @@ input.rank-role-card__level-badge:focus {
   border: 1px dashed var(--border);
   color: var(--text-muted);
   text-align: center;
+  border-radius: 10px;
+}
+
+.auto-reactions-empty__icon {
+  font-size: 1.8rem;
 }
 
 .auto-reactions-limit {
   margin-top: 14px !important;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.auto-reaction-modal[hidden],
+.auto-reaction-emoji-picker[hidden] {
+  display: none !important;
+}
+
+.auto-reaction-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.auto-reaction-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, .76);
+  backdrop-filter: blur(5px);
+}
+
+.auto-reaction-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border: 1px solid #29282d;
+  border-radius: 12px;
+  background: #0f0f12;
+  box-shadow: 0 26px 90px rgba(0, 0, 0, .65);
+}
+
+.auto-reaction-dialog__header,
+.auto-reaction-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #252429;
+}
+
+.auto-reaction-dialog__header h3 {
+  margin: 3px 0 0;
+  color: #fff;
+  font-size: 1.25rem;
+}
+
+.auto-reaction-dialog__eyebrow {
+  color: var(--gold);
+  font-size: .67rem;
+  letter-spacing: .18em;
+}
+
+.auto-reaction-dialog__close {
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  font-size: 1.6rem;
+  cursor: pointer;
+}
+
+.auto-reaction-dialog__body {
+  padding: 22px;
+}
+
+.auto-reaction-dialog__body .form-group {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.auto-reaction-dialog__body .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.auto-reaction-dialog__footer {
+  justify-content: flex-end;
+  border-top: 1px solid #252429;
+  border-bottom: 0;
+}
+
+.auto-reaction-dialog__footer .btn {
+  min-width: 150px;
+}
+
+.auto-reaction-selected-emojis {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  vertical-align: middle;
+}
+
+.auto-reaction-selected-emoji {
+  gap: 6px;
+}
+
+.auto-reaction-selected-emoji button,
+.auto-reaction-chip button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.auto-reaction-add-emoji {
+  width: 38px;
+  height: 38px;
+  margin-left: 7px;
+  border: 1px dashed #5b5361;
+  border-radius: 9px;
+  background: #17161a;
+  color: #fff;
+  font-size: 1.45rem;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.auto-reaction-emoji-picker {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(390px, 100%);
+  padding: 12px;
+  border: 1px solid #302e35;
+  border-radius: 10px;
+  background: #17161b;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, .55);
+}
+
+.auto-reaction-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  max-height: 230px;
+  margin: 10px 0;
+  overflow-y: auto;
+}
+
+.auto-reaction-emoji-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #fff;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+
+.auto-reaction-emoji-option:hover,
+.auto-reaction-emoji-option.is-selected {
+  border-color: #695b72;
+  background: #29262e;
+}
+
+.auto-reaction-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 42px;
+  margin-bottom: 8px;
+  padding: 9px;
+  border: 1px solid #25242a;
+  border-radius: 9px;
+  background: #151419;
+}
+
+.auto-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #29282d;
+  color: #f2f2f2;
+  font: 700 .72rem/1 'Helvetica Neue', Arial, sans-serif;
 }
 
 @media (max-width: 700px) {
@@ -2508,18 +2753,26 @@ input.rank-role-card__level-badge:focus {
   }
 
   .auto-reaction-card {
-    grid-template-columns: 1fr 44px;
+    padding: 15px;
   }
 
-  .auto-reaction-card__trigger,
-  .auto-reaction-card__emoji {
-    grid-column: 1;
+  .auto-reaction-dialog {
+    max-height: calc(100vh - 16px);
   }
 
-  .auto-reaction-card__remove {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    align-self: center;
+  .auto-reaction-dialog__body,
+  .auto-reaction-dialog__header,
+  .auto-reaction-dialog__footer {
+    padding: 16px;
+  }
+
+  .auto-reaction-emoji-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .auto-reaction-dialog__footer .btn {
+    min-width: 0;
+    flex: 1;
   }
 }
 

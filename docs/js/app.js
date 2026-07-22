@@ -850,6 +850,7 @@ function setupDashboardUi(settings) {
       populateChannelSelects(channels);
       populateRoleSelects(roles);
       populateEmojiSelects(emojis);
+      renderAutoReactionRules();
       applySettingsToForm(settings); // Применяем настройки после загрузки каналов
       initRankRoleEditor(settings);
     });
@@ -1113,10 +1114,13 @@ function collectFormData() {
     if (lvl && role) roles.push({ level: lvl, role, removeRole });
   });
   data.rankRoles = roles;
-  data.autoReactions = Array.from(document.querySelectorAll('.auto-reaction-card')).map(card => ({
-    trigger: card.querySelector('[data-auto-reaction-trigger]')?.value?.trim() || '',
-    emoji: card.querySelector('[data-auto-reaction-emoji]')?.value?.trim() || '',
-  })).filter(rule => rule.trigger && rule.emoji);
+  data.autoReactions = autoReactionRules.map(rule => ({
+    channelId: rule.channelId,
+    emojis: [...rule.emojis],
+    messageType: rule.messageType,
+    triggers: [...rule.triggers],
+    excludedTriggers: [...rule.excludedTriggers],
+  }));
 
   return data;
 }
@@ -1472,78 +1476,280 @@ function populateChannelSelects(channels) {
   }
 }
 
+let autoReactionRules = [];
+let editingAutoReactionIndex = null;
+let modalReactionEmojis = [];
+let modalReactionTriggers = [];
+let modalReactionExcluded = [];
+
+const COMMON_REACTION_EMOJIS = [
+  '👍', '👎', '❤️', '🔥', '🎉', '😂', '😢', '😡', '🤠', '⭐',
+  '✅', '❌', '👀', '💯', '🏆', '💰', '🔫', '⛏️', '🍻', '🤝',
+  '🐎', '🌵', '💎', '🪙', '🗺️', '🎲', '🃏', '💀', '🚨', '✨',
+];
+
+function normalizeAutoReactionRule(rule = {}) {
+  const legacyTrigger = rule.trigger ? [rule.trigger] : [];
+  const legacyEmoji = rule.emoji ? [rule.emoji] : [];
+  return {
+    channelId: String(rule.channelId ?? rule.channel_id ?? ''),
+    emojis: Array.from(new Set(Array.isArray(rule.emojis) ? rule.emojis : legacyEmoji)).slice(0, 10),
+    messageType: ['all', 'default', 'reply'].includes(rule.messageType ?? rule.message_type)
+      ? (rule.messageType ?? rule.message_type)
+      : 'all',
+    triggers: Array.isArray(rule.triggers) ? rule.triggers.slice(0, 50) : legacyTrigger,
+    excludedTriggers: Array.isArray(rule.excludedTriggers)
+      ? rule.excludedTriggers.slice(0, 50)
+      : (Array.isArray(rule.excluded_triggers) ? rule.excluded_triggers.slice(0, 50) : []),
+  };
+}
+
+function autoReactionEmojiHtml(emoji) {
+  return discordEmojiHtml(emoji, escapeHtml(emoji));
+}
+
+function autoReactionChannelName(channelId) {
+  if (!channelId) return 'Все каналы';
+  const channel = guildChannelsCache.find(item => String(item.id) === String(channelId));
+  return channel ? `# ${channel.name}` : `Канал ${channelId}`;
+}
+
+function renderAutoReactionRules() {
+  const list = document.getElementById('autoReactionsList');
+  if (!list) return;
+  if (!autoReactionRules.length) {
+    list.innerHTML = `
+      <div class="auto-reactions-empty">
+        <span class="auto-reactions-empty__icon">✨</span>
+        <strong>Правил пока нет</strong>
+        <span>Создайте первое правило автоматических реакций.</span>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = autoReactionRules.map((rule, index) => {
+    const triggers = rule.triggers.length
+      ? rule.triggers.map(term => `<span class="auto-reaction-chip">${escapeHtml(term)}</span>`).join('')
+      : '<span class="auto-reaction-card__muted">Все сообщения</span>';
+    const emojis = rule.emojis.map(emoji => `<span class="auto-reaction-card__emoji">${autoReactionEmojiHtml(emoji)}</span>`).join('');
+    return `
+      <article class="auto-reaction-card">
+        <div class="auto-reaction-card__topline">
+          <strong>${escapeHtml(autoReactionChannelName(rule.channelId))}</strong>
+          <span>${rule.messageType === 'reply' ? 'Ответы' : rule.messageType === 'default' ? 'Стандартные' : 'Все типы'}</span>
+        </div>
+        <div class="auto-reaction-card__emojis">${emojis}</div>
+        <div class="auto-reaction-card__matches">${triggers}</div>
+        ${rule.excludedTriggers.length ? `<p class="auto-reaction-card__excluded">Исключения: ${escapeHtml(rule.excludedTriggers.join(', '))}</p>` : ''}
+        <div class="auto-reaction-card__actions">
+          <button type="button" class="btn btn--ghost btn--sm" data-edit-auto-reaction="${index}">Изменить</button>
+          <button type="button" class="auto-reaction-card__delete" data-delete-auto-reaction="${index}">Удалить</button>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+function renderModalReactionEmojis() {
+  const holder = document.getElementById('autoReactionSelectedEmojis');
+  if (!holder) return;
+  holder.innerHTML = modalReactionEmojis.map((emoji, index) => `
+    <span class="auto-reaction-selected-emoji">
+      ${autoReactionEmojiHtml(emoji)}
+      <button type="button" data-remove-modal-emoji="${index}" aria-label="Удалить реакцию">×</button>
+    </span>`).join('');
+  holder.querySelectorAll('[data-remove-modal-emoji]').forEach(button => {
+    button.addEventListener('click', () => {
+      modalReactionEmojis.splice(Number(button.dataset.removeModalEmoji), 1);
+      renderModalReactionEmojis();
+      renderAutoReactionEmojiGrid();
+    });
+  });
+}
+
+function renderAutoReactionEmojiGrid(query = '') {
+  const grid = document.getElementById('autoReactionEmojiGrid');
+  if (!grid) return;
+  const needle = query.trim().toLocaleLowerCase('ru');
+  const options = [
+    ...COMMON_REACTION_EMOJIS.map(emoji => ({ name: emoji, format: emoji })),
+    ...guildEmojisCache.map(emoji => ({ name: emoji.name, format: emoji.format })),
+  ].filter((emoji, index, all) =>
+    all.findIndex(item => item.format === emoji.format) === index &&
+    (!needle || emoji.name.toLocaleLowerCase('ru').includes(needle))
+  );
+  grid.innerHTML = options.map(emoji => `
+    <button type="button" class="auto-reaction-emoji-option ${modalReactionEmojis.includes(emoji.format) ? 'is-selected' : ''}"
+      data-modal-emoji="${escapeHtml(emoji.format)}" title="${escapeHtml(emoji.name)}">
+      ${autoReactionEmojiHtml(emoji.format)}
+    </button>`).join('');
+  grid.querySelectorAll('[data-modal-emoji]').forEach(button => {
+    button.addEventListener('click', () => {
+      const emoji = button.dataset.modalEmoji;
+      if (modalReactionEmojis.includes(emoji)) {
+        modalReactionEmojis = modalReactionEmojis.filter(item => item !== emoji);
+      } else if (modalReactionEmojis.length < 10) {
+        modalReactionEmojis.push(emoji);
+      } else {
+        showToast(document.getElementById('toast'), 'Можно выбрать не больше 10 реакций.', true);
+      }
+      renderModalReactionEmojis();
+      renderAutoReactionEmojiGrid(document.getElementById('autoReactionEmojiSearch')?.value || '');
+    });
+  });
+}
+
+function renderAutoReactionTags(containerId, terms, kind) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = terms.map((term, index) => `
+    <span class="auto-reaction-chip">
+      ${escapeHtml(term)}
+      <button type="button" data-remove-${kind}="${index}" aria-label="Удалить">×</button>
+    </span>`).join('');
+  container.querySelectorAll(`[data-remove-${kind}]`).forEach(button => {
+    button.addEventListener('click', () => {
+      const target = kind === 'trigger' ? modalReactionTriggers : modalReactionExcluded;
+      target.splice(Number(button.dataset[`remove${kind[0].toUpperCase()}${kind.slice(1)}`]), 1);
+      renderAutoReactionTags(containerId, target, kind);
+    });
+  });
+}
+
+function addAutoReactionTerm(input, target, containerId, kind) {
+  const term = input.value.trim().replace(/\s+/g, ' ');
+  if (!term) return;
+  if (target.length >= 50) {
+    showToast(document.getElementById('toast'), 'Можно добавить не больше 50 совпадений.', true);
+    return;
+  }
+  if (!target.some(item => item.toLocaleLowerCase('ru') === term.toLocaleLowerCase('ru'))) {
+    target.push(term);
+  }
+  input.value = '';
+  renderAutoReactionTags(containerId, target, kind);
+}
+
+function openAutoReactionModal(index = null) {
+  const modal = document.getElementById('autoReactionModal');
+  if (!modal) return;
+  editingAutoReactionIndex = Number.isInteger(index) ? index : null;
+  const rule = editingAutoReactionIndex === null
+    ? normalizeAutoReactionRule()
+    : normalizeAutoReactionRule(autoReactionRules[editingAutoReactionIndex]);
+  modalReactionEmojis = [...rule.emojis];
+  modalReactionTriggers = [...rule.triggers];
+  modalReactionExcluded = [...rule.excludedTriggers];
+  document.getElementById('autoReactionDialogTitle').textContent = editingAutoReactionIndex === null ? 'Новое правило' : 'Изменить правило';
+  document.getElementById('autoReactionChannel').value = rule.channelId;
+  document.getElementById('autoReactionMessageType').value = rule.messageType;
+  document.getElementById('autoReactionEmojiPicker').hidden = true;
+  document.getElementById('autoReactionEmojiSearch').value = '';
+  renderModalReactionEmojis();
+  renderAutoReactionEmojiGrid();
+  renderAutoReactionTags('autoReactionTriggers', modalReactionTriggers, 'trigger');
+  renderAutoReactionTags('autoReactionExcluded', modalReactionExcluded, 'excluded');
+  modal.hidden = false;
+  document.body.classList.add('modal-open');
+}
+
+function closeAutoReactionModal() {
+  const modal = document.getElementById('autoReactionModal');
+  if (modal) modal.hidden = true;
+  document.body.classList.remove('modal-open');
+}
+
 function initAutoReactionEditor(rules = []) {
   const list = document.getElementById('autoReactionsList');
   const addBtn = document.getElementById('addAutoReactionBtn');
   if (!list || !addBtn) return;
+  autoReactionRules = (Array.isArray(rules) ? rules : []).slice(0, 20).map(normalizeAutoReactionRule)
+    .filter(rule => rule.emojis.length);
+  renderAutoReactionRules();
 
-  const normalized = Array.isArray(rules)
-    ? rules.slice(0, 20).filter(rule => rule && typeof rule === 'object' && rule.emoji)
-    : [];
-
-  if (!normalized.length) {
-    list.innerHTML = `
-      <div class="auto-reactions-empty">
-        <strong>Правил пока нет</strong>
-        <span>Добавьте слово и выберите реакцию, которую поставит бот.</span>
-      </div>`;
-  } else {
-    list.innerHTML = normalized.map((rule, index) => `
-      <div class="auto-reaction-card" data-auto-reaction-index="${index}">
-        <div class="form-group auto-reaction-card__trigger">
-          <label for="autoReactionTrigger${index}">Слово или фраза</label>
-          <input class="form-control" id="autoReactionTrigger${index}" data-auto-reaction-trigger
-            maxlength="100" value="${escapeHtml(rule.trigger)}" placeholder="Например: победа">
-        </div>
-        <div class="form-group auto-reaction-card__emoji">
-          <label for="autoReactionEmoji${index}">Реакция</label>
-          <div class="emoji-field">
-            <select class="form-control emoji-select" id="autoReactionEmoji${index}" data-auto-reaction-emoji>
-              <option value="">Выберите эмодзи...</option>
-              <option value="${escapeHtml(rule.emoji)}" selected>${escapeHtml(rule.emoji)}</option>
-            </select>
-            <span class="emoji-preview" id="preview_autoReactionEmoji${index}"></span>
-          </div>
-        </div>
-        <button type="button" class="auto-reaction-card__remove" data-remove-auto-reaction="${index}"
-          aria-label="Удалить автореакцию" title="Удалить">×</button>
-      </div>`).join('');
-  }
-
-  populateEmojiSelects(guildEmojisCache);
-  list.querySelectorAll('input, select').forEach(element => {
-    element.addEventListener('input', () => setUnsaved(true));
-    element.addEventListener('change', () => setUnsaved(true));
-  });
-  list.querySelectorAll('[data-remove-auto-reaction]').forEach(button => {
-    button.addEventListener('click', () => {
-      const current = collectAutoReactionRules();
-      current.splice(Number(button.dataset.removeAutoReaction), 1);
-      initAutoReactionEditor(current);
-      setUnsaved(true);
-    });
-  });
-
-  if (!addBtn.dataset.bound) {
-    addBtn.dataset.bound = 'true';
-    addBtn.addEventListener('click', () => {
-      const current = collectAutoReactionRules();
-      if (current.length >= 20) {
-        showToast(document.getElementById('toast'), 'Можно добавить не больше 20 правил.', true);
-        return;
+  if (!list.dataset.bound) {
+    list.dataset.bound = 'true';
+    list.addEventListener('click', event => {
+      const edit = event.target.closest('[data-edit-auto-reaction]');
+      const remove = event.target.closest('[data-delete-auto-reaction]');
+      if (edit) openAutoReactionModal(Number(edit.dataset.editAutoReaction));
+      if (remove) {
+        autoReactionRules.splice(Number(remove.dataset.deleteAutoReaction), 1);
+        renderAutoReactionRules();
+        setUnsaved(true);
       }
-      current.push({ trigger: '', emoji: '👍' });
-      initAutoReactionEditor(current);
-      setUnsaved(true);
     });
   }
-}
+  if (addBtn.dataset.bound) return;
+  addBtn.dataset.bound = 'true';
+  addBtn.addEventListener('click', () => {
+    if (autoReactionRules.length >= 20) {
+      showToast(document.getElementById('toast'), 'Можно добавить не больше 20 правил.', true);
+      return;
+    }
+    openAutoReactionModal();
+  });
 
-function collectAutoReactionRules() {
-  return Array.from(document.querySelectorAll('.auto-reaction-card')).map(card => ({
-    trigger: card.querySelector('[data-auto-reaction-trigger]')?.value?.trim() || '',
-    emoji: card.querySelector('[data-auto-reaction-emoji]')?.value?.trim() || '',
-  }));
+  document.querySelectorAll('[data-auto-reaction-close]').forEach(button => {
+    button.addEventListener('click', closeAutoReactionModal);
+  });
+  document.getElementById('autoReactionAddEmoji')?.addEventListener('click', () => {
+    const picker = document.getElementById('autoReactionEmojiPicker');
+    picker.hidden = !picker.hidden;
+    if (!picker.hidden) document.getElementById('autoReactionEmojiSearch').focus();
+  });
+  document.getElementById('autoReactionEmojiSearch')?.addEventListener('input', event => {
+    renderAutoReactionEmojiGrid(event.target.value);
+  });
+  document.getElementById('autoReactionCustomEmoji')?.addEventListener('click', () => {
+    const value = prompt('Введите Unicode-эмодзи или код серверного эмодзи:');
+    if (value?.trim() && !modalReactionEmojis.includes(value.trim()) && modalReactionEmojis.length < 10) {
+      modalReactionEmojis.push(value.trim());
+      renderModalReactionEmojis();
+      renderAutoReactionEmojiGrid();
+    }
+  });
+  [
+    ['autoReactionTriggersInput', 'autoReactionTriggers', 'trigger'],
+    ['autoReactionExcludedInput', 'autoReactionExcluded', 'excluded'],
+  ].forEach(([inputId, containerId, kind]) => {
+    document.getElementById(inputId)?.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ',') {
+        event.preventDefault();
+        const target = kind === 'trigger' ? modalReactionTriggers : modalReactionExcluded;
+        addAutoReactionTerm(event.target, target, containerId, kind);
+      }
+    });
+  });
+  document.getElementById('saveAutoReactionRule')?.addEventListener('click', () => {
+    addAutoReactionTerm(
+      document.getElementById('autoReactionTriggersInput'),
+      modalReactionTriggers,
+      'autoReactionTriggers',
+      'trigger',
+    );
+    addAutoReactionTerm(
+      document.getElementById('autoReactionExcludedInput'),
+      modalReactionExcluded,
+      'autoReactionExcluded',
+      'excluded',
+    );
+    if (!modalReactionEmojis.length) {
+      showToast(document.getElementById('toast'), 'Выберите хотя бы одну реакцию.', true);
+      return;
+    }
+    const rule = {
+      channelId: document.getElementById('autoReactionChannel').value,
+      emojis: [...modalReactionEmojis],
+      messageType: document.getElementById('autoReactionMessageType').value,
+      triggers: [...modalReactionTriggers],
+      excludedTriggers: [...modalReactionExcluded],
+    };
+    if (editingAutoReactionIndex === null) autoReactionRules.push(rule);
+    else autoReactionRules[editingAutoReactionIndex] = rule;
+    renderAutoReactionRules();
+    setUnsaved(true);
+    closeAutoReactionModal();
+  });
 }
 
 function renderSetupHealth(settings) {

@@ -5924,6 +5924,8 @@ async def on_message(message):
             for emoji in matching_reaction_emojis(
                 message.content,
                 economy_data.get("auto_reactions", []),
+                channel_id=message.channel.id,
+                message_type=getattr(message.type, "name", "default"),
             ):
                 try:
                     reaction = discord.PartialEmoji.from_str(emoji)

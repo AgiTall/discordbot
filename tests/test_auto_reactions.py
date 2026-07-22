@@ -18,11 +18,20 @@ class AutoReactionTests(unittest.TestCase):
             [
                 {"trigger": "  Дикий   Запад ", "emoji": " 🤠 "},
                 {"trigger": "дикий запад", "emoji": "🤠"},
-                {"trigger": "", "emoji": "👍"},
+                {"trigger": "", "emoji": ""},
                 "invalid",
             ]
         )
-        self.assertEqual(rules, [{"trigger": "Дикий Запад", "emoji": "🤠"}])
+        self.assertEqual(
+            rules,
+            [{
+                "channel_id": "",
+                "emojis": ["🤠"],
+                "message_type": "all",
+                "triggers": ["Дикий Запад"],
+                "excluded_triggers": [],
+            }],
+        )
 
     def test_matching_emojis_are_distinct_and_limited(self):
         rules = [
@@ -33,6 +42,33 @@ class AutoReactionTests(unittest.TestCase):
         self.assertEqual(
             matching_reaction_emojis("Ура, победа!", rules),
             ["🎉", "🏆"],
+        )
+
+    def test_channel_message_type_and_exclusions_are_honored(self):
+        rules = [{
+            "channelId": "200",
+            "emojis": ["🤠", "🔥"],
+            "messageType": "reply",
+            "triggers": ["дикий запад"],
+            "excludedTriggers": ["спойлер"],
+        }]
+        self.assertEqual(
+            matching_reaction_emojis(
+                "Дикий Запад!", rules, channel_id=200, message_type="reply"
+            ),
+            ["🤠", "🔥"],
+        )
+        self.assertEqual(
+            matching_reaction_emojis(
+                "Дикий Запад, спойлер", rules, channel_id=200, message_type="reply"
+            ),
+            [],
+        )
+        self.assertEqual(
+            matching_reaction_emojis(
+                "Дикий Запад!", rules, channel_id=201, message_type="reply"
+            ),
+            [],
         )
 
 

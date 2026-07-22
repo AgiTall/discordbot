@@ -33,7 +33,13 @@ class SettingsValidationTests(TestCase):
                 "goldRate": "750.50",
                 "workSuccessMessage": "{mention}: {scenario}, награда {reward}",
                 "roleRequiredMessage": "Нужна профессия {role}",
-                "autoReactions": [{"trigger": "победа", "emoji": "🏆"}],
+                "autoReactions": [{
+                    "channelId": "200",
+                    "emojis": ["🏆", "🎉"],
+                    "messageType": "default",
+                    "triggers": ["победа"],
+                    "excludedTriggers": ["не победа"],
+                }],
             },
         )
 
@@ -107,7 +113,13 @@ class GuildSettingsRoundTripTests(TestCase):
                 "roleIconMoonshiner": "🥃",
                 "workSuccessMessage": "{mention}: {scenario}; {reward}",
                 "roleRequiredMessage": "Сначала получите роль {role}",
-                "autoReactions": [{"trigger": "  Дикий   Запад ", "emoji": "🤠"}],
+                "autoReactions": [{
+                    "channelId": "201",
+                    "emojis": ["🤠", "🔥"],
+                    "messageType": "all",
+                    "triggers": ["  Дикий   Запад "],
+                    "excludedTriggers": ["спойлер"],
+                }],
             },
         )
 
@@ -118,10 +130,22 @@ class GuildSettingsRoundTripTests(TestCase):
         self.assertEqual(economy.data["role_key_icons"]["moonshiner"], "🥃")
         self.assertEqual(
             economy.data["auto_reactions"],
-            [{"trigger": "Дикий Запад", "emoji": "🤠"}],
+            [{
+                "channel_id": "201",
+                "emojis": ["🤠", "🔥"],
+                "message_type": "all",
+                "triggers": ["Дикий Запад"],
+                "excluded_triggers": ["спойлер"],
+            }],
         )
         self.assertEqual(saved["roleRequiredMessage"], "Сначала получите роль {role}")
-        self.assertEqual(saved["autoReactions"], [{"trigger": "Дикий Запад", "emoji": "🤠"}])
+        self.assertEqual(saved["autoReactions"], [{
+            "channelId": "201",
+            "emojis": ["🤠", "🔥"],
+            "messageType": "all",
+            "triggers": ["Дикий Запад"],
+            "excludedTriggers": ["спойлер"],
+        }])
         self.assertEqual(get_guild_settings(economy, leveling, "100")["agitationChannelId"], "201")
 
 
