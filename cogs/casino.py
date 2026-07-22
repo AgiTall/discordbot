@@ -1,6 +1,7 @@
 import discord
 import random
 import asyncio
+import math
 from discord.ext import commands
 from discord import app_commands
 from src.card_emojis import format_card_emoji
@@ -11,14 +12,29 @@ CARD_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
 BLACKJACK_ANNOUNCEMENT_MIN_BET = 100
 
 
+def _normalize_casino_amount(value):
+    """Return a finite, non-negative casino amount safe for persistence."""
+    try:
+        amount = round(float(value), 2)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if not math.isfinite(amount) or amount < 0:
+        return 0.0
+    return amount
+
+
 def get_casino_bank(bot):
     import bot as bot_module
-    return max(0.0, float(bot_module.economy_data.get("casino_bank", 0.0)))
+    return _normalize_casino_amount(
+        bot_module.economy_data.get("casino_bank", 0.0)
+    )
 
 
 def add_to_casino_bank(bot, amount):
     import bot as bot_module
-    balance = round(get_casino_bank(bot) + max(0.0, float(amount)), 2)
+    balance = _normalize_casino_amount(
+        get_casino_bank(bot) + _normalize_casino_amount(amount)
+    )
     bot_module.economy_data["casino_bank"] = balance
     return balance
 
@@ -564,9 +580,9 @@ class AdminBankAmountModal(discord.ui.Modal):
             return
         try:
             amount = round(float(str(self.amount.value).strip().replace(",", ".")), 2)
-        except ValueError:
+        except (ValueError, OverflowError):
             amount = 0.0
-        if amount <= 0:
+        if not math.isfinite(amount) or amount <= 0:
             await interaction.response.send_message("Введите сумму больше нуля.", ephemeral=True)
             return
 

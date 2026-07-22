@@ -374,43 +374,6 @@ ALL_SELL_PRICES.update(BAR_SELL_PRICE)
 ALL_SELL_PRICES.update(FIND_SELL)
 ALL_SELL_PRICES.update(GEM_SELL)
 
-def make_jewelry_key(metal: str, gem: str, type_key: str) -> str:
-    return f"{JEWELRY_KEY_PREFIX}{metal}_{gem}_{type_key}"
-
-def get_jewelry_name(jewel_key: str) -> str:
-    parts = jewel_key.replace(JEWELRY_KEY_PREFIX, "").split("_")
-    if len(parts) >= 3:
-        metal, gem, type_key = parts[0], parts[1], parts[2]
-        template = FORGE_TEMPLATES.get(type_key)
-        if template:
-            noun = template["noun"]
-            gender = template["gender"]
-            metal_adj = METAL_ADJ.get(metal, {}).get(gender, metal)
-            gem_prep = GEM_PREP.get(gem, "")
-            name_parts = [metal_adj, noun, gem_prep]
-            return " ".join([p for p in name_parts if p]).capitalize()
-    return jewel_key
-
-def get_jewelry_sell_price(jewel_key: str) -> float:
-    parts = jewel_key.replace(JEWELRY_KEY_PREFIX, "").split("_")
-    if len(parts) >= 3:
-        metal, gem = parts[0], parts[1]
-        metal_bar = f"{metal}_bar"
-        bar_val = BAR_SELL_PRICE.get(metal_bar, 10.0 if metal == "gold" else 0.0)
-        gem_val = GEM_SELL.get(gem, 0.0)
-        return round((bar_val + gem_val) * JEWELRY_VALUE_MULT, 2)
-    return 0.0
-
-def get_item_name(key: str) -> str:
-    if key.startswith(JEWELRY_KEY_PREFIX):
-        return get_jewelry_name(key)
-    return ALL_SELLABLE_NAMES.get(key, key)
-
-def get_item_price(key: str) -> float:
-    if key.startswith(JEWELRY_KEY_PREFIX):
-        return get_jewelry_sell_price(key)
-    return ALL_SELL_PRICES.get(key, 0.0)
-
 # ─────────────────────────────────────────────────
 #  АТМОСФЕРНЫЕ ТЕКСТЫ
 # ─────────────────────────────────────────────────
@@ -530,7 +493,7 @@ class MineDB:
                 wood_count         INTEGER DEFAULT 0,
                 dynamite_count     INTEGER DEFAULT 0,
                 canary_count       INTEGER DEFAULT 0,
-                daily_mines_left   INTEGER DEFAULT 3,
+                daily_mines_left   INTEGER DEFAULT 5,
                 last_mine_date     TEXT    DEFAULT '',
                 current_depth      INTEGER DEFAULT 0,
                 total_mined        INTEGER DEFAULT 0,
@@ -663,10 +626,35 @@ def reset_daily_if_needed(player: dict):
     """Сбросить daily_mines_left если наступил новый день (UTC)."""
     today = date.today().isoformat()
     if player.get("last_mine_date", "") != today:
-                if rest2.startswith(gem_key + "_"):
-                    type_key = rest2[len(gem_key) + 1:]
-                    if type_key in FORGE_TEMPLATES:
-                        return metal, gem_key, type_key
+        player["daily_mines_left"] = DAILY_MINE_LIMIT
+
+
+# ─────────────────────────────────────────────────
+#  УКРАШЕНИЯ: ХЕЛПЕРЫ
+# ─────────────────────────────────────────────────
+
+def make_jewelry_key(metal: str, gem_key: str, type_key: str) -> str:
+    """Сформировать ключ инвентаря украшения."""
+    return f"{JEWELRY_KEY_PREFIX}{metal}_{gem_key}_{type_key}"
+
+
+def parse_jewelry_key(key: str):
+    """Разобрать ключ украшения в (metal, gem_key, type_key) или вернуть None."""
+    if not key.startswith(JEWELRY_KEY_PREFIX):
+        return None
+    rest = key[len(JEWELRY_KEY_PREFIX):]
+    for metal in METAL_ADJ:
+        prefix = f"{metal}_"
+        if not rest.startswith(prefix):
+            continue
+        rest = rest[len(prefix):]
+        for gem_key in GEMS:
+            gem_prefix = f"{gem_key}_"
+            if not rest.startswith(gem_prefix):
+                continue
+            type_key = rest[len(gem_prefix):]
+            if type_key in FORGE_TEMPLATES:
+                return metal, gem_key, type_key
     return None
 
 
@@ -814,6 +802,31 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
     for ore_key, ore_data in layer["ores"].items():
         adjusted_chance = ore_data["chance"] + ore_bonus * 0.5
         cumulative += adjusted_chance
+        if roll < cumulative:
+            amount = random.randint(*ore_data["amount"])
+            result["ore"] = ore_key
+
+            if gas_penalty:
+                original_amount = amount
+                amount = max(1, amount // 2)
+                if amount < original_amount:
+                    result["events"].append(
+                        f"Из-за рудничного газа добыча снижена: {original_amount} → {amount}."
+                    )
+
+            if result["collapse"]:
+                lost = max(1, amount // 2)
+                amount = max(0, amount - lost)
+                result["events"].append(
+                    f"Обвал уничтожил часть добытого. Потеряно: {lost} шт."
+                )
+
+            result["ore_amount"] = amount
+            if amount > 0:
+                inv_add(player, ore_key, amount)
+            return result
+
+    # ── Пусто ─────────────────────────────────────
     if result["collapse"]:
         result["events"].append("Обвал завалил проход — ничего не взяли.")
     else:

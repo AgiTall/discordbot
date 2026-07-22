@@ -418,8 +418,11 @@ def normalize_economy_data(data):
     data.setdefault("role_icons", {})
     data.setdefault("role_discounts", {})
     try:
-        data["casino_bank"] = max(0.0, round(float(data.get("casino_bank", 0.0)), 2))
-    except (TypeError, ValueError):
+        casino_bank = round(float(data.get("casino_bank", 0.0)), 2)
+        if not math.isfinite(casino_bank) or casino_bank < 0:
+            raise ValueError("casino_bank must be finite and non-negative")
+        data["casino_bank"] = casino_bank
+    except (TypeError, ValueError, OverflowError):
         data["casino_bank"] = 0.0
     data["companies"] = normalize_companies(data.get("companies"))
     data.setdefault("users", {})
@@ -1986,6 +1989,12 @@ bot.setup_hook = setup_hook
 
 economy_data = EconomyStore()
 economy_lock = asyncio.Lock()
+
+# Инициализируем глобальное состояние
+from src import state
+state.bot = bot
+state.economy_data = economy_data
+state.economy_lock = economy_lock
 
 RESET_CONFIRMATION_PHRASES = ("Я знаю что я делаю", "I know what I'm doing")
 ALL_TARGET_ALIASES = {"all", "@everyone", "everyone", "все", "всем", "всех"}

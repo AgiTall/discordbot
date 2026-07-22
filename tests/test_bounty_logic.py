@@ -2,6 +2,7 @@ import unittest
 
 from src.bounty_logic import (
     BOUNTY_MAX_LEVEL,
+    BOUNTY_TARGETS,
     DEFAULT_BOUNTY_BUTTON_EMOJIS,
     normalize_bounty_data,
 )
@@ -20,7 +21,7 @@ class BountyLogicTests(unittest.TestCase):
     def test_all_bounty_menu_icons_are_custom(self):
         self.assertEqual(
             set(DEFAULT_BOUNTY_BUTTON_EMOJIS),
-            {"easy", "medium", "hard", "ambush", "chase", "negotiate", "leaderboard"},
+            {*BOUNTY_TARGETS, "leaderboard"},
         )
         for emoji in DEFAULT_BOUNTY_BUTTON_EMOJIS.values():
             self.assertTrue(emoji.startswith("<:"), emoji)
