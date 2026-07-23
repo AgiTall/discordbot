@@ -5,7 +5,11 @@ import math
 from discord.ext import commands
 from discord import app_commands
 from src.card_emojis import format_card_emoji
-from emoji_config import CASINO_LOGO_EMOJI
+from emoji_config import (
+    CASINO_BLACKJACK_BUTTON_EMOJI,
+    CASINO_LOGO_EMOJI,
+    CASINO_POKER_BUTTON_EMOJI,
+)
 
 CARD_SUITS = ["♠", "♥", "♦", "♣"]
 CARD_RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"]
@@ -499,7 +503,11 @@ class CasinoLobbyView(discord.ui.View):
     async def open_bet(self, interaction, game):
         await interaction.response.send_modal(CasinoBetModal(self.bot, self.user_id, game))
 
-    @discord.ui.button(label="Blackjack", emoji="🃏", style=discord.ButtonStyle.primary)
+    @discord.ui.button(
+        label="Blackjack",
+        emoji=CASINO_BLACKJACK_BUTTON_EMOJI,
+        style=discord.ButtonStyle.primary,
+    )
     async def blackjack_button(self, interaction, button):
         await self.open_bet(interaction, "blackjack")
 
@@ -507,7 +515,11 @@ class CasinoLobbyView(discord.ui.View):
     async def dice_button(self, interaction, button):
         await self.open_bet(interaction, "dice")
 
-    @discord.ui.button(label="Покер", emoji="♠️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(
+        label="Покер",
+        emoji=CASINO_POKER_BUTTON_EMOJI,
+        style=discord.ButtonStyle.secondary,
+    )
     async def poker_button(self, interaction, button):
         await self.open_bet(interaction, "poker")
 

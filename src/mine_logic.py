@@ -25,6 +25,7 @@ from emoji_config import (
     EMOJI_BLOCKED,
     EMOJI_MINE_DIG,
     EMOJI_WARNING,
+    JEWELRY_CRAFT_EMOJIS,
 )
 
 # Kept as a compatibility constant for older imports.  MineDB no longer uses a
@@ -118,10 +119,10 @@ DEPTH_LAYERS = [
             "щебень и уплотнённый грунт",
         ],
         "ores": {
-            "coal": {"chance": 0.32, "amount": (1, 4)},
+            "coal": {"chance": 0.73, "amount": (4, 7)},
         },
         "find_chance": 0.005,
-        "empty_chance": 0.68,
+        "empty_chance": 0.27,
         "gas_chance": 0.0,
         "collapse_risk": 0.0,
     },
@@ -135,12 +136,12 @@ DEPTH_LAYERS = [
             "плотный песчаник",
         ],
         "ores": {
-            "coal":   {"chance": 0.10, "amount": (1, 3)},
-            "iron":   {"chance": 0.22, "amount": (1, 3)},
-            "copper": {"chance": 0.12, "amount": (1, 2)},
+            "coal":   {"chance": 0.18, "amount": (3, 6)},
+            "iron":   {"chance": 0.34, "amount": (2, 5)},
+            "copper": {"chance": 0.18, "amount": (2, 4)},
         },
         "find_chance": 0.01,
-        "empty_chance": 0.48,
+        "empty_chance": 0.30,
         "gas_chance": 0.05,
         "collapse_risk": 0.0,
     },
@@ -154,12 +155,12 @@ DEPTH_LAYERS = [
             "монолитная порода с трещинами",
         ],
         "ores": {
-            "iron":   {"chance": 0.10, "amount": (1, 2)},
-            "copper": {"chance": 0.08, "amount": (1, 2)},
-            "silver": {"chance": 0.20, "amount": (1, 2)},
+            "iron":   {"chance": 0.18, "amount": (2, 4)},
+            "copper": {"chance": 0.16, "amount": (2, 4)},
+            "silver": {"chance": 0.36, "amount": (1, 3)},
         },
         "find_chance": 0.02,
-        "empty_chance": 0.42,
+        "empty_chance": 0.30,
         "gas_chance": 0.12,
         "collapse_risk": 0.12,
     },
@@ -173,11 +174,11 @@ DEPTH_LAYERS = [
             "порода в железных подтёках",
         ],
         "ores": {
-            "silver": {"chance": 0.10, "amount": (1, 2)},
-            "gold":   {"chance": 0.18, "amount": (1, 2)},
+            "silver": {"chance": 0.24, "amount": (1, 3)},
+            "gold":   {"chance": 0.44, "amount": (1, 2)},
         },
         "find_chance": 0.03,
-        "empty_chance": 0.44,
+        "empty_chance": 0.32,
         "gas_chance": 0.22,
         "collapse_risk": 0.22,
     },
@@ -190,10 +191,10 @@ DEPTH_LAYERS = [
             "чёрный гранит, горячий на ощупь",
         ],
         "ores": {
-            "gold": {"chance": 0.20, "amount": (1, 3)},
+            "gold": {"chance": 0.65, "amount": (1, 3)},
         },
         "find_chance": 0.05,
-        "empty_chance": 0.32,
+        "empty_chance": 0.35,
         "gas_chance": 0.35,
         "collapse_risk": 0.40,
     },
@@ -211,11 +212,11 @@ ORE_NAMES = {
 }
 
 ORE_SELL_PRICE = {
-    "coal":   0.20,
-    "iron":   0.40,
-    "copper": 0.65,
-    "silver": 1.80,
-    "gold":   5.00,
+    "coal":    5.00,
+    "iron":    9.00,
+    "copper": 13.00,
+    "silver": 24.00,
+    "gold":   45.00,
 }
 
 ORE_EMOJIS = {
@@ -236,12 +237,12 @@ BAR_EMOJIS = {
 #  ПЕРЕПЛАВКА
 # ─────────────────────────────────────────────────
 # Сколько единиц экономического золота даёт 1 партия переплавки (2 золотой руды)
-MINE_GOLD_TO_ECONOMY_RATE = 0.10
+MINE_GOLD_TO_ECONOMY_RATE = 0.20
 
 SMELT_RECIPES = {
-    "iron":   {"ore_per_bar": 3, "fee": 0.50, "bar_key": "iron_bar",   "bar_name": "железный слиток",   "bar_sell": 1.80},
-    "copper": {"ore_per_bar": 3, "fee": 0.65, "bar_key": "copper_bar", "bar_name": "медный слиток",     "bar_sell": 2.40},
-    "silver": {"ore_per_bar": 2, "fee": 1.00, "bar_key": "silver_bar", "bar_name": "серебряный слиток", "bar_sell": 6.00},
+    "iron":   {"ore_per_bar": 3, "fee": 2.00, "bar_key": "iron_bar",   "bar_name": "железный слиток",   "bar_sell": 36.00},
+    "copper": {"ore_per_bar": 3, "fee": 3.00, "bar_key": "copper_bar", "bar_name": "медный слиток",     "bar_sell": 52.00},
+    "silver": {"ore_per_bar": 2, "fee": 5.00, "bar_key": "silver_bar", "bar_name": "серебряный слиток", "bar_sell": 65.00},
     # gold → не создаёт слиток, а начисляет экономическое золото (account["gold"])
     "gold":   {"ore_per_bar": 2, "fee": 2.00, "economy_gold": True,
                "bar_key": None, "bar_name": "золото", "bar_sell": 0},
@@ -257,10 +258,10 @@ BAR_SELL_PRICE = {r["bar_key"]: r["bar_sell"] for r in SMELT_RECIPES.values() if
 JEWELRY_WAGON_BONUS = 1.5
 
 GEMS = {
-    "crystal":  {"name": "горный хрусталь", "emoji": EMOJI_GEM_CRYSTAL,  "min_depth": 30,  "chance": 0.040, "sell": 3.50},
-    "amethyst": {"name": "аметист",         "emoji": EMOJI_GEM_AMETHYST, "min_depth": 60,  "chance": 0.025, "sell": 9.00},
-    "emerald":  {"name": "изумруд",         "emoji": EMOJI_GEM_EMERALD,  "min_depth": 100, "chance": 0.015, "sell": 22.00},
-    "diamond":  {"name": "алмаз",           "emoji": EMOJI_GEM_DIAMOND,  "min_depth": 150, "chance": 0.008, "sell": 50.00},
+    "crystal":  {"name": "горный хрусталь", "emoji": EMOJI_GEM_CRYSTAL,  "min_depth": 30,  "chance": 0.040, "sell": 45.00},
+    "amethyst": {"name": "аметист",         "emoji": EMOJI_GEM_AMETHYST, "min_depth": 60,  "chance": 0.025, "sell": 110.00},
+    "emerald":  {"name": "изумруд",         "emoji": EMOJI_GEM_EMERALD,  "min_depth": 100, "chance": 0.015, "sell": 260.00},
+    "diamond":  {"name": "алмаз",           "emoji": EMOJI_GEM_DIAMOND,  "min_depth": 150, "chance": 0.008, "sell": 600.00},
 }
 
 GEM_NAMES = {k: v["name"] for k, v in GEMS.items()}
@@ -316,43 +317,43 @@ RARE_FINDS = [
     {
         "key": "samorodok",
         "name": "самородок из Камберленда",
-        "sell": 12.0,
+        "sell": 90.0,
         "desc": "Тяжёлый самородок с насечкой старателя. Роанок-Ридж хранит такие нечасто.",
     },
     {
         "key": "coins_tsar",
         "name": "серебряные доллары 1878 года",
-        "sell": 7.0,
+        "sell": 55.0,
         "desc": "Горсть потемневших долларов. Похоже, чей-то тайник так и не дождался хозяина.",
     },
     {
         "key": "rail_putilov",
         "name": "обломок рельса Annesburg Mining Co.",
-        "sell": 4.0,
+        "sell": 40.0,
         "desc": "Тяжёлый кусок узкоколейки. Фирменное клеймо ещё различимо под угольной пылью.",
     },
     {
         "key": "watch_gold",
         "name": "золотые карманные часы",
-        "sell": 18.0,
+        "sell": 140.0,
         "desc": "Инкрустированная крышка. Механизм стоит, но золото вечно.",
     },
     {
         "key": "compass_old",
         "name": "старинный компас",
-        "sell": 9.0,
+        "sell": 70.0,
         "desc": "Медный. Стрелка подрагивает — магнитная аномалия рядом.",
     },
     {
         "key": "ingot_kazenny",
         "name": "слиток со штампом Гриззли",
-        "sell": 22.0,
+        "sell": 180.0,
         "desc": "Серебро со старым штампом старательской артели. Откуда оно в этой выработке?",
     },
     {
         "key": "notebook_miner",
         "name": "дневник шахтёра Аннесберга",
-        "sell": 5.0,
+        "sell": 45.0,
         "desc": "Страницы слиплись от сырости. Внутри — набросок жил и несколько имён, зачёркнутых углём.",
     },
 ]
@@ -681,6 +682,15 @@ def get_jewelry_sell_price(key: str) -> float:
     return round((bar_val + gem_val) * JEWELRY_VALUE_MULT, 2)
 
 
+def get_jewelry_emoji(key: str) -> str:
+    """Вернуть коллекционный эмодзи, соответствующий камню и форме изделия."""
+    parsed = parse_jewelry_key(key)
+    if not parsed:
+        return ""
+    _, gem_key, type_key = parsed
+    return JEWELRY_CRAFT_EMOJIS.get((gem_key, type_key), "")
+
+
 def get_item_name(key: str):
     """Универсально: вернуть название предмета по ключу инвентаря."""
     name = ALL_SELLABLE_NAMES.get(key)
@@ -777,7 +787,7 @@ def roll_mine(player: dict, has_oil: bool) -> dict:
             )
 
     # ── Без масла: шанс пропустить всё ───────────
-    if not has_oil and random.random() < 0.35:
+    if not has_oil and random.random() < 0.20:
         result["events"].append("Ничего не нашли — в темноте ничего не видно.")
         return result
 

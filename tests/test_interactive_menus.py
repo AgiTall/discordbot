@@ -45,6 +45,12 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertIn("token = bot.set_economy_guild_id(interaction.guild_id)", casino)
         self.assertIn("bot.reset_economy_guild_id(token)", casino)
         self.assertIn("self.bot.set_economy_guild_id(self.guild_id)", casino)
+        self.assertIn("emoji=CASINO_BLACKJACK_BUTTON_EMOJI", casino)
+        self.assertIn("emoji=CASINO_POKER_BUTTON_EMOJI", casino)
+
+        emoji_config = (ROOT / "emoji_config.py").read_text(encoding="utf-8")
+        self.assertIn("<:blip_mg_blackjack:1529753382405799936>", emoji_config)
+        self.assertIn("<:blip_mg_poker:1527603592704426094>", emoji_config)
 
     def test_help_uses_current_casino_and_mine_menus(self):
         source = (ROOT / "bot.py").read_text(encoding="utf-8")
@@ -100,6 +106,8 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertIn('label="Купить", emoji=EMOJI_MINE_BUY', miner)
         self.assertIn('label="Кузнец", emoji=EMOJI_MINE_SMELT', miner)
         self.assertIn('label="Ювелир", emoji=EMOJI_MINE_FORGE', miner)
+        self.assertIn("get_jewelry_emoji", miner)
+        self.assertIn("price_each = get_item_price(item)", miner)
 
     def test_mine_acknowledges_interaction_before_database_work(self):
         miner = (ROOT / "cogs" / "miner.py").read_text(encoding="utf-8")

@@ -7,7 +7,7 @@
   <meta name="description"
     content="Личный кабинет Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — просмотр вашей банды, роли и характеристик.">
   <title>Личный кабинет — Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺</title>
-  <link rel="stylesheet" href="css/style.css?v=0.8.1.12.1">
+  <link rel="stylesheet" href="css/style.css?v=0.8.1.13.1">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -19,7 +19,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.8.2</span>
+        <span class="navbar__badge">v0.8.2.1</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -98,7 +98,7 @@
           </div>
 
           <!-- СЕКЦИЯ: ПРОФИЛЬ -->
-          <div class="dash-section active" style="margin-top: 20px;">
+          <div class="dash-section active profile-sections" style="margin-top: 20px;">
             <div class="dash-section__header">
               <div class="dash-section__icon" aria-hidden="true">💰</div>
               <div class="dash-section__title">
@@ -134,6 +134,37 @@
                   </div>
                   <div class="profile-role-list" id="myRoleList"></div>
                 </div>
+              </div>
+            </div>
+
+            <div class="dash-section__header">
+              <div class="dash-section__icon" aria-hidden="true">🏆</div>
+              <div class="dash-section__title">
+                <h2>Рейтинг сервера</h2>
+                <p>Топ-10 игроков по общему капиталу</p>
+              </div>
+            </div>
+
+            <div class="card profile-leaderboard-card">
+              <h3 class="heading-sm"><span id="leaderboardStatsEmoji" aria-hidden="true"></span> Топ богачей</h3>
+              <p class="hint">Учитываются наличные, деньги и золото на руках и в сейфе. Нажмите на название столбца для сортировки.</p>
+              <div class="table-scroll">
+                <table class="economy-table leaderboard-sortable">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="name">Игрок<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                      <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="level">Уровень<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                      <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="cash">Наличные<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                      <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="safe">В сейфе<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                      <th aria-sort="none"><button type="button" class="table-sort" data-leaderboard-sort="gold">Золото<span class="table-sort__arrow" aria-hidden="true"></span></button></th>
+                      <th aria-sort="descending"><button type="button" class="table-sort is-active" data-leaderboard-sort="wealth">Капитал<span class="table-sort__arrow" aria-hidden="true">▼</span></button></th>
+                    </tr>
+                  </thead>
+                  <tbody id="leaderboardTbody">
+                    <tr><td colspan="7" class="table-empty">Загрузка рейтинга...</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -215,7 +246,7 @@
     </div>
   </footer>
 
-  <script src="js/app.js?v=0.8.1.12.1"></script>
+  <script src="js/app.js?v=0.8.1.13.1"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       const gate = document.getElementById('authGate');
@@ -247,6 +278,7 @@
       if (authState.user) {
         renderUserBadge(userBadge);
       }
+      initLeaderboardSorting();
 
       const botGuilds = authState.guilds.filter(guild => guild.botPresent);
       grid.innerHTML = '';
@@ -330,6 +362,14 @@
         document.getElementById('myMaps').innerHTML = `${money(profile.treasure_maps)} ${mapEmoji}`;
         document.getElementById('myRoles').textContent = profile.owned_roles.length;
         document.getElementById('myGoldRate').textContent = `${money(profile.gold_rate)} $`;
+        leaderboardRows = Array.isArray(profile.leaderboard) ? profile.leaderboard : [];
+        leaderboardEmojis = profile.emojis || {};
+        leaderboardGoldRate = Number(profile.gold_rate || 1);
+        const statsHeadingEmoji = document.getElementById('leaderboardStatsEmoji');
+        if (statsHeadingEmoji) {
+          statsHeadingEmoji.innerHTML = economyEmojiHtml(profile.emojis, 'stats', '🏆');
+        }
+        renderLeaderboard();
 
         const roleList = document.getElementById('myRoleList');
         const roleDetails = Array.isArray(profile.owned_role_details) ? profile.owned_role_details : [];

@@ -32,8 +32,6 @@ from src.mine_logic import (
     JEWELRY_FEE_PCT,
     FORGE_TEMPLATES,
     FORGE_DONE_LINES,
-    ALL_SELLABLE_NAMES,
-    ALL_SELL_PRICES,
     ATMOSPHERE_TAGS,
     get_depth_layer,
     inv_get,
@@ -44,6 +42,7 @@ from src.mine_logic import (
     make_jewelry_key,
     get_jewelry_name,
     get_jewelry_sell_price,
+    get_jewelry_emoji,
     get_item_name,
     get_item_price,
 )
@@ -131,7 +130,7 @@ def format_inventory(player: dict) -> str:
         sections.append(f"{EMOJI_GEM_DIAMOND} **Камни:**\n" + "\n".join(gem_lines))
 
     jewel_lines = [
-        f"  {get_jewelry_name(k)}: **{qty}** шт. · {get_jewelry_sell_price(k)} {cash_e}/шт."
+        f"  {get_jewelry_emoji(k)} {get_jewelry_name(k)}: **{qty}** шт. · {get_jewelry_sell_price(k)} {cash_e}/шт."
         for k, qty in inv.items()
         if k.startswith(JEWELRY_KEY_PREFIX) and qty > 0
     ]
@@ -432,7 +431,8 @@ class MinerMainView(MinerOwnerView):
                 continue
             price = get_item_price(key)
             label = f"{name} ×{qty} — {price} {cash_e}/шт."
-            options.append(discord.SelectOption(label=label[:100], value=key))
+            emoji = get_jewelry_emoji(key) if key.startswith(JEWELRY_KEY_PREFIX) else None
+            options.append(discord.SelectOption(label=label[:100], value=key, emoji=emoji))
 
         if not options:
             embed = build_mine_embed(
@@ -711,7 +711,9 @@ class MinerSellSelect(discord.ui.Select):
             await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
-        if item not in ALL_SELL_PRICES:
+        item_name = get_item_name(item)
+        price_each = get_item_price(item)
+        if not item_name or price_each <= 0:
             embed = build_mine_embed(
                 f"{EMOJI_MINE_SELL} Фактория",
                 "Фактория не принимает этот предмет.",
@@ -722,7 +724,6 @@ class MinerSellSelect(discord.ui.Select):
             return
 
         qty = available
-        price_each = ALL_SELL_PRICES[item]
         earned = price_each * qty
         inv_remove(player, item, qty)
         view.db.save_player(gid, uid, player)
@@ -738,10 +739,10 @@ class MinerSellSelect(discord.ui.Select):
             reset_economy_guild_id(token)
 
         cash_e = get_cash_emoji()
-        item_name = ALL_SELLABLE_NAMES.get(item, item)
+        item_emoji = get_jewelry_emoji(item)
         embed = build_mine_embed(
             f"{EMOJI_MINE_SELL} Фактория",
-            f"Продано: **{item_name}** × {qty}\n"
+            f"Продано: {item_emoji} **{item_name}** × {qty}\n"
             f"Выручка: **{earned} {cash_e}**\n"
             f"Баланс: **{bal} {cash_e}**",
             color=discord.Color.from_rgb(180, 140, 40),
@@ -1001,6 +1002,7 @@ class MinerForgeConfirmButton(discord.ui.Button):
         jewel_key = make_jewelry_key(metal, gem, type_key)
         jewel_name = get_jewelry_name(jewel_key)
         jewel_price = get_jewelry_sell_price(jewel_key)
+        jewel_emoji = get_jewelry_emoji(jewel_key)
 
         inv_remove(player, bar, 1)
         inv_remove(player, gem, 1)
@@ -1013,7 +1015,7 @@ class MinerForgeConfirmButton(discord.ui.Button):
         desc = (
             f"_{flavor}_\n\n"
             f"Слиток: **{bar_name}** + камень: **{gem_name}**\n"
-            f"Создано: **{jewel_name}**\n"
+            f"Создано: {jewel_emoji} **{jewel_name}**\n"
             f"Такса ювелира: **{fee} {cash_e}**\n"
             f"Баланс: **{bal} {cash_e}**\n\n"
             f"Цена продажи: **{jewel_price} {cash_e}** · продать через **{EMOJI_MINE_SELL} Продать**"

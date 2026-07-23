@@ -275,6 +275,9 @@ class DashboardApiTests(IsolatedAsyncioTestCase):
         self.assertEqual(response["level"], 6)
         self.assertEqual(response["xp"], 1250)
         self.assertEqual(response["rank_position"], 4)
+        self.assertEqual(response["leaderboard"][0]["name"], "Arthur")
+        self.assertEqual(response["leaderboard"][0]["wealth"], 2000)
+        self.assertEqual(response["leaderboard"][0]["level"], 6)
 
     def test_homepage_promotes_complete_player_profile(self):
         homepage = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
@@ -286,3 +289,5 @@ class DashboardApiTests(IsolatedAsyncioTestCase):
         self.assertIn('id="myWealth"', profile)
         self.assertIn('id="myRoleList"', profile)
         self.assertIn('id="goldRateChart"', profile)
+        self.assertIn('id="leaderboardTbody"', profile)
+        self.assertIn("Топ богачей", profile)

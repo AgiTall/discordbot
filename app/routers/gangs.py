@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.utils.dependencies import CurrentUser, require_guild_access
 from src.constants import ROLE_DEFINITIONS
-from src.economy_stats import build_web_emoji_payload
+from src.economy_stats import build_economy_stats, build_web_emoji_payload
 from src.gold_rate_history import normalize_gold_rate_history
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,8 @@ async def get_my_profile(
     """Return the authenticated player's economy overview."""
     member = await _require_guild_member(guild_id, request, user)
     guild_data = _get_economy_store(request).guild_data(guild_id)
+    bot = getattr(request.app.state, "bot", None)
+    guild = bot.get_guild(int(guild_id)) if bot is not None else None
     account = guild_data.get("users", {}).get(str(user.discord_id), {})
     cash = _number(account.get("cash"))
     gold = _number(account.get("gold"))
@@ -103,7 +105,7 @@ async def get_my_profile(
 
     level_data = {"xp": 0, "level": 1}
     rank_position = None
-    get_cog = getattr(getattr(request.app.state, "bot", None), "get_cog", None)
+    get_cog = getattr(bot, "get_cog", None)
     leveling_cog = get_cog("LevelingCog") if callable(get_cog) else None
     leveling_db = getattr(leveling_cog, "db", None)
     if leveling_db is not None:
@@ -120,6 +122,41 @@ async def get_my_profile(
             )
         except Exception:
             logger.exception("Failed to load leveling profile for guild %s", guild_id)
+
+    def resolve_name(player_id: str, player_account: dict[str, Any]) -> str:
+        if player_id == str(user.discord_id):
+            return str(member.display_name)
+        try:
+            guild_member = guild.get_member(int(player_id)) if guild is not None else None
+        except (AttributeError, TypeError, ValueError):
+            guild_member = None
+        return str(
+            getattr(guild_member, "display_name", None)
+            or player_account.get("name")
+            or ""
+        )
+
+    leaderboard = build_economy_stats(
+        guild_data,
+        viewer_id=user.discord_id,
+        name_resolver=resolve_name,
+    )["leaderboard"]
+    if leveling_db is not None and leaderboard:
+        def load_leaderboard_levels():
+            levels = []
+            for entry in leaderboard:
+                if entry["id"] == str(user.discord_id):
+                    levels.append(level_data)
+                else:
+                    levels.append(leveling_db.get_user(str(guild_id), entry["id"]))
+            return levels
+
+        try:
+            leaderboard_levels = await asyncio.to_thread(load_leaderboard_levels)
+            for entry, player_level in zip(leaderboard, leaderboard_levels):
+                entry["level"] = max(1, int(player_level.get("level", 1) or 1))
+        except Exception:
+            logger.exception("Failed to load profile leaderboard levels for guild %s", guild_id)
 
     return {
         "id": str(user.discord_id),
@@ -144,6 +181,7 @@ async def get_my_profile(
         "level": max(1, int(level_data.get("level", 1) or 1)),
         "xp": max(0, int(level_data.get("xp", 0) or 0)),
         "rank_position": rank_position,
+        "leaderboard": leaderboard,
         "gang_name": account.get("gang_name"),
         "emojis": build_web_emoji_payload(guild_data),
     }

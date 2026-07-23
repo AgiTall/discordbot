@@ -4173,6 +4173,19 @@ h6,
   margin-top: 18px;
 }
 
+.profile-sections > .dash-section__header:not(:first-child) {
+  margin-top: 42px;
+}
+
+.profile-leaderboard-card > .hint {
+  margin: 8px 0 16px;
+}
+
+.profile-leaderboard-card .economy-table tbody tr:nth-child(-n + 3) td:first-child {
+  color: var(--gold);
+  font-weight: 700;
+}
+
 @media (max-width: 900px) {
   .home-profile-callout__inner {
     grid-template-columns: auto 1fr;

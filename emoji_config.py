@@ -167,6 +167,33 @@ DEFAULT_MOONSHINE_INGREDIENT_EMOJIS = {
 # Маркер купленной профессии в /balance.
 ROLE_OWNED_PIN_EMOJI = "<:grenpin:1527602575463944232>"
 CASINO_LOGO_EMOJI = "<:blip_mg_poker:1527603592704426094>"
+CASINO_BLACKJACK_BUTTON_EMOJI = "<:blip_mg_blackjack:1529753382405799936>"
+CASINO_POKER_BUTTON_EMOJI = "<:blip_mg_poker:1527603592704426094>"
+
+# Внешний вид изделий ювелира. Это предметы из коллекции «Украшения»,
+# поэтому шахтёр и коллекционер используют один визуальный язык.
+JEWELRY_CRAFT_EMOJIS = {
+    ("crystal", "ring"): "<:provision_jewelry_moon_ring:1527605691311984810>",
+    ("crystal", "brooch"): "<:provision_jewelry_carved_bracele:1527605660634845285>",
+    ("crystal", "pendant"): "<:provision_jewelry_porcelain_neck:1527605705295659100>",
+    ("crystal", "earring"): "<:provision_jewelry_drop_earring:1527605670143201430>",
+    ("crystal", "pin"): "<:provision_jewelry_turq_stud_earr:1527605719778590832>",
+    ("amethyst", "ring"): "<:provision_jewelry_topaz_ring:1527605717903736842>",
+    ("amethyst", "brooch"): "<:provision_jewelry_grnet_bracelet:1527605687264350360>",
+    ("amethyst", "pendant"): "<:provision_jewelry_amethyst_neckl:1527605656381820948>",
+    ("amethyst", "earring"): "<:provision_jewelry_grnet_post_ear:1527605689160040508>",
+    ("amethyst", "pin"): "<:provision_jewelry_rudy_dngl_earr:1527605708961616003>",
+    ("emerald", "ring"): "<:provision_jewelry_emerald_ring:1527605675402854411>",
+    ("emerald", "brooch"): "<:provision_jewelry_sphr_bracelet:1527605714611212370>",
+    ("emerald", "pendant"): "<:provision_jewelry_gld_pendt_neck:1527605684651298926>",
+    ("emerald", "earring"): "<:provision_jewelry_emerald_earrin:1527605673364422667>",
+    ("emerald", "pin"): "<:provision_jewelry_coral_dngl_ear:1527605662681534614>",
+    ("diamond", "ring"): "<:provision_jewelry_french_dmnd_ri:1527605677286232184>",
+    ("diamond", "brooch"): "<:provision_jewelry_dmnd_bngle_bra:1527605666754068550>",
+    ("diamond", "pendant"): "<:provision_jewelry_gld_cross_neck:1527605680133898261>",
+    ("diamond", "earring"): "<:provision_jewelry_wht_dmnd_earri:1527605724610560151>",
+    ("diamond", "pin"): "<:provision_jewelry_dmnd_pendt_ear:1527605668616343622>",
+}
 
 # Коллекционер: основные инструменты.
 COLLECTOR_METAL_DETECTOR_EMOJI = "<:weapon_kit_metal_detector:1527574659636400138>"
