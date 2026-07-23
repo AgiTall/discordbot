@@ -1,7 +1,9 @@
 """Слой настроек сервера: объединяет economy.db и leveling.db для веб-панели."""
 import json
+from datetime import datetime, timezone
 
 from src.auto_reactions import auto_reactions_for_dashboard, normalize_auto_reactions
+from src.gold_rate_history import normalize_gold_rate_history, record_gold_rate
 
 DEFAULT_WELCOME_MESSAGE = "Добро пожаловать на сервер, {mention}! 🎉"
 DEFAULT_FAREWELL_MESSAGE = "{user} покинул сервер. До свидания!"
@@ -113,6 +115,11 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
         "logCommands": bool(econ.get("log_commands")),
         "autoReactions": auto_reactions_for_dashboard(econ.get("auto_reactions")),
         "goldRate": float(econ.get("gold_rate") or 0),
+        "goldRateHistory": normalize_gold_rate_history(
+            econ.get("gold_rate_history"),
+            fallback_date=econ.get("gold_rate_date"),
+            fallback_rate=econ.get("gold_rate"),
+        ),
         "cashEmoji": str(econ.get("cash_emoji") or "💵"),
         "goldEmoji": str(econ.get("gold_emoji") or "🪙"),
         "mapEmoji": str(econ.get("map_emoji") or "🗺️"),
@@ -224,6 +231,13 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
 
     if "goldRate" in data:
         econ["gold_rate"] = max(50.0, float(data["goldRate"]))
+        today = datetime.now(timezone.utc).date().isoformat()
+        econ["gold_rate_date"] = today
+        econ["gold_rate_history"] = record_gold_rate(
+            econ.get("gold_rate_history"),
+            point_date=today,
+            rate=econ["gold_rate"],
+        )
 
     if "rankRoles" in data:
         existing = leveling_db.get_rank_roles(gid)

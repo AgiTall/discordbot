@@ -15,6 +15,7 @@ import psycopg2
 import psycopg2.extras
 
 from src.auto_reactions import normalize_auto_reactions
+from src.gold_rate_history import normalize_gold_rate_history, record_gold_rate
 
 from emoji_config import (
     DEFAULT_CASH_EMOJI, DEFAULT_GOLD_EMOJI, DEFAULT_MAP_EMOJI,
@@ -123,6 +124,7 @@ def default_economy() -> dict:
     return {
         "gold_rate":                    START_GOLD_RATE,
         "gold_rate_date":               today_iso(),
+        "gold_rate_history":            [{"date": today_iso(), "rate": START_GOLD_RATE}],
         "cash_emoji":                   DEFAULT_CASH_EMOJI,
         "gold_emoji":                   DEFAULT_GOLD_EMOJI,
         "map_emoji":                    DEFAULT_MAP_EMOJI,
@@ -185,6 +187,11 @@ def normalize_economy_data(data: dict) -> dict:
 
     data.setdefault("gold_rate", START_GOLD_RATE)
     data.setdefault("gold_rate_date", today_iso())
+    data["gold_rate_history"] = normalize_gold_rate_history(
+        data.get("gold_rate_history"),
+        fallback_date=data["gold_rate_date"],
+        fallback_rate=data["gold_rate"],
+    )
     data.setdefault("cash_emoji", DEFAULT_CASH_EMOJI)
     data.setdefault("map_emoji", DEFAULT_MAP_EMOJI)
     data.setdefault("stats_emoji", DEFAULT_STATS_EMOJI)
@@ -582,9 +589,19 @@ def update_gold_rate() -> float:
     current_day = parse_local_date(state.economy_data.get("gold_rate_date", today_iso()))
     target_day  = now_local().date()
     rate        = float(state.economy_data.get("gold_rate", START_GOLD_RATE))
+    history     = normalize_gold_rate_history(
+        state.economy_data.get("gold_rate_history"),
+        fallback_date=current_day.isoformat(),
+        fallback_rate=rate,
+    )
 
     if current_day > target_day:
         state.economy_data["gold_rate_date"] = today_iso()
+        state.economy_data["gold_rate_history"] = record_gold_rate(
+            history,
+            point_date=target_day.isoformat(),
+            rate=rate,
+        )
         return rate
 
     while current_day < target_day:
@@ -595,7 +612,17 @@ def update_gold_rate() -> float:
         if new_rate == rate:
             new_rate += 0.01 if rng.random() >= 0.5 else -0.01
         rate = round(max(MIN_GOLD_RATE, new_rate), 2)
+        history = record_gold_rate(
+            history,
+            point_date=current_day.isoformat(),
+            rate=rate,
+        )
 
     state.economy_data["gold_rate"]      = rate
     state.economy_data["gold_rate_date"] = today_iso()
+    state.economy_data["gold_rate_history"] = record_gold_rate(
+        history,
+        point_date=target_day.isoformat(),
+        rate=rate,
+    )
     return rate

@@ -6,17 +6,29 @@ so this router reads/writes there directly instead of PostgreSQL.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import math
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
 from app.utils.dependencies import CurrentUser, require_guild_access
+from src.constants import ROLE_DEFINITIONS
 from src.economy_stats import build_web_emoji_payload
+from src.gold_rate_history import normalize_gold_rate_history
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["gangs"])
+
+
+def _number(value: Any) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return result if math.isfinite(result) else 0.0
 
 
 def _get_economy_store(request: Request):
@@ -67,16 +79,71 @@ async def get_my_profile(
     member = await _require_guild_member(guild_id, request, user)
     guild_data = _get_economy_store(request).guild_data(guild_id)
     account = guild_data.get("users", {}).get(str(user.discord_id), {})
+    cash = _number(account.get("cash"))
+    gold = _number(account.get("gold"))
+    safe_cash = _number(account.get("safe_cash"))
+    safe_gold = _number(account.get("safe_gold"))
+    gold_rate = _number(guild_data.get("gold_rate")) or 543.45
+    owned_role_keys = account.get("owned_roles", [])
+    if not isinstance(owned_role_keys, list):
+        owned_role_keys = []
+    owned_role_keys = [str(key) for key in owned_role_keys]
+    role_icons = guild_data.get("role_key_icons", {})
+    if not isinstance(role_icons, dict):
+        role_icons = {}
+    owned_roles = [
+        {
+            "key": definition["key"],
+            "name": definition["name"],
+            "emoji": str(role_icons.get(definition["key"]) or definition["emoji"]),
+        }
+        for definition in ROLE_DEFINITIONS
+        if definition["key"] in owned_role_keys
+    ]
+
+    level_data = {"xp": 0, "level": 1}
+    rank_position = None
+    get_cog = getattr(getattr(request.app.state, "bot", None), "get_cog", None)
+    leveling_cog = get_cog("LevelingCog") if callable(get_cog) else None
+    leveling_db = getattr(leveling_cog, "db", None)
+    if leveling_db is not None:
+        try:
+            level_data = await asyncio.to_thread(
+                leveling_db.get_user,
+                str(guild_id),
+                str(user.discord_id),
+            )
+            rank_position = await asyncio.to_thread(
+                leveling_db.get_user_rank_position,
+                str(guild_id),
+                str(user.discord_id),
+            )
+        except Exception:
+            logger.exception("Failed to load leveling profile for guild %s", guild_id)
+
     return {
         "id": str(user.discord_id),
         "display_name": member.display_name,
         "avatar_url": str(member.display_avatar.url),
-        "cash": float(account.get("cash", 0.0)),
-        "gold": float(account.get("gold", 0.0)),
-        "treasure_maps": int(account.get("treasure_maps", 0)),
-        "safe_cash": float(account.get("safe_cash", 0.0)),
-        "safe_gold": float(account.get("safe_gold", 0.0)),
-        "owned_roles": list(account.get("owned_roles", [])),
+        "cash": cash,
+        "gold": gold,
+        "treasure_maps": max(0, int(_number(account.get("treasure_maps")))),
+        "safe_cash": safe_cash,
+        "safe_gold": safe_gold,
+        "total_cash": cash + safe_cash,
+        "total_gold": gold + safe_gold,
+        "wealth": cash + safe_cash + (gold + safe_gold) * gold_rate,
+        "gold_rate": gold_rate,
+        "gold_rate_history": normalize_gold_rate_history(
+            guild_data.get("gold_rate_history"),
+            fallback_date=guild_data.get("gold_rate_date"),
+            fallback_rate=gold_rate,
+        ),
+        "owned_roles": owned_role_keys,
+        "owned_role_details": owned_roles,
+        "level": max(1, int(level_data.get("level", 1) or 1)),
+        "xp": max(0, int(level_data.get("xp", 0) or 0)),
+        "rank_position": rank_position,
         "gang_name": account.get("gang_name"),
         "emojis": build_web_emoji_payload(guild_data),
     }

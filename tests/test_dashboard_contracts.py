@@ -137,6 +137,7 @@ class GuildSettingsRoundTripTests(TestCase):
         self.assertEqual(economy.saved, 1)
         self.assertEqual(economy.data["agitation_channel_id"], 201)
         self.assertEqual(economy.data["gold_rate"], 812.25)
+        self.assertEqual(economy.data["gold_rate_history"][-1]["rate"], 812.25)
         self.assertEqual(economy.data["balance_ui_gang"], "<:gang:123456789>")
         self.assertEqual(economy.data["role_key_icons"]["moonshiner"], "🥃")
         self.assertEqual(
@@ -150,6 +151,7 @@ class GuildSettingsRoundTripTests(TestCase):
             }],
         )
         self.assertEqual(saved["roleRequiredMessage"], "Сначала получите роль {role}")
+        self.assertEqual(saved["goldRateHistory"][-1]["rate"], 812.25)
         self.assertEqual(saved["autoReactions"], [{
             "channelId": "201",
             "emojis": ["🤠", "🔥"],
@@ -224,15 +226,30 @@ class DashboardApiTests(IsolatedAsyncioTestCase):
             display_avatar=SimpleNamespace(url="https://example.test/avatar.png"),
         )
         guild = SimpleNamespace(fetch_member=AsyncMock(return_value=member))
-        bot = SimpleNamespace(get_guild=lambda guild_id: guild)
+        leveling_db = SimpleNamespace(
+            get_user=lambda guild_id, user_id: {"xp": 1250, "level": 6},
+            get_user_rank_position=lambda guild_id, user_id: 4,
+        )
+        bot = SimpleNamespace(
+            get_guild=lambda guild_id: guild,
+            get_cog=lambda name: SimpleNamespace(db=leveling_db),
+        )
         store = SimpleNamespace(
             guild_data=lambda guild_id: {
                 "cash_emoji": "<:cash:100>",
                 "gold_emoji": "<:gold:101>",
+                "gold_rate": 600,
+                "gold_rate_date": "2026-07-23",
+                "gold_rate_history": [
+                    {"date": "2026-07-22", "rate": 590},
+                    {"date": "2026-07-23", "rate": 600},
+                ],
                 "users": {
                     "42": {
                         "cash": 150.5,
                         "gold": 2,
+                        "safe_cash": 49.5,
+                        "safe_gold": 1,
                         "treasure_maps": 3,
                         "owned_roles": ["miner"],
                     }
@@ -250,3 +267,22 @@ class DashboardApiTests(IsolatedAsyncioTestCase):
         self.assertEqual(response["owned_roles"], ["miner"])
         self.assertEqual(response["emojis"]["cash"], "<:cash:100>")
         self.assertEqual(response["emojis"]["gold"], "<:gold:101>")
+        self.assertEqual(response["total_cash"], 200)
+        self.assertEqual(response["total_gold"], 3)
+        self.assertEqual(response["wealth"], 2000)
+        self.assertEqual(response["owned_role_details"][0]["name"], "Шахтёр")
+        self.assertEqual(response["gold_rate_history"][-1]["rate"], 600)
+        self.assertEqual(response["level"], 6)
+        self.assertEqual(response["xp"], 1250)
+        self.assertEqual(response["rank_position"], 4)
+
+    def test_homepage_promotes_complete_player_profile(self):
+        homepage = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+        profile = (ROOT / "docs" / "profile.html").read_text(encoding="utf-8")
+
+        self.assertIn('id="heroProfileCta"', homepage)
+        self.assertIn("Открыть мой профиль", homepage)
+        self.assertIn('id="mySafeCash"', profile)
+        self.assertIn('id="myWealth"', profile)
+        self.assertIn('id="myRoleList"', profile)
+        self.assertIn('id="goldRateChart"', profile)

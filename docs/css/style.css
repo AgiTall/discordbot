@@ -2447,6 +2447,57 @@ input.rank-role-card__level-badge:focus {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.gold-rate-chart {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 80% 0%, rgba(212, 168, 79, .09), transparent 42%),
+    rgba(10, 10, 12, .45);
+}
+
+.gold-rate-chart__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.gold-rate-chart__header strong,
+.gold-rate-chart__header span {
+  display: block;
+}
+
+.gold-rate-chart__header strong {
+  color: var(--text-white);
+  font: 700 .9rem/1.3 'Helvetica Neue', Arial, sans-serif;
+}
+
+.gold-rate-chart__header span {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font: 400 .74rem/1.3 'Helvetica Neue', Arial, sans-serif;
+}
+
+.gold-rate-chart__canvas {
+  position: relative;
+  height: 300px;
+}
+
+@media (max-width: 700px) {
+  .gold-rate-chart {
+    margin-right: -8px;
+    margin-left: -8px;
+    padding: 12px 8px;
+  }
+
+  .gold-rate-chart__canvas {
+    height: 250px;
+  }
+}
+
 .auto-reactions-toolbar {
   display: flex;
   align-items: flex-start;
@@ -3618,9 +3669,8 @@ h6,
 
 .feature-card__icon-img {
   display: block;
-  width: auto;
-  height: 100%;
-  max-width: 100%;
+  width: 1em;
+  height: 1em;
   object-fit: contain;
 }
 
@@ -3935,6 +3985,237 @@ h6,
   .page-hero h1 { font-size: clamp(3rem, 14vw, 4.8rem); }
   .feature-card { min-height: 0; }
   .features-grid { grid-template-columns: 1fr; }
+}
+
+/* =============================================
+   HOME PROFILE ENTRY + PLAYER PROFILE
+   ============================================= */
+.btn--profile {
+  border-color: rgba(212, 168, 79, .72) !important;
+  background: rgba(114, 75, 30, .2) !important;
+  color: #f2d18a !important;
+}
+
+.btn--profile:hover {
+  background: #c69a47 !important;
+  color: #120e09 !important;
+}
+
+.home-profile-callout {
+  padding-top: 42px;
+  padding-bottom: 42px;
+  border-top: 1px solid rgba(212, 168, 79, .18);
+  border-bottom: 1px solid rgba(212, 168, 79, .18);
+  background:
+    linear-gradient(90deg, rgba(79, 48, 18, .2), transparent 42%),
+    #0b0907;
+}
+
+.home-profile-callout__inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 26px;
+}
+
+.home-profile-callout__icon {
+  display: grid;
+  width: 74px;
+  height: 74px;
+  place-items: center;
+  border: 1px solid rgba(212, 168, 79, .38);
+  background: rgba(212, 168, 79, .08);
+  font-size: 2.1rem;
+}
+
+.home-profile-callout__copy .heading-lg {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.home-profile-callout__copy p {
+  max-width: 720px;
+  color: var(--text-grey);
+  font: 400 .92rem/1.65 'Helvetica Neue', Arial, sans-serif;
+}
+
+.player-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.player-profile-identity img {
+  width: 76px;
+  height: 76px;
+  border: 2px solid rgba(212, 168, 79, .55);
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-black);
+}
+
+.player-profile-identity span {
+  color: var(--text-muted);
+  font: 600 .68rem/1.3 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.player-profile-identity h3 {
+  margin: 3px 0 5px;
+}
+
+.player-profile-identity p {
+  color: var(--text-grey);
+  font: 400 .82rem/1.4 'Helvetica Neue', Arial, sans-serif;
+}
+
+.player-profile-identity p b {
+  color: var(--gold);
+}
+
+.profile-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.economy-stat--accent {
+  border-color: rgba(212, 168, 79, .45);
+  background: linear-gradient(145deg, rgba(212, 168, 79, .12), var(--bg-elevated));
+}
+
+.economy-stat--accent .economy-stat__value {
+  color: var(--gold);
+}
+
+.profile-roles {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.profile-subheading strong,
+.profile-subheading span {
+  display: block;
+}
+
+.profile-subheading strong {
+  color: var(--text-white);
+  font: 700 .88rem/1.3 'Helvetica Neue', Arial, sans-serif;
+}
+
+.profile-subheading span {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font: 400 .74rem/1.3 'Helvetica Neue', Arial, sans-serif;
+}
+
+.profile-role-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.profile-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid rgba(212, 168, 79, .25);
+  background: rgba(212, 168, 79, .07);
+  color: #e8ddc9;
+  font: 600 .76rem/1 'Helvetica Neue', Arial, sans-serif;
+}
+
+.profile-role-chip .discord-emoji {
+  width: 21px;
+  height: 21px;
+}
+
+.profile-role-list__empty {
+  color: var(--text-muted);
+  font: 400 .8rem/1.5 'Helvetica Neue', Arial, sans-serif;
+}
+
+.profile-gold-rate {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.profile-gold-rate span {
+  color: var(--text-muted);
+  font: 600 .7rem/1.3 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.profile-gold-rate div > span,
+.profile-gold-rate strong {
+  display: block;
+}
+
+.profile-gold-rate strong {
+  margin-top: 4px;
+  color: var(--gold);
+  font-family: 'RDR Lino', 'ChineseRocks', serif;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 400;
+}
+
+.profile-gold-chart {
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .home-profile-callout__inner {
+    grid-template-columns: auto 1fr;
+  }
+
+  .home-profile-callout__inner > .btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .profile-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .home-profile-callout__inner {
+    grid-template-columns: 1fr;
+  }
+
+  .home-profile-callout__icon {
+    width: 58px;
+    height: 58px;
+    font-size: 1.7rem;
+  }
+
+  .profile-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .player-profile-identity {
+    align-items: flex-start;
+  }
+
+  .player-profile-identity img {
+    width: 60px;
+    height: 60px;
+  }
+
+  .profile-gold-rate {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

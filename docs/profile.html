@@ -7,7 +7,8 @@
   <meta name="description"
     content="Личный кабинет Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺 — просмотр вашей банды, роли и характеристик.">
   <title>Личный кабинет — Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=0.8.1.12.1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -18,7 +19,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.8.1.12</span>
+        <span class="navbar__badge">v0.8.2</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -34,13 +35,24 @@
     </div>
   </nav>
 
+  <nav class="mobile-nav" id="mobileNav" aria-label="Мобильная навигация">
+    <a href="index.html">Главная</a>
+    <a href="commands.html">Команды</a>
+    <a href="dashboard.html">Настройки</a>
+    <a href="levels.html">Уровни</a>
+    <a href="profile.html" class="active">Профиль</a>
+    <button class="btn btn--sm" data-action="invite" style="margin-top:8px;align-self:flex-start">
+      Добавить бота
+    </button>
+  </nav>
+
   <!-- ── CONTENT ── -->
   <main class="page-wrapper page-wrapper--padded">
     <div class="page-hero">
       <div class="container">
         <div class="section-header__eyebrow">Игрок</div>
         <h1 id="dashboardTitle">Личный кабинет</h1>
-        <p id="dashboardSubtitle">Информация о вашей банде и роли на выбранном сервере.</p>
+        <p id="dashboardSubtitle">Баланс, прогресс, профессии, банда и рынок золота на выбранном сервере.</p>
       </div>
     </div>
 
@@ -97,12 +109,56 @@
             <div class="card" id="playerProfileCard">
               <div class="rank-roles-empty" id="playerProfileLoading">Загрузка персонажа...</div>
               <div id="playerProfileContent" hidden>
-                <h3 class="heading-md" id="myDisplayName" style="margin-bottom:18px">Персонаж</h3>
-                <div class="economy-grid">
+                <div class="player-profile-identity">
+                  <img id="myAvatar" src="img/avatar.png" alt="">
+                  <div>
+                    <span>Ваш персонаж</span>
+                    <h3 class="heading-md" id="myDisplayName">Персонаж</h3>
+                    <p><b id="myLevel">1 уровень</b><span id="myRank"></span></p>
+                  </div>
+                </div>
+                <div class="profile-summary-grid">
                   <div class="economy-stat"><div class="economy-stat__value" id="myCash">0</div><div class="economy-stat__label">Наличные</div></div>
+                  <div class="economy-stat"><div class="economy-stat__value" id="mySafeCash">0</div><div class="economy-stat__label">Деньги в сейфе</div></div>
                   <div class="economy-stat"><div class="economy-stat__value" id="myGold">0</div><div class="economy-stat__label">Золото</div></div>
+                  <div class="economy-stat"><div class="economy-stat__value" id="mySafeGold">0</div><div class="economy-stat__label">Золото в сейфе</div></div>
+                  <div class="economy-stat economy-stat--accent"><div class="economy-stat__value" id="myWealth">0</div><div class="economy-stat__label">Общий капитал</div></div>
+                  <div class="economy-stat"><div class="economy-stat__value" id="myXp">0 XP</div><div class="economy-stat__label">Опыт</div></div>
                   <div class="economy-stat"><div class="economy-stat__value" id="myMaps">0</div><div class="economy-stat__label">Карты сокровищ</div></div>
                   <div class="economy-stat"><div class="economy-stat__value" id="myRoles">0</div><div class="economy-stat__label">Профессий открыто</div></div>
+                </div>
+                <div class="profile-roles">
+                  <div class="profile-subheading">
+                    <strong>Открытые профессии</strong>
+                    <span>Доступные вам игровые пути</span>
+                  </div>
+                  <div class="profile-role-list" id="myRoleList"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="dash-section__header">
+              <div class="dash-section__icon" aria-hidden="true">🪙</div>
+              <div class="dash-section__title">
+                <h2>Рынок золота</h2>
+                <p>Текущая цена и её изменение по датам</p>
+              </div>
+            </div>
+
+            <div class="card" id="profileGoldCard" hidden>
+              <div class="profile-gold-rate">
+                <div>
+                  <span>Текущая цена</span>
+                  <strong id="myGoldRate">—</strong>
+                </div>
+                <span>$ за 1 золото</span>
+              </div>
+              <div class="gold-rate-chart profile-gold-chart">
+                <div class="gold-rate-chart__header">
+                  <div><strong>История цены золота</strong><span>Дата снизу, цена слева</span></div>
+                </div>
+                <div class="gold-rate-chart__canvas">
+                  <canvas id="goldRateChart" aria-label="График изменения цены золота по датам"></canvas>
                 </div>
               </div>
             </div>
@@ -159,7 +215,7 @@
     </div>
   </footer>
 
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=0.8.1.12.1"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       const gate = document.getElementById('authGate');
@@ -235,6 +291,7 @@
       const content = document.getElementById('gangProfileContent');
       const playerLoading = document.getElementById('playerProfileLoading');
       const playerContent = document.getElementById('playerProfileContent');
+      const goldCard = document.getElementById('profileGoldCard');
 
       loading.textContent = 'Загрузка информации о банде...';
       loading.removeAttribute('hidden');
@@ -242,6 +299,7 @@
       playerLoading.textContent = 'Загрузка персонажа...';
       playerLoading.removeAttribute('hidden');
       playerContent.setAttribute('hidden', '');
+      goldCard.setAttribute('hidden', '');
 
       try {
         const profileResponse = await fetch(`/api/guilds/${id}/me/profile`, { credentials: 'same-origin' });
@@ -250,13 +308,43 @@
           throw new Error(apiErrorMessage(payload, 'Ошибка при загрузке персонажа'));
         }
         const profile = await profileResponse.json();
+        const cashEmoji = economyEmojiHtml(profile.emojis, 'cash', '$');
+        const goldEmoji = economyEmojiHtml(profile.emojis, 'gold', '🪙');
+        const mapEmoji = economyEmojiHtml(profile.emojis, 'map', '🗺️');
+        const money = value => Number(value || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+
         document.getElementById('myDisplayName').textContent = profile.display_name;
-        document.getElementById('myCash').innerHTML = `${profile.cash.toLocaleString('ru-RU')} ${economyEmojiHtml(profile.emojis, 'cash', '$')}`;
-        document.getElementById('myGold').innerHTML = `${profile.gold.toLocaleString('ru-RU')} ${economyEmojiHtml(profile.emojis, 'gold', '🪙')}`;
-        document.getElementById('myMaps').innerHTML = `${profile.treasure_maps} ${economyEmojiHtml(profile.emojis, 'map', '🗺️')}`;
+        const avatar = document.getElementById('myAvatar');
+        avatar.src = profile.avatar_url;
+        avatar.alt = `Аватар ${profile.display_name}`;
+        document.getElementById('myLevel').textContent = `${profile.level} уровень`;
+        document.getElementById('myRank').textContent = profile.rank_position
+          ? ` · ${profile.rank_position} место на сервере`
+          : '';
+        document.getElementById('myCash').innerHTML = `${money(profile.cash)} ${cashEmoji}`;
+        document.getElementById('mySafeCash').innerHTML = `${money(profile.safe_cash)} ${cashEmoji}`;
+        document.getElementById('myGold').innerHTML = `${money(profile.gold)} ${goldEmoji}`;
+        document.getElementById('mySafeGold').innerHTML = `${money(profile.safe_gold)} ${goldEmoji}`;
+        document.getElementById('myWealth').innerHTML = `${money(profile.wealth)} ${cashEmoji}`;
+        document.getElementById('myXp').textContent = `${money(profile.xp)} XP`;
+        document.getElementById('myMaps').innerHTML = `${money(profile.treasure_maps)} ${mapEmoji}`;
         document.getElementById('myRoles').textContent = profile.owned_roles.length;
+        document.getElementById('myGoldRate').textContent = `${money(profile.gold_rate)} $`;
+
+        const roleList = document.getElementById('myRoleList');
+        const roleDetails = Array.isArray(profile.owned_role_details) ? profile.owned_role_details : [];
+        roleList.innerHTML = roleDetails.length
+          ? roleDetails.map(role => `
+              <span class="profile-role-chip">
+                ${discordEmojiHtml(role.emoji, escapeHtml(role.emoji))}
+                ${escapeHtml(role.name)}
+              </span>`).join('')
+          : '<span class="profile-role-list__empty">Профессии пока не открыты. Выбрать первую можно командой /roles.</span>';
+
         playerLoading.setAttribute('hidden', '');
         playerContent.removeAttribute('hidden');
+        goldCard.removeAttribute('hidden');
+        renderGoldRateChart(profile.gold_rate_history);
 
         const res = await fetch(`/api/guilds/${id}/me/gang`, { credentials: 'same-origin' });
         if (!res.ok) {
@@ -272,7 +360,7 @@
         const data = await res.json();
         document.getElementById('myGangName').textContent = data.gang.name;
         document.getElementById('myGangRole').textContent = data.my_role === 'leader' ? 'Лидер (Глава)' : 'Участник';
-        document.getElementById('myGangBalance').innerHTML = `${data.gang.balance.toLocaleString('ru-RU')} ${economyEmojiHtml(profile.emojis, 'cash', '$')}`;
+        document.getElementById('myGangBalance').innerHTML = `${money(data.gang.balance)} ${cashEmoji}`;
         document.getElementById('myGangMembers').textContent = data.gang.member_count;
         document.getElementById('myGangUpgrades').textContent = Object.keys(data.gang.camp_upgrades || {}).length;
 

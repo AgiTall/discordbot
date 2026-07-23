@@ -585,6 +585,7 @@ function trackChanges() {
 let economyStatsGuildId = null;
 let wealthChartInstance = null;
 let gangsChartInstance = null;
+let goldRateChartInstance = null;
 let leaderboardRows = [];
 let leaderboardEmojis = {};
 let leaderboardGoldRate = 1;
@@ -1179,6 +1180,75 @@ function showToast(toast, message = 'Настройки сохранены!', is
 // =============================================
 // СЕКЦИЯ ЭКОНОМИКИ — отображение данных
 // =============================================
+function renderGoldRateChart(history) {
+  const canvas = document.getElementById('goldRateChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  const points = (Array.isArray(history) ? history : [])
+    .map(item => ({
+      date: String(item?.date || ''),
+      rate: Number(item?.rate),
+    }))
+    .filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item.date) && Number.isFinite(item.rate))
+    .sort((left, right) => left.date.localeCompare(right.date));
+
+  if (goldRateChartInstance) goldRateChartInstance.destroy();
+  goldRateChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: points.map(item => {
+        const [year, month, day] = item.date.split('-');
+        return `${day}.${month}.${year}`;
+      }),
+      datasets: [{
+        label: 'Цена золота',
+        data: points.map(item => item.rate),
+        borderColor: '#d4a84f',
+        backgroundColor: 'rgba(212, 168, 79, .14)',
+        pointBackgroundColor: '#f2ca72',
+        pointBorderColor: '#171412',
+        pointBorderWidth: 2,
+        pointRadius: points.length > 45 ? 0 : 3,
+        pointHoverRadius: 5,
+        borderWidth: 2,
+        fill: true,
+        tension: .28,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      scales: {
+        x: {
+          grid: { display: false },
+          title: { display: true, text: 'Дата' },
+          ticks: { autoSkip: true, maxTicksLimit: 10, maxRotation: 0 },
+        },
+        y: {
+          beginAtZero: false,
+          grid: { color: 'rgba(255, 255, 255, .07)' },
+          title: { display: true, text: 'Цена, $' },
+          ticks: {
+            callback: value => Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 2 }),
+          },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: context => `Цена: ${Number(context.parsed.y).toLocaleString('ru-RU', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} $`,
+          },
+        },
+      },
+    },
+  });
+}
+
 function updateEconomySection(settings) {
   if (!settings) return;
 
@@ -1186,6 +1256,7 @@ function updateEconomySection(settings) {
   if (goldRateEl && settings.goldRate != null) {
     goldRateEl.textContent = parseFloat(settings.goldRate).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
   }
+  renderGoldRateChart(settings.goldRateHistory);
 
   const xpMsg   = parseFloat(settings.xpMessages || 15) * parseFloat(settings.xpRateMessages || 1);
   const xpVoice = parseFloat(settings.xpVoice || 10)    * parseFloat(settings.xpRateVoice || 1);
