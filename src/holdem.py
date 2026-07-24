@@ -7,11 +7,25 @@ showdown, and side-pot rules can be tested independently from the UI.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 import random
 from typing import Iterable, Sequence
 
 
 Card = tuple[str, str]
+Money = Decimal
+MONEY_CENT = Decimal("0.01")
+ZERO = Decimal("0.00")
+
+
+def as_money(value: int | float | str | Decimal) -> Money:
+    """Normalize a dollar amount without introducing binary float noise."""
+    return Decimal(str(value)).quantize(MONEY_CENT, rounding=ROUND_HALF_UP)
+
+
+def format_money(value: int | float | str | Decimal) -> str:
+    amount = as_money(value)
+    return f"${amount:.2f}" if amount != amount.to_integral() else f"${amount:.0f}"
 
 SUITS = ("♠", "♥", "♦", "♣")
 RANKS = ("2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A")
@@ -45,16 +59,22 @@ class HoldemError(ValueError):
 class HoldemPlayer:
     user_id: int
     name: str
-    stack: int
+    stack: Money
     seat: int
     hole: list[Card] = field(default_factory=list)
     folded: bool = False
     all_in: bool = False
     acted: bool = False
-    round_bet: int = 0
-    total_bet: int = 0
-    payout: int = 0
+    round_bet: Money = ZERO
+    total_bet: Money = ZERO
+    payout: Money = ZERO
     last_action: str = ""
+
+    def __post_init__(self) -> None:
+        self.stack = as_money(self.stack)
+        self.round_bet = as_money(self.round_bet)
+        self.total_bet = as_money(self.total_bet)
+        self.payout = as_money(self.payout)
 
     @property
     def in_hand(self) -> bool:
@@ -140,9 +160,9 @@ class HoldemGame:
         self,
         players: Iterable[HoldemPlayer],
         *,
-        small_blind: int = 10,
-        big_blind: int = 20,
-        max_bet: int | None = None,
+        small_blind: Money | int | float = 10,
+        big_blind: Money | int | float = 20,
+        max_bet: Money | int | float | None = None,
         dealer_index: int = -1,
         rng: random.Random | None = None,
     ):
@@ -154,14 +174,14 @@ class HoldemGame:
         if max_bet is not None and max_bet < big_blind:
             raise ValueError("Maximum bet cannot be lower than the big blind")
 
-        self.small_blind = int(small_blind)
-        self.big_blind = int(big_blind)
-        self.max_bet = int(max_bet) if max_bet is not None else None
+        self.small_blind = as_money(small_blind)
+        self.big_blind = as_money(big_blind)
+        self.max_bet = as_money(max_bet) if max_bet is not None else None
         self.dealer_index = dealer_index
         self.small_blind_index: int | None = None
         self.big_blind_index: int | None = None
         self.current_index: int | None = None
-        self.current_bet = 0
+        self.current_bet = ZERO
         self.min_raise = self.big_blind
         self.stage = WAITING
         self.board: list[Card] = []
@@ -170,11 +190,11 @@ class HoldemGame:
         self.hand_number = 0
         self.last_result = ""
         self.showdown_results: dict[int, tuple[tuple[int, tuple[int, ...]], str, tuple[Card, ...]]] = {}
-        self.pot_awards: list[tuple[int, tuple[int, ...]]] = []
+        self.pot_awards: list[tuple[Money, tuple[int, ...]]] = []
         self.rng = rng or random.Random()
 
     @property
-    def pot(self) -> int:
+    def pot(self) -> Money:
         return sum(player.total_bet for player in self.players)
 
     @property
@@ -217,16 +237,16 @@ class HoldemGame:
     def start_hand(self, deck: Sequence[Card] | None = None) -> None:
         eligible = [player for player in self.players if player.stack > 0]
         if len(eligible) < 2:
-            raise HoldemError("Для начала раздачи нужны минимум 2 игрока с фишками.")
+            raise HoldemError("Для начала раздачи нужны минимум 2 игрока с деньгами.")
 
         for player in self.players:
             player.hole.clear()
             player.folded = False
             player.all_in = False
             player.acted = False
-            player.round_bet = 0
-            player.total_bet = 0
-            player.payout = 0
+            player.round_bet = ZERO
+            player.total_bet = ZERO
+            player.payout = ZERO
             player.last_action = ""
 
         self.board.clear()
@@ -234,7 +254,7 @@ class HoldemGame:
         self.showdown_results.clear()
         self.pot_awards.clear()
         self.last_result = ""
-        self.current_bet = 0
+        self.current_bet = ZERO
         self.min_raise = self.big_blind
         self.stage = PREFLOP
         self.hand_number += 1
@@ -272,8 +292,8 @@ class HoldemGame:
         self.current_index = self._next_action_index(self.big_blind_index)
         self._runout_if_no_betting_possible()
 
-    def _commit(self, player: HoldemPlayer, amount: int) -> int:
-        amount = max(0, min(int(amount), player.stack))
+    def _commit(self, player: HoldemPlayer, amount: Money | int | float) -> Money:
+        amount = max(ZERO, min(as_money(amount), player.stack))
         player.stack -= amount
         player.round_bet += amount
         player.total_bet += amount
@@ -281,16 +301,16 @@ class HoldemGame:
             player.all_in = True
         return amount
 
-    def _post_blind(self, index: int, amount: int, label: str) -> None:
+    def _post_blind(self, index: int, amount: Money, label: str) -> None:
         player = self.players[index]
         paid = self._commit(player, amount)
-        player.last_action = f"{label} {paid}"
+        player.last_action = f"{label} {format_money(paid)}"
 
-    def amount_to_call(self, player: HoldemPlayer | None = None) -> int:
+    def amount_to_call(self, player: HoldemPlayer | None = None) -> Money:
         player = player or self.current_player
         if player is None:
-            return 0
-        return max(0, self.current_bet - player.round_bet)
+            return ZERO
+        return max(ZERO, self.current_bet - player.round_bet)
 
     def legal_actions(self, user_id: int) -> set[str]:
         player = self.current_player
@@ -311,7 +331,12 @@ class HoldemGame:
             actions.add("raise")
         return actions
 
-    def act(self, user_id: int, action: str, amount: int | None = None) -> None:
+    def act(
+        self,
+        user_id: int,
+        action: str,
+        amount: Money | int | float | None = None,
+    ) -> None:
         if self.stage not in BETTING_STAGES or self.current_player is None:
             raise HoldemError("Сейчас нельзя сделать ход.")
         player = self.current_player
@@ -333,21 +358,26 @@ class HoldemGame:
                 raise HoldemError("Уравнивать нечего — доступен чек.")
             paid = self._commit(player, to_call)
             player.acted = True
-            player.last_action = f"Колл {paid}" if paid == to_call else f"Олл-ин {paid}"
+            player.last_action = (
+                f"Колл {format_money(paid)}"
+                if paid == to_call
+                else f"Олл-ин {format_money(paid)}"
+            )
         elif action == "raise":
             if amount is None:
                 raise HoldemError("Укажите итоговую ставку.")
-            self._raise_to(player, int(amount))
+            self._raise_to(player, as_money(amount))
         elif action == "all_in":
             target = player.round_bet + player.stack
             if self.max_bet is not None and target > self.max_bet:
                 raise HoldemError(
-                    f"Максимальная ставка за круг: {self.max_bet}. Используйте рейз."
+                    f"Максимальная ставка за круг: {format_money(self.max_bet)}. "
+                    "Используйте рейз."
                 )
             if target <= self.current_bet:
                 paid = self._commit(player, self.amount_to_call(player))
                 player.acted = True
-                player.last_action = f"Олл-ин {paid}"
+                player.last_action = f"Олл-ин {format_money(paid)}"
             else:
                 self._raise_to(player, target)
         else:
@@ -365,21 +395,27 @@ class HoldemGame:
         else:
             self.current_index = next_index
 
-    def _raise_to(self, player: HoldemPlayer, target: int) -> None:
+    def _raise_to(self, player: HoldemPlayer, target: Money) -> None:
         maximum = player.round_bet + player.stack
         if self.max_bet is not None and target > self.max_bet:
-            raise HoldemError(f"Максимальная ставка за круг: {self.max_bet}.")
+            raise HoldemError(
+                f"Максимальная ставка за круг: {format_money(self.max_bet)}."
+            )
         if target <= self.current_bet:
             raise HoldemError("Рейз должен быть выше текущей ставки.")
         if target > maximum:
-            raise HoldemError(f"Недостаточно фишек. Максимальная ставка: {maximum}.")
+            raise HoldemError(
+                f"Недостаточно денег. Максимальная ставка: {format_money(maximum)}."
+            )
 
         raise_size = target - self.current_bet
         is_all_in = target == maximum
         reaches_cap = self.max_bet is not None and target == self.max_bet
         if raise_size < self.min_raise and not is_all_in and not reaches_cap:
             minimum = self.current_bet + self.min_raise
-            raise HoldemError(f"Минимальная итоговая ставка: {minimum}.")
+            raise HoldemError(
+                f"Минимальная итоговая ставка: {format_money(minimum)}."
+            )
 
         if raise_size >= self.min_raise:
             self.min_raise = raise_size
@@ -390,7 +426,11 @@ class HoldemGame:
         paid = self._commit(player, target - player.round_bet)
         self.current_bet = target
         player.acted = True
-        player.last_action = f"Олл-ин до {target}" if player.all_in else f"Рейз до {target}"
+        player.last_action = (
+            f"Олл-ин до {format_money(target)}"
+            if player.all_in
+            else f"Рейз до {format_money(target)}"
+        )
         if paid <= 0:
             raise HoldemError("Недостаточно фишек для рейза.")
 
@@ -417,7 +457,10 @@ class HoldemGame:
         winner.stack += amount
         winner.payout += amount
         self.pot_awards = [(amount, (winner.user_id,))]
-        self.last_result = f"{winner.name} забирает банк {amount} — остальные сбросили карты."
+        self.last_result = (
+            f"{winner.name} получает {format_money(amount)} из банка — "
+            "остальные сбросили карты."
+        )
         self.stage = FINISHED
         self.current_index = None
         return True
@@ -427,9 +470,9 @@ class HoldemGame:
 
     def _advance_street(self) -> None:
         for player in self.players:
-            player.round_bet = 0
+            player.round_bet = ZERO
             player.acted = False
-        self.current_bet = 0
+        self.current_bet = ZERO
         self.min_raise = self.big_blind
 
         if self.stage == PREFLOP:
@@ -468,9 +511,15 @@ class HoldemGame:
         for player in contenders:
             self.showdown_results[player.user_id] = best_hand([*player.hole, *self.board])
 
-        levels = sorted({player.total_bet for player in self.players if player.total_bet > 0})
-        previous = 0
-        awards: list[tuple[int, tuple[int, ...]]] = []
+        levels = sorted(
+            {
+                as_money(player.total_bet)
+                for player in self.players
+                if player.total_bet > 0
+            }
+        )
+        previous = ZERO
+        awards: list[tuple[Money, tuple[int, ...]]] = []
         result_parts: list[str] = []
 
         for level in levels:
@@ -496,16 +545,23 @@ class HoldemGame:
                 winners,
                 key=lambda player: (player.seat - dealer_seat) % 6 or 6,
             )
-            share, remainder = divmod(amount, len(ordered_winners))
+            share = (amount / len(ordered_winners)).quantize(
+                MONEY_CENT,
+                rounding=ROUND_DOWN,
+            )
+            remainder = int(
+                ((amount - share * len(ordered_winners)) / MONEY_CENT)
+                .to_integral_value(rounding=ROUND_DOWN)
+            )
             for offset, winner in enumerate(ordered_winners):
-                payout = share + (1 if offset < remainder else 0)
+                payout = share + (MONEY_CENT if offset < remainder else ZERO)
                 winner.stack += payout
                 winner.payout += payout
             winner_ids = tuple(winner.user_id for winner in ordered_winners)
             awards.append((amount, winner_ids))
             names = ", ".join(winner.name for winner in ordered_winners)
             hand_name = self.showdown_results[ordered_winners[0].user_id][1]
-            result_parts.append(f"{names}: {amount} ({hand_name})")
+            result_parts.append(f"{names}: {format_money(amount)} ({hand_name})")
 
         self.pot_awards = awards
         self.last_result = " · ".join(result_parts) if result_parts else "Раздача завершена."

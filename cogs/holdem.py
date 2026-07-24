@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
 import logging
 import re
 import time
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from emoji_config import (
@@ -23,6 +26,13 @@ from src.holdem import (
     HoldemError,
     HoldemGame,
     HoldemPlayer,
+    as_money,
+    format_money,
+)
+from src.poker_cosmetics import (
+    POKER_COSMETICS,
+    PokerCosmetic,
+    normalize_poker_cosmetics,
 )
 
 
@@ -36,13 +46,24 @@ DEFAULT_BIG_BLIND = 20
 TURN_TIMEOUT_SECONDS = 60
 TABLE_JOIN_TIMEOUT_SECONDS = 150
 TABLE_AUTO_START_SECONDS = 300
-MAX_CONFIGURED_BET = 1_000_000
+MAX_CONFIGURED_BET = Decimal("1000000")
+MIN_CONFIGURED_BET = Decimal("0.25")
+BET_STEP = Decimal("0.25")
 
 
-def blind_structure(max_bet: int) -> tuple[int, int]:
+def blind_structure(max_bet: Decimal | int | float) -> tuple[Decimal, Decimal]:
     """Scale blinds with the configured table limit."""
-    big_blind = max(1, max_bet // 10)
-    small_blind = max(1, big_blind // 2)
+    max_bet = as_money(max_bet)
+    big_blind = max(
+        BET_STEP,
+        ((max_bet / 10) / BET_STEP).to_integral_value(rounding=ROUND_DOWN)
+        * BET_STEP,
+    )
+    small_blind = max(
+        BET_STEP,
+        ((big_blind / 2) / BET_STEP).to_integral_value(rounding=ROUND_DOWN)
+        * BET_STEP,
+    )
     return small_blind, big_blind
 
 
@@ -74,6 +95,33 @@ def _render_private_hand(*args, **kwargs):
     return render_private_hand(*args, **kwargs)
 
 
+def _render_cosmetic_preview(*args, **kwargs):
+    from src.poker_renderer import render_cosmetic_preview
+
+    return render_cosmetic_preview(*args, **kwargs)
+
+
+def _validate_cosmetic_png(data: bytes) -> str | None:
+    """Validate an uploaded transparent 128×128 PNG."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    try:
+        image = Image.open(BytesIO(data))
+        image.load()
+    except (OSError, ValueError):
+        return "Файл не удалось открыть как изображение."
+    if image.format != "PNG":
+        return "Нужен именно PNG."
+    if image.size != (128, 128):
+        return f"Нужен размер 128×128 px, получен {image.width}×{image.height}."
+    alpha = image.convert("RGBA").getchannel("A")
+    if alpha.getextrema()[0] == 255:
+        return "У PNG нет прозрачного фона."
+    return None
+
+
 @dataclass
 class TableNotice:
     ok: bool
@@ -88,22 +136,28 @@ class DiscordPokerTable:
         guild_id: int,
         channel_id: int,
         host_id: int,
-        max_bet: int = DEFAULT_MAX_BET,
+        max_bet: Decimal | int | float = DEFAULT_MAX_BET,
     ):
         self.cog = cog
         self.bot = cog.bot
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.host_id = host_id
-        self.max_bet = int(max_bet)
-        self.buy_in = self.max_bet * 5
+        self.max_bet = as_money(max_bet)
+        self.buy_in = as_money(self.max_bet * 5)
         self.small_blind, self.big_blind = blind_structure(self.max_bet)
         self.players: list[HoldemPlayer] = []
         self.avatars: dict[int, bytes] = {}
+        self.cosmetics: dict[int, str] = {}
+        self.cosmetic_assets: dict[
+            int,
+            tuple[bytes | None, bytes | None],
+        ] = {}
         self.game: HoldemGame | None = None
         self.dealer_seat = -1
         self.hand_number = 0
         self.message: discord.Message | None = None
+        self.private_hand_messages: dict[int, discord.InteractionMessage] = {}
         self.lock = asyncio.Lock()
         self.timeout_task: asyncio.Task | None = None
         self.join_timeout_task: asyncio.Task | None = None
@@ -168,14 +222,19 @@ class DiscordPokerTable:
         ]
         return predecessors[-1] if predecessors else len(self.players) - 1
 
-    async def _change_cash(self, user_id: int, amount: int) -> bool:
+    async def _change_cash(
+        self,
+        user_id: int,
+        amount: Decimal | int | float,
+    ) -> bool:
+        delta = float(as_money(amount))
         token = self.bot.set_economy_guild_id(self.guild_id)
         try:
             async with self.bot.economy_lock:
                 account = self.bot.get_account(user_id)
-                if amount < 0 and account["cash"] + 0.0001 < -amount:
+                if delta < 0 and account["cash"] + 0.0001 < -delta:
                     return False
-                account["cash"] = round(account["cash"] + amount, 2)
+                account["cash"] = round(account["cash"] + delta, 2)
                 self.bot.save_economy()
                 return True
         finally:
@@ -319,7 +378,7 @@ class DiscordPokerTable:
         if not await self._change_cash(member.id, -self.buy_in):
             return TableNotice(
                 False,
-                f"Для посадки нужно {self.buy_in} наличными.",
+                f"Для посадки нужно {format_money(self.buy_in)} наличными.",
             )
 
         if self.game is not None and self.game.stage == FINISHED:
@@ -336,13 +395,28 @@ class DiscordPokerTable:
         )
         self.players.append(player)
         self.players.sort(key=lambda item: item.seat)
+        equipped_getter = getattr(self.cog, "equipped_cosmetic", None)
+        self.cosmetics[member.id] = (
+            equipped_getter(self.guild_id, member.id)
+            if equipped_getter
+            else "none"
+        )
+        asset_getter = getattr(self.cog, "cosmetic_asset_pair", None)
+        self.cosmetic_assets[member.id] = (
+            asset_getter(self.guild_id, self.cosmetics[member.id])
+            if asset_getter
+            else (None, None)
+        )
         try:
             self.avatars[member.id] = await member.display_avatar.read()
         except (discord.HTTPException, OSError):
             self.avatars.pop(member.id, None)
         if len(self.players) >= 2 and self.hand_number == 0:
             self.schedule_auto_start()
-        return TableNotice(True, f"Вы сели за стол с {self.buy_in} фишками.")
+        return TableNotice(
+            True,
+            f"Вы внесли {format_money(self.buy_in)} и сели за стол.",
+        )
 
     async def leave(self, user_id: int) -> TableNotice:
         if self.hand_active:
@@ -353,16 +427,22 @@ class DiscordPokerTable:
 
         amount = player.stack
         if amount and not await self._change_cash(user_id, amount):
-            return TableNotice(False, "Не удалось вернуть фишки на баланс.")
+            return TableNotice(False, "Не удалось вернуть деньги на баланс.")
         self.players.remove(player)
         self.avatars.pop(user_id, None)
+        self.cosmetics.pop(user_id, None)
+        self.cosmetic_assets.pop(user_id, None)
+        self.private_hand_messages.pop(user_id, None)
         await self.revoke_channel_access(user_id)
         self._return_to_waiting()
         if self.host_id == user_id and self.players:
             self.host_id = self.players[0].user_id
         if self.hand_number == 0 and len(self.players) < 2:
             self.schedule_join_timeout()
-        return TableNotice(True, f"Вы вышли из-за стола. Возвращено: {amount}.")
+        return TableNotice(
+            True,
+            f"Вы вышли из-за стола. Возвращено: {format_money(amount)}.",
+        )
 
     async def rebuy(self, user_id: int) -> TableNotice:
         if self.hand_active:
@@ -371,11 +451,17 @@ class DiscordPokerTable:
         if player is None:
             return TableNotice(False, "Сначала сядьте за стол.")
         if player.stack > 0:
-            return TableNotice(False, "Повторный взнос доступен после потери всех фишек.")
+            return TableNotice(False, "Повторный взнос доступен после потери всех денег.")
         if not await self._change_cash(user_id, -self.buy_in):
-            return TableNotice(False, f"Для повторного взноса нужно {self.buy_in} наличными.")
+            return TableNotice(
+                False,
+                f"Для повторного взноса нужно {format_money(self.buy_in)} наличными.",
+            )
         player.stack += self.buy_in
-        return TableNotice(True, f"Внесено ещё {self.buy_in} фишек.")
+        return TableNotice(
+            True,
+            f"Внесено ещё {format_money(self.buy_in)}.",
+        )
 
     def start_hand(self, user_id: int) -> TableNotice:
         if self.closed:
@@ -385,7 +471,7 @@ class DiscordPokerTable:
         if self.hand_active:
             return TableNotice(False, "Раздача уже идёт.")
         if sum(player.stack > 0 for player in self.players) < 2:
-            return TableNotice(False, "Нужны минимум 2 игрока с фишками.")
+            return TableNotice(False, "Нужны минимум 2 игрока с деньгами.")
 
         try:
             self.game = HoldemGame(
@@ -404,7 +490,12 @@ class DiscordPokerTable:
             return TableNotice(False, str(error))
         return TableNotice(True, f"Раздача #{self.game.hand_number} началась.")
 
-    def perform_action(self, user_id: int, action: str, amount: int | None = None) -> TableNotice:
+    def perform_action(
+        self,
+        user_id: int,
+        action: str,
+        amount: Decimal | int | float | None = None,
+    ) -> TableNotice:
         if self.game is None:
             return TableNotice(False, "Раздача ещё не началась.")
         try:
@@ -416,13 +507,13 @@ class DiscordPokerTable:
     def build_embed(self) -> discord.Embed:
         game = self.render_game()
         if self.closed:
-            description = "Стол закрыт. Все оставшиеся фишки возвращены игрокам."
+            description = "Стол закрыт. Все оставшиеся деньги возвращены игрокам."
         elif game.stage == WAITING:
             lines = [
-                f"Максимальная ставка за круг: **{self.max_bet}** · "
-                f"Бай-ин: **{self.buy_in}**",
-                f"{CASINO_SMALL_BLIND_EMOJI} **{self.small_blind}** · "
-                f"{CASINO_BIG_BLIND_EMOJI} **{self.big_blind}**",
+                f"Максимальная ставка за круг: **{format_money(self.max_bet)}** · "
+                f"Вступительный взнос: **{format_money(self.buy_in)}**",
+                f"{CASINO_SMALL_BLIND_EMOJI} **{format_money(self.small_blind)}** · "
+                f"{CASINO_BIG_BLIND_EMOJI} **{format_money(self.big_blind)}**",
                 f"Игроков: **{len(self.players)}/{MAX_PLAYERS}** · "
                 f"Хозяин: <@{self.host_id}>",
             ]
@@ -443,15 +534,28 @@ class DiscordPokerTable:
                 )
             description = "\n".join(lines)
         elif game.stage == FINISHED:
-            lines = [f"**{game.last_result}**"]
+            winners = [player for player in game.players if player.payout > 0]
+            lines = ["## 🏆 Итоги раздачи"]
+            for player in winners:
+                result = game.showdown_results.get(player.user_id)
+                combination = f" — {result[1]}" if result else ""
+                lines.append(
+                    f"<@{player.user_id}> получил из банка "
+                    f"**{format_money(player.payout)}**{combination}"
+                )
+            if not winners:
+                lines.append(f"**{game.last_result}**")
             for player in game.players:
                 result = game.showdown_results.get(player.user_id)
                 if result:
-                    lines.append(f"<@{player.user_id}> — **{result[1]}**, стек: **{player.stack}**")
+                    lines.append(
+                        f"<@{player.user_id}> — **{result[1]}**, "
+                        f"баланс за столом: **{format_money(player.stack)}**"
+                    )
                 if player.stack == 0:
                     lines.append(
-                        f"<@{player.user_id}> потерял все фишки: можно выйти "
-                        f"или повторно внести **{self.buy_in}**."
+                        f"<@{player.user_id}> проиграл все деньги: можно выйти "
+                        f"или повторно внести **{format_money(self.buy_in)}**."
                     )
             lines.append("\nХозяин может начать следующую раздачу.")
             description = "\n".join(lines)
@@ -462,13 +566,14 @@ class DiscordPokerTable:
             small_blind = game.players[game.small_blind_index]
             big_blind = game.players[game.big_blind_index]
             description = (
-                f"Раздача **#{game.hand_number}** · Банк: **{game.pot}** · "
-                f"лимит: **{self.max_bet}**\n"
+                f"Раздача **#{game.hand_number}** · Банк: "
+                f"**{format_money(game.pot)}** · "
+                f"лимит: **{format_money(self.max_bet)}**\n"
                 f"{CASINO_DEALER_EMOJI} <@{dealer.user_id}> · "
                 f"{CASINO_SMALL_BLIND_EMOJI} <@{small_blind.user_id}> · "
                 f"{CASINO_BIG_BLIND_EMOJI} <@{big_blind.user_id}>\n"
                 f"Ход: <@{current.user_id}> · "
-                f"{'уравнять ' + str(to_call) if to_call else 'можно чек'}\n"
+                f"{'уравнять ' + format_money(to_call) if to_call else 'можно чек'}\n"
                 f"На решение: **{TURN_TIMEOUT_SECONDS} секунд**. "
                 "Свои карты и комбинацию смотрите кнопкой «Мои карты»."
             )
@@ -481,8 +586,8 @@ class DiscordPokerTable:
         embed.set_image(url="attachment://poker_table.jpg")
         embed.set_footer(
             text=(
-                f"Бай-ин {self.buy_in} = максимальная ставка {self.max_bet} × 5. "
-                "Фишки возвращаются при выходе."
+                f"Взнос {format_money(self.buy_in)} = максимальная ставка "
+                f"{format_money(self.max_bet)} × 5. Деньги возвращаются при выходе."
             )
         )
         return embed
@@ -491,7 +596,13 @@ class DiscordPokerTable:
         return PokerTableView(self)
 
     async def send_initial(self, channel: discord.abc.Messageable) -> None:
-        image = await asyncio.to_thread(_render_table, self.render_game(), dict(self.avatars))
+        image = await asyncio.to_thread(
+            _render_table,
+            self.render_game(),
+            dict(self.avatars),
+            dict(self.cosmetics),
+            dict(self.cosmetic_assets),
+        )
         file = discord.File(image, filename="poker_table.jpg")
         self.message = await channel.send(
             embed=self.build_embed(),
@@ -499,10 +610,16 @@ class DiscordPokerTable:
             view=self.build_view(),
         )
 
-    async def update_message(self) -> None:
+    async def update_message(self, *, schedule_timeout: bool = True) -> None:
         if self.message is None:
             return
-        image = await asyncio.to_thread(_render_table, self.render_game(), dict(self.avatars))
+        image = await asyncio.to_thread(
+            _render_table,
+            self.render_game(),
+            dict(self.avatars),
+            dict(self.cosmetics),
+            dict(self.cosmetic_assets),
+        )
         file = discord.File(image, filename="poker_table.jpg")
         try:
             await self.message.edit(
@@ -512,7 +629,8 @@ class DiscordPokerTable:
             )
         except discord.HTTPException:
             LOGGER.exception("Failed to update Hold'em table message")
-        self._schedule_timeout()
+        if schedule_timeout:
+            self._schedule_timeout()
 
     def _schedule_timeout(self) -> None:
         current_task = asyncio.current_task()
@@ -567,13 +685,16 @@ class DiscordPokerTable:
             await self._change_cash(player_id, amount)
         self.players.clear()
         self.avatars.clear()
+        self.cosmetics.clear()
+        self.cosmetic_assets.clear()
+        self.private_hand_messages.clear()
         self.game = None
         self.closed = True
         self.cancel_lobby_tasks()
         if self.timeout_task:
             self.timeout_task.cancel()
         self.cog.tables.pop(self.key, None)
-        return TableNotice(True, "Стол закрыт, фишки возвращены игрокам.")
+        return TableNotice(True, "Стол закрыт, деньги возвращены игрокам.")
 
 
 class RaiseModal(discord.ui.Modal, title="Поднять ставку"):
@@ -587,13 +708,18 @@ class RaiseModal(discord.ui.Modal, title="Поднять ставку"):
     def __init__(self, table: DiscordPokerTable):
         super().__init__()
         self.table = table
-        self.total.placeholder = f"Итоговая ставка, не больше {table.max_bet}"
+        self.total.placeholder = (
+            f"Итоговая ставка, не больше {format_money(table.max_bet)}"
+        )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         try:
-            amount = int(str(self.total.value).strip())
-        except ValueError:
-            await interaction.response.send_message("Введите целое число.", ephemeral=True)
+            amount = as_money(Decimal(str(self.total.value).strip().replace(",", ".")))
+        except (InvalidOperation, ValueError):
+            await interaction.response.send_message(
+                "Введите сумму в долларах, например `0.50` или `5.75`.",
+                ephemeral=True,
+            )
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         async with self.table.lock:
@@ -614,8 +740,8 @@ class PokerTableView(discord.ui.View):
         self.rebuy_button.disabled = active
         self.leave_button.disabled = active
         self.close_button.disabled = active
-        self.rebuy_button.label = f"Повторный взнос +{table.buy_in}"
-        self.raise_button.label = f"Рейз · макс. {table.max_bet}"
+        self.rebuy_button.label = f"Повторный взнос +{format_money(table.buy_in)}"
+        self.raise_button.label = f"Рейз · макс. {format_money(table.max_bet)}"
 
         for button in (
             self.call_button,
@@ -630,7 +756,9 @@ class PokerTableView(discord.ui.View):
 
         if active and game and game.current_player:
             to_call = game.amount_to_call()
-            self.call_button.label = f"Колл {to_call}" if to_call else "Чек"
+            self.call_button.label = (
+                f"Колл {format_money(to_call)}" if to_call else "Чек"
+            )
             legal = game.legal_actions(game.current_player.user_id)
             self.raise_button.disabled = "raise" not in legal
             self.all_in_button.disabled = "all_in" not in legal
@@ -651,7 +779,7 @@ class PokerTableView(discord.ui.View):
                 await self.table.update_message()
         await self._notice(interaction, notice)
 
-    @discord.ui.button(label="Выйти", style=discord.ButtonStyle.secondary, row=0)
+    @discord.ui.button(label="Выйти", style=discord.ButtonStyle.secondary, row=2)
     async def leave_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         await self._defer(interaction)
         async with self.table.lock:
@@ -684,14 +812,37 @@ class PokerTableView(discord.ui.View):
         game = self.table.game
         player = game.player_by_id(interaction.user.id) if game else None
         if player is None or not player.hole:
-            await interaction.followup.send("У вас нет карт в этой раздаче.", ephemeral=True)
+            await interaction.edit_original_response(
+                content="У вас нет карт в этой раздаче."
+            )
             return
         image = await asyncio.to_thread(_render_private_hand, game, interaction.user.id)
-        await interaction.followup.send(
+        content = f"Ваша комбинация: **{game.combination_for(interaction.user.id)}**"
+        previous = self.table.private_hand_messages.get(interaction.user.id)
+        if previous is not None:
+            try:
+                await previous.edit(
+                    content=content,
+                    attachments=[discord.File(image, filename="my_poker_hand.jpg")],
+                )
+            except discord.HTTPException:
+                self.table.private_hand_messages.pop(interaction.user.id, None)
+                image = await asyncio.to_thread(
+                    _render_private_hand,
+                    game,
+                    interaction.user.id,
+                )
+            else:
+                try:
+                    await interaction.delete_original_response()
+                except discord.HTTPException:
+                    pass
+                return
+        message = await interaction.edit_original_response(
             content=f"Ваша комбинация: **{game.combination_for(interaction.user.id)}**",
-            file=discord.File(image, filename="my_poker_hand.jpg"),
-            ephemeral=True,
+            attachments=[discord.File(image, filename="my_poker_hand.jpg")],
         )
+        self.table.private_hand_messages[interaction.user.id] = message
 
     @discord.ui.button(label="Чек / Колл", style=discord.ButtonStyle.success, row=1)
     async def call_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
@@ -724,7 +875,7 @@ class PokerTableView(discord.ui.View):
 class CreatePokerTableModal(discord.ui.Modal, title="Создать покерный стол"):
     max_bet = discord.ui.TextInput(
         label="Максимальная ставка за круг",
-        placeholder="Например: 5 (бай-ин будет 25)",
+        placeholder="Например: 0.75 (взнос будет 3.75)",
         min_length=1,
         max_length=9,
     )
@@ -735,16 +886,21 @@ class CreatePokerTableModal(discord.ui.Modal, title="Создать покерн
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         try:
-            max_bet = int(str(self.max_bet.value).strip())
-        except ValueError:
+            raw_max_bet = str(self.max_bet.value).strip().replace(",", ".")
+            max_bet = as_money(Decimal(raw_max_bet))
+        except (InvalidOperation, ValueError):
             await interaction.response.send_message(
-                "Максимальная ставка должна быть целым числом.",
+                "Введите сумму в долларах, например `0.50`, `0.75` или `5`.",
                 ephemeral=True,
             )
             return
-        if not 1 <= max_bet <= MAX_CONFIGURED_BET:
+        if (
+            not MIN_CONFIGURED_BET <= max_bet <= MAX_CONFIGURED_BET
+            or max_bet % BET_STEP
+        ):
             await interaction.response.send_message(
-                f"Укажите ставку от 1 до {MAX_CONFIGURED_BET}.",
+                "Ставка должна быть от `$0.25` до `$1,000,000` "
+                "с шагом `$0.25`.",
                 ephemeral=True,
             )
             return
@@ -800,9 +956,9 @@ class JoinPokerTableSelect(discord.ui.Select):
             channel_name = getattr(channel, "name", str(table.channel_id))
             options.append(
                 discord.SelectOption(
-                    label=f"#{channel_name} · ставка {table.max_bet}",
+                    label=f"#{channel_name} · ставка {format_money(table.max_bet)}",
                     description=(
-                        f"Бай-ин {table.buy_in} · "
+                        f"Взнос {format_money(table.buy_in)} · "
                         f"{len(table.players)}/{MAX_PLAYERS} игроков"
                     ),
                     value=str(table.channel_id),
@@ -869,11 +1025,588 @@ class JoinPokerTableView(discord.ui.View):
         return False
 
 
+class PokerCosmeticSelect(discord.ui.Select):
+    def __init__(self, shop: "PokerCosmeticsView"):
+        self.shop = shop
+        options = [
+            discord.SelectOption(
+                label=item.name,
+                value=item.key,
+                emoji=item.emoji,
+                description=(
+                    "Бесплатно"
+                    if item.price == 0
+                    else f"Цена {format_money(item.price)}"
+                ),
+                default=item.key == shop.selected,
+            )
+            for item in shop.catalog.values()
+        ]
+        super().__init__(
+            placeholder="Выберите украшение",
+            options=options,
+            min_values=1,
+            max_values=1,
+            row=0,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        self.shop.selected = self.values[0]
+        self.shop.notice = ""
+        await self.shop.refresh(interaction)
+
+
+class PokerCosmeticsView(discord.ui.View):
+    def __init__(
+        self,
+        cog: "HoldemCog",
+        guild_id: int,
+        user_id: int,
+        avatar_bytes: bytes | None,
+    ):
+        super().__init__(timeout=600)
+        self.cog = cog
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.avatar_bytes = avatar_bytes
+        self.catalog = cog.cosmetic_catalog(guild_id)
+        self.selected = cog.equipped_cosmetic(guild_id, user_id)
+        if self.selected not in self.catalog:
+            self.selected = "none"
+        self.notice = ""
+        self.add_item(PokerCosmeticSelect(self))
+        self.sync_buttons()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "Это не ваш магазин украшений.",
+            ephemeral=True,
+        )
+        return False
+
+    def sync_buttons(self) -> None:
+        state, _ = self.cog.cosmetic_account(self.guild_id, self.user_id)
+        for child in self.children:
+            if isinstance(child, PokerCosmeticSelect):
+                for option in child.options:
+                    option.default = option.value == self.selected
+        owned = self.selected in state["owned"]
+        equipped = state["equipped"] == self.selected
+        item = self.catalog[self.selected]
+        self.buy_button.disabled = owned or item.price <= 0
+        self.buy_button.label = (
+            "Уже куплено"
+            if owned
+            else f"Купить · {format_money(item.price)}"
+        )
+        self.equip_button.disabled = not owned or equipped
+        self.remove_button.disabled = state["equipped"] == "none"
+
+    def build_embed(self) -> discord.Embed:
+        state, account = self.cog.cosmetic_account(self.guild_id, self.user_id)
+        item = self.catalog[self.selected]
+        if state["equipped"] == item.key:
+            status = "✅ Надето"
+        elif item.key in state["owned"]:
+            status = "Куплено"
+        else:
+            status = f"Цена: **{format_money(item.price)}**"
+        description = (
+            f"## {item.emoji} {item.name}\n"
+            f"{item.description}\n\n"
+            f"Статус: **{status}**\n"
+            f"Ваш баланс: **{format_money(account.get('cash', 0))}**\n\n"
+            "Каждый товар содержит два вида: обычный и подсвеченный "
+            "для хода игрока."
+        )
+        if self.notice:
+            description += f"\n\n{self.notice}"
+        embed = discord.Embed(
+            title="Украшения покерных аватарок",
+            description=description,
+            color=discord.Color.dark_gold(),
+        )
+        embed.set_image(url="attachment://poker_cosmetic_preview.jpg")
+        embed.set_footer(
+            text="PNG 128×128 · прозрачный фон · аватар 88×88 по центру"
+        )
+        return embed
+
+    async def refresh(self, interaction: discord.Interaction) -> None:
+        if not interaction.response.is_done():
+            await interaction.response.defer()
+        self.sync_buttons()
+        preview = await asyncio.to_thread(
+            _render_cosmetic_preview,
+            self.avatar_bytes,
+            interaction.user.display_name,
+            self.selected,
+            self.cog.cosmetic_asset_pair(self.guild_id, self.selected),
+        )
+        await interaction.edit_original_response(
+            embed=self.build_embed(),
+            attachments=[
+                discord.File(preview, filename="poker_cosmetic_preview.jpg")
+            ],
+            view=self,
+        )
+
+    @discord.ui.button(
+        label="Купить",
+        emoji="💵",
+        style=discord.ButtonStyle.success,
+        row=1,
+    )
+    async def buy_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        await interaction.response.defer()
+        self.notice = await self.cog.purchase_cosmetic(
+            self.guild_id,
+            self.user_id,
+            self.selected,
+        )
+        await self.refresh(interaction)
+
+    @discord.ui.button(
+        label="Надеть",
+        emoji="✨",
+        style=discord.ButtonStyle.primary,
+        row=1,
+    )
+    async def equip_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        await interaction.response.defer()
+        self.notice = await self.cog.equip_cosmetic(
+            self.guild_id,
+            self.user_id,
+            self.selected,
+        )
+        await self.refresh(interaction)
+
+    @discord.ui.button(
+        label="Снять",
+        style=discord.ButtonStyle.secondary,
+        row=1,
+    )
+    async def remove_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button,
+    ) -> None:
+        await interaction.response.defer()
+        self.notice = await self.cog.equip_cosmetic(
+            self.guild_id,
+            self.user_id,
+            "none",
+        )
+        await self.refresh(interaction)
+
+
 class HoldemCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.tables: dict[tuple[int, int], DiscordPokerTable] = {}
         self.creation_lock = asyncio.Lock()
+
+    def _guild_economy_data(self, guild_id: int) -> dict:
+        getter = getattr(self.bot, "get_economy_guild_data", None)
+        if getter:
+            return getter(guild_id)
+        return {}
+
+    def cosmetic_catalog(self, guild_id: int) -> dict[str, PokerCosmetic]:
+        catalog = dict(POKER_COSMETICS)
+        raw_catalog = self._guild_economy_data(guild_id).get(
+            "poker_cosmetic_catalog",
+            {},
+        )
+        if not isinstance(raw_catalog, dict):
+            return catalog
+        for key, raw in list(raw_catalog.items())[:24]:
+            if (
+                not isinstance(raw, dict)
+                or not re.fullmatch(r"[a-z0-9_-]{2,32}", str(key))
+            ):
+                continue
+            try:
+                price = round(float(raw.get("price", 0)), 2)
+            except (TypeError, ValueError):
+                continue
+            if price < 0:
+                continue
+            name = str(raw.get("name", key)).strip()[:80] or str(key)
+            description = (
+                str(raw.get("description", "Украшение покерной аватарки."))
+                .strip()[:100]
+            )
+            catalog[str(key)] = PokerCosmetic(
+                str(key),
+                name,
+                description,
+                price,
+                "🖼️",
+            )
+        return catalog
+
+    def cosmetic_asset_pair(
+        self,
+        guild_id: int,
+        cosmetic_key: str,
+    ) -> tuple[bytes | None, bytes | None]:
+        raw = self._guild_economy_data(guild_id).get(
+            "poker_cosmetic_catalog",
+            {},
+        )
+        record = raw.get(cosmetic_key, {}) if isinstance(raw, dict) else {}
+        if not isinstance(record, dict):
+            return None, None
+
+        def decode(field: str) -> bytes | None:
+            value = record.get(field)
+            if not isinstance(value, str):
+                return None
+            try:
+                return base64.b64decode(value, validate=True)
+            except (ValueError, TypeError):
+                return None
+
+        return decode("normal_png"), decode("active_png")
+
+    def cosmetic_account(self, guild_id: int, user_id: int) -> tuple[dict, dict]:
+        token = self.bot.set_economy_guild_id(guild_id)
+        try:
+            account = self.bot.get_account(user_id)
+            catalog = self.cosmetic_catalog(guild_id)
+            return normalize_poker_cosmetics(account, set(catalog)), account
+        finally:
+            self.bot.reset_economy_guild_id(token)
+
+    def equipped_cosmetic(self, guild_id: int, user_id: int) -> str:
+        state, _ = self.cosmetic_account(guild_id, user_id)
+        return state["equipped"]
+
+    async def purchase_cosmetic(
+        self,
+        guild_id: int,
+        user_id: int,
+        cosmetic_key: str,
+    ) -> str:
+        item = self.cosmetic_catalog(guild_id).get(cosmetic_key)
+        if item is None or item.price <= 0:
+            return "Этот вариант не нужно покупать."
+        token = self.bot.set_economy_guild_id(guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(user_id)
+                state = normalize_poker_cosmetics(
+                    account,
+                    set(self.cosmetic_catalog(guild_id)),
+                )
+                if cosmetic_key in state["owned"]:
+                    return "Это украшение уже куплено."
+                if account.get("cash", 0) + 0.0001 < item.price:
+                    return (
+                        f"Недостаточно денег. Нужно **{format_money(item.price)}**."
+                    )
+                account["cash"] = round(account.get("cash", 0) - item.price, 2)
+                state["owned"].append(cosmetic_key)
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+        return f"✅ Куплено: **{item.name}**."
+
+    async def equip_cosmetic(
+        self,
+        guild_id: int,
+        user_id: int,
+        cosmetic_key: str,
+    ) -> str:
+        item = self.cosmetic_catalog(guild_id).get(cosmetic_key)
+        if item is None:
+            return "Такого украшения нет."
+        token = self.bot.set_economy_guild_id(guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(user_id)
+                state = normalize_poker_cosmetics(
+                    account,
+                    set(self.cosmetic_catalog(guild_id)),
+                )
+                if cosmetic_key not in state["owned"]:
+                    return "Сначала купите это украшение."
+                state["equipped"] = cosmetic_key
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+        await self.refresh_player_cosmetic(guild_id, user_id, cosmetic_key)
+        return (
+            "✅ Украшение снято."
+            if cosmetic_key == "none"
+            else f"✅ Надето: **{item.name}**."
+        )
+
+    async def refresh_player_cosmetic(
+        self,
+        guild_id: int,
+        user_id: int,
+        cosmetic_key: str,
+    ) -> None:
+        for table in list(self.tables.values()):
+            if (
+                table.guild_id != guild_id
+                or table.closed
+                or table.player_by_id(user_id) is None
+            ):
+                continue
+            async with table.lock:
+                table.cosmetics[user_id] = cosmetic_key
+                table.cosmetic_assets[user_id] = self.cosmetic_asset_pair(
+                    guild_id,
+                    cosmetic_key,
+                )
+                await table.update_message(schedule_timeout=False)
+
+    async def open_cosmetics_shop(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        if interaction.guild_id is None:
+            await interaction.response.send_message(
+                "Магазин доступен только на сервере.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            avatar_bytes = await interaction.user.display_avatar.read()
+        except (discord.HTTPException, OSError):
+            avatar_bytes = None
+        view = PokerCosmeticsView(
+            self,
+            interaction.guild_id,
+            interaction.user.id,
+            avatar_bytes,
+        )
+        preview = await asyncio.to_thread(
+            _render_cosmetic_preview,
+            avatar_bytes,
+            interaction.user.display_name,
+            view.selected,
+            self.cosmetic_asset_pair(interaction.guild_id, view.selected),
+        )
+        await interaction.edit_original_response(
+            embed=view.build_embed(),
+            attachments=[
+                discord.File(preview, filename="poker_cosmetic_preview.jpg")
+            ],
+            view=view,
+        )
+
+    @app_commands.command(
+        name="poker-frame-add",
+        description="Админ: загрузить два состояния рамки покерной аватарки",
+    )
+    @app_commands.describe(
+        name="Название рамки в магазине",
+        price="Цена в обычных долларах",
+        normal="Обычный прозрачный PNG 128×128",
+        active="PNG 128×128 во время хода игрока",
+        key="Необязательный английский ключ, например gold_frame",
+    )
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    async def poker_frame_add(
+        self,
+        interaction: discord.Interaction,
+        name: str,
+        price: float,
+        normal: discord.Attachment,
+        active: discord.Attachment,
+        key: str | None = None,
+    ) -> None:
+        if interaction.guild_id is None:
+            await interaction.response.send_message(
+                "Команда доступна только на сервере.",
+                ephemeral=True,
+            )
+            return
+        if not name.strip() or len(name.strip()) > 80:
+            await interaction.response.send_message(
+                "Название должно содержать от 1 до 80 символов.",
+                ephemeral=True,
+            )
+            return
+        if not 0 <= price <= 1_000_000:
+            await interaction.response.send_message(
+                "Цена должна быть от `$0` до `$1,000,000`.",
+                ephemeral=True,
+            )
+            return
+        cosmetic_key = (
+            key.strip().casefold()
+            if key
+            else f"frame_{interaction.id}"
+        )
+        if (
+            cosmetic_key == "none"
+            or not re.fullmatch(r"[a-z0-9_-]{2,32}", cosmetic_key)
+        ):
+            await interaction.response.send_message(
+                "Ключ может содержать только `a-z`, `0-9`, `_`, `-` "
+                "и должен иметь длину 2–32 символа.",
+                ephemeral=True,
+            )
+            return
+        max_asset_size = 400_000
+        if normal.size > max_asset_size or active.size > max_asset_size:
+            await interaction.response.send_message(
+                "Каждый PNG должен весить не больше 400 КБ.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            normal_data, active_data = await asyncio.gather(
+                normal.read(),
+                active.read(),
+            )
+        except discord.HTTPException as error:
+            await interaction.edit_original_response(
+                content=f"Не удалось скачать вложения: `{error}`"
+            )
+            return
+        for label, data in (
+            ("Обычный вариант", normal_data),
+            ("Вариант во время хода", active_data),
+        ):
+            validation_error = await asyncio.to_thread(
+                _validate_cosmetic_png,
+                data,
+            )
+            if validation_error:
+                await interaction.edit_original_response(
+                    content=f"**{label}:** {validation_error}"
+                )
+                return
+
+        guild_data = self._guild_economy_data(interaction.guild_id)
+        if not guild_data:
+            await interaction.edit_original_response(
+                content="Постоянное хранилище экономики недоступно."
+            )
+            return
+        async with self.bot.economy_lock:
+            catalog = guild_data.setdefault("poker_cosmetic_catalog", {})
+            if not isinstance(catalog, dict):
+                catalog = {}
+                guild_data["poker_cosmetic_catalog"] = catalog
+            if cosmetic_key not in catalog and len(catalog) >= 24:
+                await interaction.edit_original_response(
+                    content="В магазине уже максимум 24 загруженные рамки."
+                )
+                return
+            catalog[cosmetic_key] = {
+                "name": name.strip(),
+                "description": "Загруженная рамка покерной аватарки.",
+                "price": round(float(price), 2),
+                "normal_png": base64.b64encode(normal_data).decode("ascii"),
+                "active_png": base64.b64encode(active_data).decode("ascii"),
+            }
+            self.bot.save_economy()
+
+        try:
+            avatar_data = await interaction.user.display_avatar.read()
+        except (discord.HTTPException, OSError):
+            avatar_data = None
+        preview = await asyncio.to_thread(
+            _render_cosmetic_preview,
+            avatar_data,
+            interaction.user.display_name,
+            cosmetic_key,
+            (normal_data, active_data),
+        )
+        embed = discord.Embed(
+            title="✅ Рамка добавлена без Git",
+            description=(
+                f"Название: **{name.strip()}**\n"
+                f"Цена: **{format_money(price)}**\n"
+                f"Ключ: `{cosmetic_key}`\n\n"
+                "Она уже доступна в магазине «Украшения покера»."
+            ),
+            color=discord.Color.green(),
+        )
+        embed.set_image(url="attachment://poker_frame_uploaded.jpg")
+        await interaction.edit_original_response(
+            embed=embed,
+            attachments=[
+                discord.File(preview, filename="poker_frame_uploaded.jpg")
+            ],
+        )
+
+    @app_commands.command(
+        name="poker-frame-delete",
+        description="Админ: удалить загруженную рамку из покерного магазина",
+    )
+    @app_commands.describe(key="Ключ рамки, показанный при загрузке")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    async def poker_frame_delete(
+        self,
+        interaction: discord.Interaction,
+        key: str,
+    ) -> None:
+        if interaction.guild_id is None:
+            await interaction.response.send_message(
+                "Команда доступна только на сервере.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild_data = self._guild_economy_data(interaction.guild_id)
+        catalog = guild_data.get("poker_cosmetic_catalog", {})
+        if not isinstance(catalog, dict) or key not in catalog:
+            await interaction.edit_original_response(
+                content="Рамка с таким ключом не найдена."
+            )
+            return
+        async with self.bot.economy_lock:
+            removed = catalog.pop(key)
+            valid_keys = set(self.cosmetic_catalog(interaction.guild_id))
+            for account in guild_data.get("users", {}).values():
+                if isinstance(account, dict):
+                    normalize_poker_cosmetics(account, valid_keys)
+            self.bot.save_economy()
+
+        for table in list(self.tables.values()):
+            if table.guild_id != interaction.guild_id or table.closed:
+                continue
+            affected = [
+                player.user_id
+                for player in table.players
+                if table.cosmetics.get(player.user_id) == key
+            ]
+            if not affected:
+                continue
+            async with table.lock:
+                for user_id in affected:
+                    table.cosmetics[user_id] = "none"
+                    table.cosmetic_assets[user_id] = (None, None)
+                await table.update_message(schedule_timeout=False)
+        await interaction.edit_original_response(
+            content=(
+                f"🗑️ Рамка **{removed.get('name', key)}** удалена. "
+                "У использовавших её игроков установлено «Без украшения»."
+            )
+        )
 
     async def open_poker_menu(self, interaction: discord.Interaction) -> None:
         if interaction.guild_id is None or interaction.channel is None:
@@ -887,7 +1620,7 @@ class HoldemCog(commands.Cog):
             description=(
                 "Создайте новый стол с собственной максимальной ставкой "
                 "или присоединитесь к уже открытому.\n\n"
-                "Бай-ин всегда равен **максимальной ставке × 5**."
+                "Вступительный взнос всегда равен **максимальной ставке × 5**."
             ),
             color=discord.Color.dark_green(),
         )
@@ -981,7 +1714,8 @@ class HoldemCog(commands.Cog):
                     category=category,
                     topic=(
                         f"Временный Texas Hold'em · хост {interaction.user} · "
-                        f"макс. ставка {max_bet} · бай-ин {max_bet * 5}"
+                        f"макс. ставка {format_money(max_bet)} · "
+                        f"взнос {format_money(max_bet * 5)}"
                     ),
                     reason="Создан временный покерный стол",
                 )
@@ -999,7 +1733,7 @@ class HoldemCog(commands.Cog):
                 notice = await table.seat_member(interaction.user)
                 if not notice.ok:
                     await temporary_channel.delete(
-                        reason="Хост не смог внести бай-ин"
+                        reason="Хост не смог внести вступительный взнос"
                     )
                     await interaction.edit_original_response(content=notice.text)
                     return
@@ -1063,7 +1797,8 @@ class HoldemCog(commands.Cog):
 
         text = (
             f"{notice.text}\n"
-            f"Максимальная ставка: **{table.max_bet}**, бай-ин: **{table.buy_in}**.\n"
+            f"Максимальная ставка: **{format_money(table.max_bet)}**, "
+            f"взнос: **{format_money(table.buy_in)}**.\n"
             f"Приватный стол создан: {table.message.jump_url}\n"
             "Другие игроки входят через «Присоединиться к существующему»."
         )

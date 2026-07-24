@@ -121,6 +121,22 @@ class PokerTableEconomyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1975, self.cog.bot.accounts[1]["cash"])
         await table.close(1)
 
+    async def test_fractional_dollar_buy_in_is_escrowed_exactly(self):
+        table = DiscordPokerTable(
+            self.cog,
+            guild_id=10,
+            channel_id=22,
+            host_id=1,
+            max_bet=0.75,
+        )
+        self.cog.tables[table.key] = table
+        joined = await table.seat_member(FakeMember(1, "One"))
+        self.assertTrue(joined.ok)
+        self.assertEqual(3.75, table.buy_in)
+        self.assertEqual(3.75, table.player_by_id(1).stack)
+        self.assertEqual(1996.25, self.cog.bot.accounts[1]["cash"])
+        await table.close(1)
+
     async def test_busted_player_can_pay_the_full_buy_in_again(self):
         table = DiscordPokerTable(
             self.cog,
@@ -181,8 +197,11 @@ class PokerLobbyContractTests(unittest.TestCase):
         )
 
     def test_blinds_scale_with_maximum_bet(self):
-        self.assertEqual((1, 1), blind_structure(5))
+        self.assertEqual((0.25, 0.50), blind_structure(5))
         self.assertEqual((10, 20), blind_structure(200))
+
+    def test_fractional_maximum_bet_scales_to_quarter_dollars(self):
+        self.assertEqual((0.25, 0.25), blind_structure(0.75))
 
     def test_temporary_channel_name_is_safe_and_identifiable(self):
         self.assertEqual(

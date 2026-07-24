@@ -1978,6 +1978,7 @@ async def setup_hook():
     bot.validate_bet = validate_bet
     bot.economy_lock = economy_lock
     bot.get_account = get_account
+    bot.get_economy_guild_data = economy_data.guild_data
     bot.save_economy = save_economy
     bot.format_money = format_money
     try:

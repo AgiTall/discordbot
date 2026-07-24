@@ -18,6 +18,11 @@ from src.holdem import (
     WAITING,
     Card,
     HoldemGame,
+    format_money,
+)
+from src.poker_cosmetics import (
+    COSMETIC_CANVAS_SIZE,
+    cosmetic_asset_filename,
 )
 
 
@@ -26,6 +31,7 @@ BACKGROUND_PATH = ROOT / "assets" / "images" / "poker_table.png"
 DIVIDER_PATH = ROOT / "assets" / "images" / "poker_divider.png"
 CARDS_PATH = ROOT / "ref" / "cards"
 ROLE_ICONS_PATH = ROOT / "ref" / "icons" / "Casino"
+COSMETICS_PATH = ROLE_ICONS_PATH / "poker_decorations"
 FONT_PATHS = {
     "lino": ROOT / "docs" / "fonts" / "RDRLino.ttf",
     "gothica": ROOT / "docs" / "fonts" / "RDRGothica.ttf",
@@ -108,6 +114,81 @@ def _card_image(card: Card | None, size: tuple[int, int]) -> Image.Image:
 def _role_icon(name: str, size: int = 44) -> Image.Image:
     image = Image.open(ROLE_ICONS_PATH / f"{name}_icon.png").convert("RGBA")
     return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
+@lru_cache(maxsize=16)
+def _cosmetic_overlay(
+    key: str,
+    active: bool,
+    uploaded_data: bytes | None = None,
+) -> Image.Image:
+    """Load an uploaded 128px overlay, with a repo file as optional fallback."""
+    if uploaded_data:
+        try:
+            image = Image.open(BytesIO(uploaded_data)).convert("RGBA")
+            return ImageOps.fit(
+                image,
+                (COSMETIC_CANVAS_SIZE, COSMETIC_CANVAS_SIZE),
+                method=Image.Resampling.LANCZOS,
+            )
+        except (OSError, ValueError):
+            pass
+    custom_path = COSMETICS_PATH / cosmetic_asset_filename(key, active=active)
+    if custom_path.is_file():
+        image = Image.open(custom_path).convert("RGBA")
+        return ImageOps.fit(
+            image,
+            (COSMETIC_CANVAS_SIZE, COSMETIC_CANVAS_SIZE),
+            method=Image.Resampling.LANCZOS,
+        )
+
+    return Image.new(
+        "RGBA",
+        (COSMETIC_CANVAS_SIZE, COSMETIC_CANVAS_SIZE),
+        (0, 0, 0, 0),
+    )
+
+
+def _paste_decorated_avatar(
+    canvas: Image.Image,
+    avatar: Image.Image,
+    xy: tuple[int, int],
+    cosmetic_key: str,
+    active: bool,
+    cosmetic_assets: tuple[bytes | None, bytes | None] | None = None,
+) -> None:
+    avatar_x, avatar_y = xy
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    outline = (238, 192, 86, 255) if active else (139, 105, 54, 225)
+    if active:
+        spread = 7
+        draw.ellipse(
+            (
+                avatar_x - spread,
+                avatar_y - spread,
+                avatar_x + AVATAR_SIZE - 1 + spread,
+                avatar_y + AVATAR_SIZE - 1 + spread,
+            ),
+            fill=(244, 196, 82, 255),
+            outline=(74, 43, 14, 255),
+            width=2,
+        )
+    canvas.alpha_composite(avatar, (avatar_x, avatar_y))
+    draw.ellipse(
+        (
+            avatar_x - 2,
+            avatar_y - 2,
+            avatar_x + AVATAR_SIZE + 1,
+            avatar_y + AVATAR_SIZE + 1,
+        ),
+        outline=outline,
+        width=4 if active else 3,
+    )
+    asset_data = cosmetic_assets[1 if active else 0] if cosmetic_assets else None
+    overlay = _cosmetic_overlay(cosmetic_key, active, asset_data)
+    overlay_x = avatar_x + AVATAR_SIZE // 2 - overlay.width // 2
+    overlay_y = avatar_y + AVATAR_SIZE // 2 - overlay.height // 2
+    canvas.alpha_composite(overlay, (overlay_x, overlay_y))
 
 
 def _rounded_panel(
@@ -292,9 +373,16 @@ def _role_icons(game: HoldemGame, index: int) -> list[str]:
 def render_table(
     game: HoldemGame,
     avatar_bytes: Mapping[int, bytes] | None = None,
+    cosmetic_keys: Mapping[int, str] | None = None,
+    cosmetic_assets: Mapping[
+        int,
+        tuple[bytes | None, bytes | None],
+    ] | None = None,
 ) -> BytesIO:
     """Render the public table. Hole cards stay hidden until showdown."""
     avatar_bytes = avatar_bytes or {}
+    cosmetic_keys = cosmetic_keys or {}
+    cosmetic_assets = cosmetic_assets or {}
     canvas = _background().copy().convert("RGBA")
     draw = ImageDraw.Draw(canvas, "RGBA")
 
@@ -303,7 +391,7 @@ def render_table(
     _text_center(
         draw,
         (576, 330),
-        f"БАНК   {game.pot}",
+        f"БАНК   {format_money(game.pot)}",
         font=_font(30, "lino"),
         fill=(245, 218, 146, 255),
         stroke_width=3,
@@ -349,7 +437,6 @@ def render_table(
     for index, player in enumerate(game.players):
         center_x, center_y = SEAT_CENTERS.get(player.seat, SEAT_CENTERS[index])
         is_turn = game.current_index == index
-        outline = (238, 192, 86, 255) if is_turn else (139, 105, 54, 225)
 
         # Cards sit well to the left and behind the avatar so the player's
         # face remains unobstructed while the hand still reads as a fan.
@@ -375,23 +462,13 @@ def render_table(
             avatar.putalpha(alpha)
         avatar_x = center_x - AVATAR_SIZE // 2
         avatar_y = center_y - 35
-        if is_turn:
-            for spread, alpha in ((8, 70), (5, 130)):
-                draw.ellipse(
-                    (
-                        avatar_x - spread,
-                        avatar_y - spread,
-                        avatar_x + AVATAR_SIZE + spread,
-                        avatar_y + AVATAR_SIZE + spread,
-                    ),
-                    outline=(244, 196, 82, alpha),
-                    width=3,
-                )
-        canvas.alpha_composite(avatar, (avatar_x, avatar_y))
-        draw.ellipse(
-            (avatar_x - 2, avatar_y - 2, avatar_x + AVATAR_SIZE + 2, avatar_y + AVATAR_SIZE + 2),
-            outline=outline,
-            width=4 if is_turn else 3,
+        _paste_decorated_avatar(
+            canvas,
+            avatar,
+            (avatar_x, avatar_y),
+            cosmetic_keys.get(player.user_id, "none"),
+            is_turn,
+            cosmetic_assets.get(player.user_id),
         )
 
         roles = _role_icons(game, index)
@@ -418,9 +495,9 @@ def render_table(
             stroke_width=3,
             stroke_fill=(12, 9, 6, 245),
         )
-        stack_text = f"{player.stack} фишек"
+        stack_text = f"Баланс {format_money(player.stack)}"
         if player.round_bet:
-            stack_text += f"  ·  ставка {player.round_bet}"
+            stack_text += f"  ·  ставка {format_money(player.round_bet)}"
         _text_top_center(
             draw,
             (center_x, avatar_y + AVATAR_SIZE + 7),
@@ -455,6 +532,56 @@ def render_table(
 
     output = BytesIO()
     canvas.convert("RGB").save(output, format="JPEG", quality=88, optimize=True)
+    output.seek(0)
+    return output
+
+
+def render_cosmetic_preview(
+    avatar_data: bytes | None,
+    player_name: str,
+    cosmetic_key: str,
+    cosmetic_assets: tuple[bytes | None, bytes | None] | None = None,
+) -> BytesIO:
+    """Render the normal and active variants shown in the cosmetics shop."""
+    canvas = Image.new("RGBA", (420, 190), (17, 48, 29, 255))
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    avatar = _avatar(avatar_data, player_name)
+    _paste_decorated_avatar(
+        canvas,
+        avatar,
+        (66, 55),
+        cosmetic_key,
+        False,
+        cosmetic_assets,
+    )
+    _paste_decorated_avatar(
+        canvas,
+        avatar,
+        (266, 55),
+        cosmetic_key,
+        True,
+        cosmetic_assets,
+    )
+    _text_center(
+        draw,
+        (110, 28),
+        "ОБЫЧНЫЙ",
+        font=_font(18, "gothica"),
+        fill=(238, 221, 178, 255),
+        stroke_width=2,
+        stroke_fill=(5, 5, 4, 230),
+    )
+    _text_center(
+        draw,
+        (310, 28),
+        "ВАШ ХОД",
+        font=_font(18, "gothica"),
+        fill=(255, 211, 101, 255),
+        stroke_width=2,
+        stroke_fill=(5, 5, 4, 230),
+    )
+    output = BytesIO()
+    canvas.convert("RGB").save(output, format="JPEG", quality=91, optimize=True)
     output.seek(0)
     return output
 

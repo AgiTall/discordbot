@@ -570,6 +570,21 @@ class CasinoLobbyView(discord.ui.View):
             return
         await holdem.open_poker_menu(interaction)
 
+    @discord.ui.button(
+        label="Украшения покера",
+        emoji="✨",
+        style=discord.ButtonStyle.secondary,
+    )
+    async def poker_cosmetics_button(self, interaction, button):
+        holdem = self.bot.get_cog("HoldemCog")
+        if holdem is None:
+            await interaction.response.send_message(
+                "Магазин покерных украшений временно недоступен.",
+                ephemeral=True,
+            )
+            return
+        await holdem.open_cosmetics_shop(interaction)
+
 
 class CasinoReplayView(discord.ui.View):
     def __init__(self, bot, user_id, bet):
