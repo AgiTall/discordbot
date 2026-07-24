@@ -4,7 +4,7 @@ import asyncio
 import math
 from discord.ext import commands
 from discord import app_commands
-from src.card_emojis import format_card_emoji
+from src.card_emojis import CARD_BACK_EMOJI, format_card_emoji
 from emoji_config import (
     CASINO_BLACKJACK_BUTTON_EMOJI,
     CASINO_LOGO_EMOJI,
@@ -151,7 +151,7 @@ class BlackjackView(discord.ui.View):
     def build_embed(self, reveal_dealer=False):
         dealer_cards = format_cards(self.dealer_hand)
         if not reveal_dealer and len(self.dealer_hand) >= 2:
-            dealer_cards = f"{format_card(self.dealer_hand[0])} ??"
+            dealer_cards = f"{format_card(self.dealer_hand[0])} {CARD_BACK_EMOJI}"
 
         dealer_value = blackjack_hand_value(self.dealer_hand)
         embed = discord.Embed(
@@ -561,7 +561,14 @@ class CasinoLobbyView(discord.ui.View):
         style=discord.ButtonStyle.secondary,
     )
     async def poker_button(self, interaction, button):
-        await self.open_bet(interaction, "poker")
+        holdem = self.bot.get_cog("HoldemCog")
+        if holdem is None:
+            await interaction.response.send_message(
+                "Покерный стол временно недоступен.",
+                ephemeral=True,
+            )
+            return
+        await holdem.open_poker_menu(interaction)
 
 
 class CasinoReplayView(discord.ui.View):

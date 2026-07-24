@@ -1988,6 +1988,7 @@ async def setup_hook():
     # Один сломанный раздел не должен останавливать регистрацию всех команд,
     # которые идут после него (раньше из-за этого мог пропасть /mine).
     extensions = (
+        "cogs.holdem",
         "cogs.casino",
         "cogs.catalog",
         "cogs.gangs",

@@ -169,6 +169,9 @@ ROLE_OWNED_PIN_EMOJI = "<:grenpin:1527602575463944232>"
 CASINO_LOGO_EMOJI = "<:blip_mg_poker:1527603592704426094>"
 CASINO_BLACKJACK_BUTTON_EMOJI = "<:blip_mg_blackjack:1529753382405799936>"
 CASINO_POKER_BUTTON_EMOJI = "<:blip_mg_poker:1527603592704426094>"
+CASINO_BIG_BLIND_EMOJI = "<:bigblind_icon:1530254229229273208>"
+CASINO_DEALER_EMOJI = "<:dealer_icon:1530254231083155517>"
+CASINO_SMALL_BLIND_EMOJI = "<:smallblind_icon:1530254232526131280>"
 
 # Внешний вид изделий ювелира. Это предметы из коллекции «Украшения»,
 # поэтому шахтёр и коллекционер используют один визуальный язык.

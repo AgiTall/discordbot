@@ -1,5 +1,6 @@
 import unittest
 
+from src.card_emojis import CARD_BACK_EMOJI
 from cogs.casino import (
     _calculate_casino_payout,
     _normalize_casino_amount,
@@ -8,6 +9,9 @@ from cogs.casino import (
 
 
 class BlackjackAnnouncementTests(unittest.TestCase):
+    def test_hidden_card_uses_configured_card_back_emoji(self):
+        self.assertEqual("<:back:1530243614297555126>", CARD_BACK_EMOJI)
+
     def test_regular_win_is_not_announced(self):
         self.assertFalse(should_announce_blackjack_win(bet=1000))
 

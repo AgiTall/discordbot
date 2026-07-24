@@ -1,5 +1,7 @@
 """Discord emoji markup for the custom 52-card deck."""
 
+CARD_BACK_EMOJI = "<:back:1530243614297555126>"
+
 CARD_EMOJI_IDS = {
     "♠": {
         "Q": 1527573273091506288, "K": 1527573271812243556,

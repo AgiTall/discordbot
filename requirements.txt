@@ -1,6 +1,7 @@
 discord.py
 python-dotenv
 flask
+Pillow>=10.0
 
 # ── FastAPI Backend ────────────────────────────────
 fastapi>=0.115
