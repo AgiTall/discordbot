@@ -160,7 +160,11 @@ def _paste_decorated_avatar(
     avatar_x, avatar_y = xy
     draw = ImageDraw.Draw(canvas, "RGBA")
     outline = (238, 192, 86, 255) if active else (139, 105, 54, 225)
-    if active:
+    asset_data = cosmetic_assets[1 if active else 0] if cosmetic_assets else None
+    overlay = _cosmetic_overlay(cosmetic_key, active, asset_data)
+    has_decoration = cosmetic_key != "none" and overlay.getbbox() is not None
+
+    if active and not has_decoration:
         spread = 7
         draw.ellipse(
             (
@@ -174,18 +178,17 @@ def _paste_decorated_avatar(
             width=2,
         )
     canvas.alpha_composite(avatar, (avatar_x, avatar_y))
-    draw.ellipse(
-        (
-            avatar_x - 2,
-            avatar_y - 2,
-            avatar_x + AVATAR_SIZE + 1,
-            avatar_y + AVATAR_SIZE + 1,
-        ),
-        outline=outline,
-        width=4 if active else 3,
-    )
-    asset_data = cosmetic_assets[1 if active else 0] if cosmetic_assets else None
-    overlay = _cosmetic_overlay(cosmetic_key, active, asset_data)
+    if not has_decoration:
+        draw.ellipse(
+            (
+                avatar_x - 2,
+                avatar_y - 2,
+                avatar_x + AVATAR_SIZE + 1,
+                avatar_y + AVATAR_SIZE + 1,
+            ),
+            outline=outline,
+            width=4 if active else 3,
+        )
     overlay_x = avatar_x + AVATAR_SIZE // 2 - overlay.width // 2
     overlay_y = avatar_y + AVATAR_SIZE // 2 - overlay.height // 2
     canvas.alpha_composite(overlay, (overlay_x, overlay_y))
