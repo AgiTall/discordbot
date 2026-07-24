@@ -52,6 +52,16 @@ def poker_channel_name(display_name: str, user_id: int) -> str:
     return f"poker-{clean}-{str(user_id)[-4:]}"[:90]
 
 
+def discord_error_details(error: discord.HTTPException) -> str:
+    """Return safe Discord API diagnostics suitable for an ephemeral response."""
+    details = [f"HTTP {error.status}"]
+    if error.code:
+        details.append(f"код Discord {error.code}")
+    if error.text:
+        details.append(error.text[:300])
+    return " · ".join(details)
+
+
 def _render_table(*args, **kwargs):
     from src.poker_renderer import render_table
 
@@ -932,6 +942,7 @@ class HoldemCog(commands.Cog):
         temporary_channel: discord.TextChannel | None = None
         table: DiscordPokerTable | None = None
         notice: TableNotice | None = None
+        creation_step = "создание приватного канала"
         async with self.creation_lock:
             await interaction.edit_original_response(
                 content="⏳ Создаю закрытый канал для покерного стола…"
@@ -974,6 +985,7 @@ class HoldemCog(commands.Cog):
                     ),
                     reason="Создан временный покерный стол",
                 )
+                creation_step = "подготовка покерного стола"
                 await interaction.edit_original_response(
                     content="⏳ Канал готов. Загружаю фон, карты и создаю стол…"
                 )
@@ -993,9 +1005,13 @@ class HoldemCog(commands.Cog):
                     return
                 self.tables[table.key] = table
                 table.schedule_join_timeout()
+                creation_step = "рендер и отправка изображения стола"
                 await table.send_initial(temporary_channel)
             except (discord.Forbidden, discord.HTTPException) as error:
-                LOGGER.exception("Failed to create private Hold'em channel")
+                LOGGER.exception(
+                    "Failed during Hold'em table creation step: %s",
+                    creation_step,
+                )
                 if table:
                     self.tables.pop(table.key, None)
                     table.cancel_lobby_tasks()
@@ -1010,15 +1026,19 @@ class HoldemCog(commands.Cog):
                         pass
                 await interaction.edit_original_response(
                     content=(
-                        "Не удалось создать временный канал или отправить стол. "
-                        "Проверьте права бота: **Управлять каналами**, "
-                        "**Просматривать канал**, **Отправлять сообщения** и "
-                        "**Прикреплять файлы**."
+                        f"Не удалось выполнить этап **«{creation_step}»**.\n"
+                        f"`{discord_error_details(error)}`\n\n"
+                        "Если у роли бота включён «Администратор», причина не в "
+                        "настройках OAuth2. Проверьте лимит каналов/каналов в "
+                        "категории и пришлите указанный выше код Discord."
                     )
                 )
                 return
-            except Exception:
-                LOGGER.exception("Unexpected Hold'em table creation failure")
+            except Exception as error:
+                LOGGER.exception(
+                    "Unexpected failure during Hold'em table creation step: %s",
+                    creation_step,
+                )
                 if table:
                     self.tables.pop(table.key, None)
                     table.cancel_lobby_tasks()
@@ -1033,8 +1053,10 @@ class HoldemCog(commands.Cog):
                         pass
                 await interaction.edit_original_response(
                     content=(
-                        "Стол не создался из-за внутренней ошибки. Деньги не списаны "
-                        "или уже возвращены. Подробности записаны в лог бота."
+                        f"Ошибка на этапе **«{creation_step}»**: "
+                        f"`{type(error).__name__}: {str(error)[:300]}`\n\n"
+                        "Деньги не списаны или уже возвращены. Это не ошибка "
+                        "прав Discord; подробности также записаны в лог бота."
                     )
                 )
                 return
