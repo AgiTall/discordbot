@@ -2,6 +2,7 @@ from src.naturalist_logic import *
 from src.bounty_logic import *
 from src.moonshiner_logic import *
 from src.collector_logic import *
+from src.trader_logic import *
 from src.company_logic import normalize_companies
 from emoji_config import *
 from src.auto_reactions import matching_reaction_emojis, normalize_auto_reactions
@@ -132,6 +133,7 @@ ROLE_DEFINITIONS = [
         "name": "Охотник за головами",
         "aliases": [],
         "emoji": EMOJI_ROLE_BOUNTY_HUNTER,
+        "price": 15.0,
         "available": True,
         "description": (
             "Выслеживает опасные цели, берёт контракты на поимку и получает награды "
@@ -143,6 +145,7 @@ ROLE_DEFINITIONS = [
         "name": "Торговец",
         "aliases": [],
         "emoji": EMOJI_ROLE_TRADER,
+        "price": 15.0,
         "available": True,
         "description": (
             "Развивает собственное дело, наполняет торговую повозку товарами и готовит "
@@ -154,6 +157,7 @@ ROLE_DEFINITIONS = [
         "name": "Самогонщик",
         "aliases": [],
         "emoji": EMOJI_ROLE_MOONSHINER,
+        "price": 25.0,
         "available": True,
         "description": (
             "Мастер тайного производства: варит крепкий товар, держит сеть поставок "
@@ -165,6 +169,7 @@ ROLE_DEFINITIONS = [
         "name": "Натуралист",
         "aliases": [],
         "emoji": EMOJI_ROLE_NATURALIST,
+        "price": 25.0,
         "available": True,
         "description": (
             "Изучает природу, выслеживает редких животных и собирает знания там, "
@@ -187,6 +192,7 @@ ROLE_DEFINITIONS = [
         "name": "Коллекционер",
         "aliases": [],
         "emoji": EMOJI_ROLE_COLLECTOR,
+        "price": 15.0,
         "available": True,
         "description": (
             "Ищет редкие находки, собирает ценные наборы и превращает любопытство "
@@ -1307,6 +1313,7 @@ def get_account(user_id):
             "owned_roles": [],
             "dealer_wagon": 0.0,
             "last_dealer_at": None,
+            "trader": default_trader_data(),
             "bounty": default_bounty_data(),
             "moonshine": default_moonshine_data(),
             "naturalist": default_naturalist_data(),
@@ -1346,10 +1353,7 @@ def get_account(user_id):
         account["owned_roles"] = []
     if not isinstance(account["collection_showcase"], list):
         account["collection_showcase"] = []
-    try:
-        account["dealer_wagon"] = max(0.0, min(100.0, float(account["dealer_wagon"])))
-    except (TypeError, ValueError):
-        account["dealer_wagon"] = 0.0
+    account["trader"] = get_trader_account(account)
     account.setdefault("last_work_at", None)
     from src.weapon_system import WEAPON_CATALOG, normalize_weapon_state
     return normalize_weapon_state(account, WEAPON_CATALOG)
@@ -1594,6 +1598,15 @@ def get_role_icon(role_definition, role=None):
     return role_definition.get("emoji", "")
 
 
+def get_role_base_price(role):
+    if role is None:
+        return ROLE_BASE_PRICE
+    role_definition = get_role_definition_for_role(role)
+    if role_definition is None:
+        return ROLE_BASE_PRICE
+    return max(0.0, float(role_definition.get("price", ROLE_BASE_PRICE)))
+
+
 def get_role_discount(role):
     if role is None:
         return None
@@ -1608,7 +1621,7 @@ def get_role_discount(role):
         return None
 
     try:
-        price = max(0.0, float(discount.get("price", ROLE_BASE_PRICE)))
+        price = max(0.0, float(discount.get("price", get_role_base_price(role))))
     except (TypeError, ValueError):
         economy_data["role_discounts"].pop(str(role.id), None)
         return None
@@ -1620,17 +1633,18 @@ def get_role_price(role):
     discount = get_role_discount(role)
     if discount:
         return discount["price"]
-    return ROLE_BASE_PRICE
+    return get_role_base_price(role)
 
 
 def format_role_price_line(role):
+    base_price = get_role_base_price(role)
     discount = get_role_discount(role)
     if not discount:
-        return f"Цена: **{format_role_price(ROLE_BASE_PRICE)}**"
+        return f"Цена: **{format_role_price(base_price)}**"
 
     expires_text = discount["expires_at"].astimezone(MSK_TZ).strftime("%d.%m.%Y")
     return (
-        f"Цена: ~~{format_role_price(ROLE_BASE_PRICE)}~~ "
+        f"Цена: ~~{format_role_price(base_price)}~~ "
         f"**{format_role_price(discount['price'])}**\n"
         f"Скидка действует до **{expires_text}**."
     )
@@ -1670,8 +1684,11 @@ def get_role_command_hint(role_key):
     if role_key == DEALER_ROLE_KEY:
         return (
             "\n\nКоманды торговца:\n"
-            "`/dealer` — заполнить повозку на 10–35% раз в час.\n"
-            "`/dealer-delivery` — доставить полную повозку и получить 500–625."
+            "`/dealer` — добыть материалы или сдать легендарную шкуру.\n"
+            "`/dealer-supply` — пополнить припасы после каждых 25 товаров.\n"
+            "`/dealer-upgrade` — купить среднюю, большую или охотничью повозку.\n"
+            "`/dealer-route` — защитить поезд торгового пути с 4 уровня.\n"
+            "`/dealer-delivery` — доставить полную торговую повозку."
         )
     if role_key == MOONSHINER_ROLE_KEY:
         return (
@@ -4533,8 +4550,14 @@ async def excavation_command(interaction: discord.Interaction):
     )
 
 
-@bot.tree.command(name="dealer", description="Торговец: заполнить повозку товарами")
-async def dealer_command(interaction: discord.Interaction):
+@bot.tree.command(name="dealer", description="Торговец: добыть материалы или сдать шкуру Криппсу")
+@app_commands.describe(
+    legendary_pelt="Сдать Криппсу лучшую легендарную шкуру из сумки"
+)
+async def dealer_command(
+    interaction: discord.Interaction,
+    legendary_pelt: bool = False,
+):
     if not isinstance(interaction.user, discord.Member):
         await send_embed_response(
             interaction,
@@ -4558,41 +4581,70 @@ async def dealer_command(interaction: discord.Interaction):
             )
             return
 
-        old_fill = account["dealer_wagon"]
-        if old_fill >= 100:
-            save_economy()
-            await send_embed_response(
-                interaction,
-                "Повозка полная",
-                "Повозка уже заполнена на **100%**.",
-                ephemeral=True,
-            )
-            return
+        trader = get_trader_account(account)
+        produced = update_trader_production(trader, now=now_local())
+        source_text = ""
 
-        cooldown = get_dealer_cooldown(account)
-        if cooldown > 0:
-            save_economy()
-            await send_embed_response(
-                interaction,
-                "Повозка в пути",
-                f"Следующую загрузку можно сделать через **{format_duration(cooldown)}**.",
-                ephemeral=True,
+        if legendary_pelt:
+            naturalist = get_naturalist_account(account)
+            pelt = pop_best_legendary_pelt(naturalist)
+            if pelt is None:
+                sync_legacy_trader_fields(account)
+                save_economy()
+                await send_embed_response(
+                    interaction,
+                    "Нет легендарной шкуры",
+                    "Сначала добудьте её в меню `/naturalist`.",
+                    ephemeral=True,
+                )
+                return
+            _, animal = pelt
+            materials = add_trader_materials(trader, animal["pelt_materials"])
+            source_text = (
+                f"Криппс принял шкуру **{animal['name']}**: "
+                f"**+{format_number(materials)} материалов**."
             )
-            return
+        else:
+            cooldown = get_dealer_cooldown(account)
+            if cooldown > 0:
+                sync_legacy_trader_fields(account)
+                save_economy()
+                await send_embed_response(
+                    interaction,
+                    "Охота ещё недоступна",
+                    f"Следующая охота через **{format_duration(cooldown)}**.",
+                    ephemeral=True,
+                )
+                return
+            low, high = (15, 30) if trader["has_hunting_wagon"] else (8, 18)
+            materials = add_trader_materials(trader, random.randint(low, high))
+            account["last_dealer_at"] = now_local().isoformat(timespec="seconds")
+            source_text = (
+                "Криппс принял цельные туши и шкуры: "
+                f"**+{format_number(materials)} материалов**."
+            )
 
-        added_fill = random.randint(DEALER_MIN_FILL, DEALER_MAX_FILL)
-        account["dealer_wagon"] = min(100.0, old_fill + added_fill)
-        actual_added = account["dealer_wagon"] - old_fill
-        account["last_dealer_at"] = now_local().isoformat(timespec="seconds")
-        current_fill = account["dealer_wagon"]
+        sync_legacy_trader_fields(account)
+        capacity = get_trader_capacity(trader)
         save_economy()
 
     embed = build_bot_embed(
-        "Повозка торговца",
-        f"{interaction.user.mention}, вы загрузили повозку на "
-        f"**+{format_percent(actual_added)}**.\n"
-        f"Текущее заполнение: **{format_percent(current_fill)}**.\n"
-        f"Следующая загрузка: через **{format_duration(DEALER_COOLDOWN_SECONDS)}**.",
+        "Компания Криппса",
+        (
+            f"{interaction.user.mention}, {source_text}\n"
+            f"За прошедшее время произведено: **{produced} товаров**.\n\n"
+            f"Уровень торговца: **{trader['level']}/{TRADER_MAX_LEVEL}**\n"
+            f"Материалы: **{format_number(trader['materials'])}**\n"
+            f"Товары: **{trader['goods']}/{capacity}**\n"
+            f"Запас производства: **{trader['supplies_remaining']}/"
+            f"{TRADER_SUPPLY_BATCH}**"
+            + (
+                "\n\n⚠️ Производство остановлено. Выполните `/dealer-supply`."
+                if trader_needs_supplies(trader)
+                else ""
+            )
+            + "\n\n[Карта животных, птиц и рыб](https://jeanropke.github.io/RDOMap/)"
+        ),
         color=discord.Color.dark_gold(),
     )
     await send_loading_then_edit(
@@ -4627,34 +4679,241 @@ async def dealer_delivery_command(interaction: discord.Interaction):
             )
             return
 
-        if account["dealer_wagon"] < 100:
-            current_fill = account["dealer_wagon"]
+        trader = get_trader_account(account)
+        produced = update_trader_production(trader, now=now_local())
+        capacity = get_trader_capacity(trader)
+        if trader["goods"] < capacity:
+            sync_legacy_trader_fields(account)
             save_economy()
             await send_embed_response(
                 interaction,
                 "Повозка не готова",
-                "Для доставки нужна повозка, заполненная на **100%**.\n"
-                f"Сейчас заполнено: **{format_percent(current_fill)}**.",
+                f"Для доставки нужно **{capacity} товаров**.\n"
+                f"Сейчас: **{trader['goods']}/{capacity}**"
+                f" (только что произведено: **{produced}**).",
                 ephemeral=True,
             )
             return
 
-        reward = random.randint(DEALER_DELIVERY_MIN_REWARD, DEALER_DELIVERY_MAX_REWARD)
-        account["dealer_wagon"] = 0.0
+        delivery = complete_trader_delivery(trader, random)
+        reward, xp_reward, levels = delivery
         account["cash"] += reward
+        sync_legacy_trader_fields(account)
         save_economy()
 
+    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
     embed = build_bot_embed(
         "Доставка завершена",
         f"{interaction.user.mention}, доставка завершена! Вы получили "
-        f"**{format_money(reward)}**.\n"
-        "Повозка снова пустая: **0,0%**.",
+        f"**{format_money(reward)}** и **{xp_reward} XP**.\n"
+        f"Повозка **{TRADER_WAGONS[trader['wagon_size']]['name'].lower()}** "
+        f"снова пустая."
+        + (
+            f"\nНовый уровень торговца: **{trader['level']}**."
+            if levels else ""
+        ),
         color=discord.Color.dark_gold(),
     )
     await send_loading_then_edit(
         interaction,
         "Повозка едет...",
         embed,
+    )
+
+
+@bot.tree.command(name="dealer-supply", description="Торговец: возобновить производство")
+@app_commands.describe(method="Выполнить задание или заказать припасы")
+@app_commands.choices(
+    method=[
+        app_commands.Choice(name="Выполнить задание (+500 XP)", value="mission"),
+        app_commands.Choice(name="Заказать припасы ($20)", value="order"),
+    ]
+)
+async def dealer_supply_command(
+    interaction: discord.Interaction,
+    method: app_commands.Choice[str],
+):
+    if not isinstance(interaction.user, discord.Member):
+        await send_embed_response(
+            interaction, "Только на сервере",
+            "Эту команду можно использовать только на сервере.", ephemeral=True
+        )
+        return
+
+    async with economy_lock:
+        account = get_account(interaction.user.id)
+        if not has_game_role(interaction.user, DEALER_ROLE_KEY, account):
+            save_economy()
+            await send_embed_response(
+                interaction, "Нужна роль",
+                get_custom_message("role_required").format(role="Торговец"),
+                ephemeral=True,
+            )
+            return
+        trader = get_trader_account(account)
+        update_trader_production(trader, now=now_local())
+        if not trader_needs_supplies(trader):
+            sync_legacy_trader_fields(account)
+            save_economy()
+            await send_embed_response(
+                interaction,
+                "Поставка пока не нужна",
+                f"Криппс ещё может сделать **{trader['supplies_remaining']} товаров**.",
+                ephemeral=True,
+            )
+            return
+        if method.value == "order":
+            if account["cash"] + 0.0001 < TRADER_ORDER_SUPPLIES_COST:
+                save_economy()
+                await send_embed_response(
+                    interaction, "Недостаточно денег",
+                    f"Нужно **{format_money(TRADER_ORDER_SUPPLIES_COST)}**.",
+                    ephemeral=True,
+                )
+                return
+            account["cash"] -= TRADER_ORDER_SUPPLIES_COST
+        _, levels = resupply_trader(trader, method=method.value)
+        sync_legacy_trader_fields(account)
+        save_economy()
+
+    if method.value == "mission":
+        interaction.client.dispatch(
+            "leveling_add_xp", interaction.user, TRADER_RESUPPLY_XP, "jobs"
+        )
+    text = (
+        f"Задание выполнено: производство возобновлено, **+{TRADER_RESUPPLY_XP} XP**."
+        if method.value == "mission"
+        else f"Припасы заказаны за **{format_money(TRADER_ORDER_SUPPLIES_COST)}**."
+    )
+    if levels:
+        text += f"\nНовый уровень торговца: **{trader['level']}**."
+    await send_embed_response(
+        interaction, "Поставка доставлена", text, color=discord.Color.dark_gold()
+    )
+
+
+@bot.tree.command(name="dealer-upgrade", description="Торговец: купить повозку")
+@app_commands.describe(item="Выберите улучшение")
+@app_commands.choices(
+    item=[
+        app_commands.Choice(name="Средняя торговая повозка — $500", value="medium"),
+        app_commands.Choice(name="Большая торговая повозка — $750", value="large"),
+        app_commands.Choice(name="Охотничья повозка — $875", value="hunting"),
+    ]
+)
+async def dealer_upgrade_command(
+    interaction: discord.Interaction,
+    item: app_commands.Choice[str],
+):
+    if not isinstance(interaction.user, discord.Member):
+        await send_embed_response(
+            interaction, "Только на сервере",
+            "Эту команду можно использовать только на сервере.", ephemeral=True
+        )
+        return
+    prices = {
+        "medium": TRADER_WAGONS["medium"]["cost"],
+        "large": TRADER_WAGONS["large"]["cost"],
+        "hunting": TRADER_HUNTING_WAGON_COST,
+    }
+    async with economy_lock:
+        account = get_account(interaction.user.id)
+        if not has_game_role(interaction.user, DEALER_ROLE_KEY, account):
+            save_economy()
+            await send_embed_response(
+                interaction, "Нужна роль",
+                get_custom_message("role_required").format(role="Торговец"),
+                ephemeral=True,
+            )
+            return
+        trader = get_trader_account(account)
+        if not can_buy_trader_upgrade(trader, item.value):
+            save_economy()
+            message = (
+                "Перед большой повозкой нужно купить среднюю."
+                if item.value == "large" and trader["wagon_size"] == "small"
+                else "Это улучшение уже куплено или сейчас недоступно."
+            )
+            await send_embed_response(
+                interaction, "Покупка недоступна", message, ephemeral=True
+            )
+            return
+        price = prices[item.value]
+        if account["cash"] + 0.0001 < price:
+            save_economy()
+            await send_embed_response(
+                interaction, "Недостаточно денег",
+                f"Нужно **{format_money(price)}**.", ephemeral=True
+            )
+            return
+        account["cash"] -= price
+        buy_trader_upgrade(trader, item.value)
+        sync_legacy_trader_fields(account)
+        save_economy()
+
+    await send_embed_response(
+        interaction,
+        "Улучшение куплено",
+        f"Куплено: **{item.name.split(' — ')[0]}** за **{format_money(price)}**.",
+        color=discord.Color.dark_gold(),
+    )
+
+
+@bot.tree.command(name="dealer-route", description="Торговец: защитить поезд «Торгового пути»")
+async def dealer_route_command(interaction: discord.Interaction):
+    if not isinstance(interaction.user, discord.Member):
+        await send_embed_response(
+            interaction, "Только на сервере",
+            "Эту команду можно использовать только на сервере.", ephemeral=True
+        )
+        return
+    async with economy_lock:
+        account = get_account(interaction.user.id)
+        if not has_game_role(interaction.user, DEALER_ROLE_KEY, account):
+            save_economy()
+            await send_embed_response(
+                interaction, "Нужна роль",
+                get_custom_message("role_required").format(role="Торговец"),
+                ephemeral=True,
+            )
+            return
+        trader = get_trader_account(account)
+        update_trader_production(trader, now=now_local())
+        if trader["level"] < TRADER_ROUTE_REQUIRED_LEVEL:
+            save_economy()
+            await send_embed_response(
+                interaction,
+                "Торговый путь закрыт",
+                f"Событие открывается с **{TRADER_ROUTE_REQUIRED_LEVEL} уровня торговца**.",
+                ephemeral=True,
+            )
+            return
+        result = complete_trade_route(trader, now=now_local(), rng=random)
+        if result is None:
+            save_economy()
+            await send_embed_response(
+                interaction,
+                "Поезд уже защищён",
+                "Вы уже получили награду текущего рейса. "
+                "Расписание: **09:22** и **22:52**.",
+                ephemeral=True,
+            )
+            return
+        goods, cash_reward, xp_reward, levels, _ = result
+        account["cash"] += cash_reward
+        sync_legacy_trader_fields(account)
+        save_economy()
+
+    interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
+    text = (
+        f"Поезд защищён: **+{goods} товаров**, "
+        f"**{format_money(cash_reward)}** и **+{xp_reward} XP**.\n"
+        "Расписание рейсов: **09:22** и **22:52**."
+    )
+    if levels:
+        text += f"\nНовый уровень торговца: **{trader['level']}**."
+    await send_embed_response(
+        interaction, "Торговый путь", text, color=discord.Color.dark_gold()
     )
 
 

@@ -69,6 +69,7 @@ ROLE_DEFINITIONS = [
         "name":        "Охотник за головами",
         "aliases":     [],
         "emoji":       EMOJI_ROLE_BOUNTY_HUNTER,
+        "price":       15.0,
         "available":   True,
         "description": (
             "Выслеживает опасные цели, берёт контракты на поимку и получает награды "
@@ -80,6 +81,7 @@ ROLE_DEFINITIONS = [
         "name":        "Торговец",
         "aliases":     [],
         "emoji":       EMOJI_ROLE_TRADER,
+        "price":       15.0,
         "available":   True,
         "description": (
             "Развивает собственное дело, наполняет торговую повозку товарами и готовит "
@@ -91,6 +93,7 @@ ROLE_DEFINITIONS = [
         "name":        "Самогонщик",
         "aliases":     [],
         "emoji":       EMOJI_ROLE_MOONSHINER,
+        "price":       25.0,
         "available":   True,
         "description": (
             "Мастер тайного производства: варит крепкий товар, держит сеть поставок "
@@ -102,6 +105,7 @@ ROLE_DEFINITIONS = [
         "name":        "Натуралист",
         "aliases":     [],
         "emoji":       EMOJI_ROLE_NATURALIST,
+        "price":       25.0,
         "available":   True,
         "description": (
             "Изучает природу, выслеживает редких животных и собирает знания там, "
@@ -124,6 +128,7 @@ ROLE_DEFINITIONS = [
         "name":        "Коллекционер",
         "aliases":     [],
         "emoji":       EMOJI_ROLE_COLLECTOR,
+        "price":       15.0,
         "available":   True,
         "description": (
             "Ищет редкие находки, собирает ценные наборы и превращает любопытство "

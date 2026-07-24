@@ -2,6 +2,7 @@ import time
 import math
 import random
 import json
+from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
 from src.xp_utils import *
@@ -24,6 +25,26 @@ NATURALIST_SAMPLE_COOLDOWN_SECONDS = 5 * 60
 
 
 NATURALIST_LEGENDARY_COOLDOWN_SECONDS = 60 * 60
+NATURALIST_LEGENDARY_REQUIRED_LEVEL = 5
+NATURALIST_HARRIET_ANGER_MIN_SECONDS = 5 * 60
+NATURALIST_HARRIET_ANGER_MAX_SECONDS = 7 * 60
+NATURALIST_TRANQ_PACK_SIZE = 20
+NATURALIST_TRANQ_PACK_PRICE = 0.56
+NATURALIST_REVIVER_PRICE = 5.0
+NATURALIST_PHEROMONE_PRICE = 20.0
+NATURALIST_CAMP_PRICE = 750.0
+NATURALIST_TRANQ_CAP = 100
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _parse_datetime(value):
+    parsed = datetime.fromisoformat(str(value))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 # ---------------------------------------------------------------------------
 # Снаряжение — ключи предметов каталога
@@ -36,35 +57,35 @@ NATURALIST_DART_KEY    = "sleeping_dart"   # Снотворная стрела
 NATURALIST_VARMINT_BONUS  = 20   # варминт-винтовка в loadout
 NATURALIST_REVIVER_BONUS  = 10   # ≥1 оживителя в инвентаре
 NATURALIST_DART_BONUS     = 15   # ≥1 снотворной стрелы в инвентаре
+NATURALIST_PHEROMONE_BONUS = 10
 
 NATURALIST_REGIONS = {
-    "forest":    {"name": "Лес",      "emoji": "🌲"},
-    "mountains": {"name": "Горы",     "emoji": "⛰️"},
-    "wetlands":  {"name": "Болота",   "emoji": "💧"},
-    "desert":    {"name": "Пустыня",  "emoji": "🏜️"},
+    "forest":    {"name": "Обитатели лесов и рек", "emoji": "🌲", "payout": 160.0},
+    "mountains": {"name": "Обитатели гор и лугов", "emoji": "⛰️", "payout": 140.0},
+    "wetlands":  {"name": "Обитатели болот",       "emoji": "💧", "payout": 110.0},
+    "desert":    {"name": "Обитатели пустынь",     "emoji": "🏜️", "payout": 80.0},
 }
 
 # ---------------------------------------------------------------------------
-# Животные — базовые шансы снижены, зато снаряжение их поднимает выше старых.
-# Награды увеличены ~×2.
+# Обычный образец приносит не больше $4 и 50 опыта.
 # ---------------------------------------------------------------------------
 ANIMALS = {
-    "rabbit":    {"name": "Кролик",         "region": "forest",    "base_chance": 0.60, "cash": 5.0,  "xp": 30},
-    "deer":      {"name": "Олень",          "region": "forest",    "base_chance": 0.50, "cash": 8.0,  "xp": 50},
-    "fox":       {"name": "Лиса",           "region": "forest",    "base_chance": 0.45, "cash": 9.0,  "xp": 55},
-    "wolf":      {"name": "Волк",           "region": "forest",    "base_chance": 0.40, "cash": 14.0, "xp": 80},
-    "bighorn":   {"name": "Горный баран",   "region": "mountains", "base_chance": 0.45, "cash": 9.0,  "xp": 60},
-    "eagle":     {"name": "Орёл",           "region": "mountains", "base_chance": 0.40, "cash": 11.0, "xp": 70},
-    "moose":     {"name": "Лось",           "region": "mountains", "base_chance": 0.35, "cash": 20.0, "xp": 110},
-    "bear":      {"name": "Медведь",        "region": "mountains", "base_chance": 0.30, "cash": 24.0, "xp": 130},
-    "beaver":    {"name": "Бобр",           "region": "wetlands",  "base_chance": 0.50, "cash": 8.0,  "xp": 50},
-    "frog":      {"name": "Лягушка",        "region": "wetlands",  "base_chance": 0.55, "cash": 4.0,  "xp": 25},
-    "boar":      {"name": "Кабан",          "region": "wetlands",  "base_chance": 0.42, "cash": 11.0, "xp": 70},
-    "alligator": {"name": "Аллигатор",      "region": "wetlands",  "base_chance": 0.32, "cash": 22.0, "xp": 120},
-    "coyote":    {"name": "Койот",          "region": "desert",    "base_chance": 0.48, "cash": 8.0,  "xp": 50},
-    "snake":     {"name": "Гремучая змея", "region": "desert",    "base_chance": 0.45, "cash": 7.0,  "xp": 45},
-    "pronghorn": {"name": "Вилорог",       "region": "desert",    "base_chance": 0.52, "cash": 8.0,  "xp": 50},
-    "cougar":    {"name": "Пума",           "region": "desert",    "base_chance": 0.38, "cash": 17.0, "xp": 90},
+    "rabbit":    {"name": "Кролик",         "region": "forest",    "base_chance": 0.60, "cash": 1.0, "xp": 50},
+    "deer":      {"name": "Олень",          "region": "forest",    "base_chance": 0.50, "cash": 2.0, "xp": 50},
+    "fox":       {"name": "Лиса",           "region": "forest",    "base_chance": 0.45, "cash": 2.5, "xp": 50},
+    "wolf":      {"name": "Волк",           "region": "forest",    "base_chance": 0.40, "cash": 4.0, "xp": 50},
+    "bighorn":   {"name": "Горный баран",   "region": "mountains", "base_chance": 0.45, "cash": 2.5, "xp": 50},
+    "eagle":     {"name": "Орёл",           "region": "mountains", "base_chance": 0.40, "cash": 3.0, "xp": 50},
+    "moose":     {"name": "Лось",           "region": "mountains", "base_chance": 0.35, "cash": 3.5, "xp": 50},
+    "bear":      {"name": "Медведь",        "region": "mountains", "base_chance": 0.30, "cash": 4.0, "xp": 50},
+    "beaver":    {"name": "Бобр",           "region": "wetlands",  "base_chance": 0.50, "cash": 2.0, "xp": 50},
+    "frog":      {"name": "Лягушка",        "region": "wetlands",  "base_chance": 0.55, "cash": 1.0, "xp": 50},
+    "boar":      {"name": "Кабан",          "region": "wetlands",  "base_chance": 0.42, "cash": 3.0, "xp": 50},
+    "alligator": {"name": "Аллигатор",      "region": "wetlands",  "base_chance": 0.32, "cash": 4.0, "xp": 50},
+    "coyote":    {"name": "Койот",          "region": "desert",    "base_chance": 0.48, "cash": 2.0, "xp": 50},
+    "snake":     {"name": "Гремучая змея",  "region": "desert",    "base_chance": 0.45, "cash": 1.5, "xp": 50},
+    "pronghorn": {"name": "Вилорог",        "region": "desert",    "base_chance": 0.52, "cash": 2.0, "xp": 50},
+    "cougar":    {"name": "Пума",           "region": "desert",    "base_chance": 0.38, "cash": 4.0, "xp": 50},
 }
 
 CATEGORIES = {
@@ -76,12 +97,20 @@ CATEGORIES = {
     for region_key in NATURALIST_REGIONS
 }
 
-# Награды за легендарных животных удвоены
+# Легендарные образцы доступны с 5 уровня: $15–60 и 350 опыта.
+# pelt_materials — сколько материалов получит Криппс за цельную шкуру.
 LEGENDARY_ANIMALS = {
-    "legendary_buck":   {"name": "Легендарный олень",  "required_level": 1,  "cash": 120.0, "gold": 2.0, "xp": 260},
-    "legendary_wolf":   {"name": "Легендарный волк",   "required_level": 1,  "cash": 150.0, "gold": 2.5, "xp": 320},
-    "legendary_bear":   {"name": "Легендарный медведь","required_level": 1,  "cash": 190.0, "gold": 3.0, "xp": 420},
-    "legendary_cougar": {"name": "Легендарная пума",   "required_level": 1,  "cash": 250.0, "gold": 4.0, "xp": 560},
+    "legendary_buck": {"name": "Легендарный олень", "required_level": 5, "cash": 15.0, "xp": 350, "pelt_materials": 21.88},
+    "legendary_wolf": {"name": "Легендарный волк", "required_level": 5, "cash": 30.0, "xp": 350, "pelt_materials": 25.0},
+    "legendary_bear": {"name": "Легендарный медведь", "required_level": 5, "cash": 45.0, "xp": 350, "pelt_materials": 31.25},
+    "legendary_cougar": {"name": "Легендарная пума", "required_level": 5, "cash": 60.0, "xp": 350, "pelt_materials": 44.38},
+    "wapiti_iname": {"name": "Вапити Инаме", "required_level": 5, "cash": 25.5, "xp": 350, "pelt_materials": 41.16},
+    "alligator_brown_blood": {"name": "Аллигатор «Бурая кровь»", "required_level": 5, "cash": 23.5, "xp": 350, "pelt_materials": 40.63},
+    "deer_quick_shadow": {"name": "Олень «Быстрая тень»", "required_level": 5, "cash": 31.5, "xp": 350, "pelt_materials": 56.88},
+    "bighorn_blood_horn": {"name": "Толсторог «Рог крови»", "required_level": 5, "cash": 29.0, "xp": 350, "pelt_materials": 56.25},
+    "beaver_night_rustle": {"name": "Бобр «Ночной шорох»", "required_level": 5, "cash": 28.5, "xp": 350, "pelt_materials": 55.63},
+    "bear_golden_spirit": {"name": "Медведь «Золотой дух»", "required_level": 5, "cash": 36.0, "xp": 350, "pelt_materials": 62.5},
+    "coyote_milky_way": {"name": "Койот «Млечный путь»", "required_level": 5, "cash": 20.5, "xp": 350, "pelt_materials": 38.13},
 }
 
 
@@ -98,8 +127,13 @@ def default_naturalist_data():
         "level": 1,
         "xp": 0,
         "samples": {},
+        "stamps": {},
+        "legendary_pelts": {},
+        "inventory": {"tranquilizers": 0, "pheromones": 0},
+        "has_wilderness_camp": False,
         "last_sample_at": None,
         "legendary_cooldown_until": None,
+        "harriet_angry_until": None,
     }
 
 
@@ -133,10 +167,40 @@ def normalize_naturalist_data(naturalist):
         if amount > 0:
             normalized_samples[sample_key] = amount
     naturalist["samples"] = normalized_samples
+    pelts = naturalist.get("legendary_pelts", {})
+    if not isinstance(pelts, dict):
+        pelts = {}
+    naturalist["legendary_pelts"] = {
+        key: max(0, int(amount))
+        for key, amount in pelts.items()
+        if key in LEGENDARY_ANIMALS and str(amount).lstrip("-").isdigit() and int(amount) > 0
+    }
+    stamps = naturalist.get("stamps", {})
+    if not isinstance(stamps, dict):
+        stamps = {}
+    naturalist["stamps"] = {
+        key: True for key, stamped in stamps.items()
+        if key in valid_sample_keys and bool(stamped)
+    }
+    inventory = naturalist.get("inventory", {})
+    if not isinstance(inventory, dict):
+        inventory = {}
+    naturalist["inventory"] = {}
+    for key, cap in (
+        ("tranquilizers", NATURALIST_TRANQ_CAP),
+        ("pheromones", 100),
+    ):
+        try:
+            amount = max(0, min(cap, int(inventory.get(key, 0) or 0)))
+        except (TypeError, ValueError):
+            amount = 0
+        naturalist["inventory"][key] = amount
+    naturalist["has_wilderness_camp"] = bool(
+        naturalist.get("has_wilderness_camp", False)
+    )
     naturalist.setdefault("last_sample_at", None)
     naturalist.setdefault("legendary_cooldown_until", None)
-    # Убираем устаревшие поля транквилизаторов, если остались
-    naturalist.pop("inventory", None)
+    naturalist.setdefault("harriet_angry_until", None)
     return naturalist
 
 
@@ -154,7 +218,7 @@ def get_naturalist_sample_cooldown(naturalist):
     if not last_sample_at:
         return 0
     cooldown = naturalist_sample_cooldown_seconds(naturalist)
-    seconds_passed = (now_local() - parse_local_datetime(last_sample_at)).total_seconds()
+    seconds_passed = (_now() - _parse_datetime(last_sample_at)).total_seconds()
     return max(0, cooldown - seconds_passed)
 
 
@@ -162,8 +226,54 @@ def get_naturalist_legendary_cooldown(naturalist):
     cooldown_until = naturalist.get("legendary_cooldown_until")
     if not cooldown_until:
         return 0
-    seconds_left = (parse_local_datetime(cooldown_until) - now_local()).total_seconds()
+    seconds_left = (_parse_datetime(cooldown_until) - _now()).total_seconds()
     return max(0, seconds_left)
+
+
+def get_harriet_anger_cooldown(naturalist):
+    cooldown_until = naturalist.get("harriet_angry_until")
+    if not cooldown_until:
+        return 0
+    seconds_left = (_parse_datetime(cooldown_until) - _now()).total_seconds()
+    return max(0, seconds_left)
+
+
+def anger_harriet(naturalist, rng=None):
+    rng = rng or random
+    seconds = rng.randint(
+        NATURALIST_HARRIET_ANGER_MIN_SECONDS,
+        NATURALIST_HARRIET_ANGER_MAX_SECONDS,
+    )
+    naturalist["harriet_angry_until"] = (
+        _now() + timedelta(seconds=seconds)
+    ).isoformat(timespec="seconds")
+    return seconds
+
+
+def add_legendary_pelt(naturalist, animal_key):
+    if animal_key not in LEGENDARY_ANIMALS:
+        raise ValueError("Неизвестное легендарное животное.")
+    pelts = naturalist.setdefault("legendary_pelts", {})
+    pelts[animal_key] = int(pelts.get(animal_key, 0) or 0) + 1
+    return LEGENDARY_ANIMALS[animal_key]["pelt_materials"]
+
+
+def pop_best_legendary_pelt(naturalist):
+    pelts = naturalist.setdefault("legendary_pelts", {})
+    available = [
+        key for key, amount in pelts.items()
+        if key in LEGENDARY_ANIMALS and int(amount or 0) > 0
+    ]
+    if not available:
+        return None
+    animal_key = max(
+        available,
+        key=lambda key: LEGENDARY_ANIMALS[key]["pelt_materials"],
+    )
+    pelts[animal_key] -= 1
+    if pelts[animal_key] <= 0:
+        pelts.pop(animal_key, None)
+    return animal_key, LEGENDARY_ANIMALS[animal_key]
 
 
 def get_naturalist_gear(account, catalog_items):
@@ -175,15 +285,24 @@ def get_naturalist_gear(account, catalog_items):
     )
     has_varmint = NATURALIST_VARMINT_KEY in equipped
     has_reviver  = int(inventory.get(NATURALIST_REVIVER_KEY, 0) or 0) >= 1
-    has_dart     = int(inventory.get(NATURALIST_DART_KEY, 0) or 0) >= 1
+    naturalist = get_naturalist_account(account)
+    naturalist_inventory = naturalist["inventory"]
+    has_dart = (
+        int(naturalist_inventory.get("tranquilizers", 0) or 0) >= 1
+        or int(inventory.get(NATURALIST_DART_KEY, 0) or 0) >= 1
+    )
+    has_pheromone = int(naturalist_inventory.get("pheromones", 0) or 0) >= 1
     return {
         "varmint": has_varmint,
         "reviver": has_reviver,
         "dart":    has_dart,
+        "pheromone": has_pheromone,
     }
 
 
-def calculate_naturalist_chance(base_chance: float, gear: dict) -> float:
+def calculate_naturalist_chance(
+    base_chance: float, gear: dict, *, legendary=False
+) -> float:
     """Итоговый шанс поимки с учётом снаряжения (0.0–0.95)."""
     bonus = 0.0
     if gear["varmint"]:
@@ -192,24 +311,56 @@ def calculate_naturalist_chance(base_chance: float, gear: dict) -> float:
         bonus += NATURALIST_REVIVER_BONUS / 100
     if gear["dart"]:
         bonus += NATURALIST_DART_BONUS / 100
+    if legendary and gear.get("pheromone"):
+        bonus += NATURALIST_PHEROMONE_BONUS / 100
     return min(0.95, base_chance + bonus)
 
 
-def consume_naturalist_gear(account, gear: dict):
+def consume_naturalist_gear(account, gear: dict, *, legendary=False):
     """Тратит 1 оживитель и 1 снотворную стрелу, если они использовались."""
     inventory = account.setdefault("inventory", {})
     if gear["reviver"]:
         inventory[NATURALIST_REVIVER_KEY] = max(0, int(inventory.get(NATURALIST_REVIVER_KEY, 0)) - 1)
     if gear["dart"]:
-        inventory[NATURALIST_DART_KEY] = max(0, int(inventory.get(NATURALIST_DART_KEY, 0)) - 1)
+        naturalist = get_naturalist_account(account)
+        if naturalist["inventory"]["tranquilizers"] > 0:
+            naturalist["inventory"]["tranquilizers"] -= 1
+        else:
+            inventory[NATURALIST_DART_KEY] = max(
+                0, int(inventory.get(NATURALIST_DART_KEY, 0)) - 1
+            )
+    if legendary and gear.get("pheromone"):
+        naturalist = get_naturalist_account(account)
+        naturalist["inventory"]["pheromones"] = max(
+            0, naturalist["inventory"]["pheromones"] - 1
+        )
+
+
+def get_naturalist_tranq_cap(naturalist):
+    return NATURALIST_TRANQ_CAP
+
+
+def stamp_naturalist_samples(naturalist, samples):
+    for sample_key, amount in samples.items():
+        if amount > 0:
+            naturalist["stamps"][sample_key] = True
 
 
 def get_naturalist_sale_multiplier(naturalist):
-    return 1.10 if naturalist.get("level", 1) >= 20 else 1.0
+    return 1.0
 
 
 def count_naturalist_samples(naturalist):
     return sum(int(amount) for amount in naturalist.get("samples", {}).values())
+
+
+def count_legendary_pelts(naturalist):
+    return sum(int(amount) for amount in naturalist.get("legendary_pelts", {}).values())
+
+
+def get_legendary_pelt_capacity(account):
+    trader = account.get("trader", {})
+    return 5 if isinstance(trader, dict) and trader.get("has_hunting_wagon") else 1
 
 
 def format_naturalist_samples_short(naturalist):
@@ -236,13 +387,13 @@ def format_naturalist_short(account):
 
 
 def has_full_naturalist_category(naturalist, region_key):
-    samples = naturalist.get("samples", {})
-    return all(samples.get(animal_key, 0) > 0 for animal_key in CATEGORIES[region_key])
+    stamps = naturalist.get("stamps", {})
+    return all(stamps.get(animal_key, False) for animal_key in CATEGORIES[region_key])
 
 
 def get_naturalist_category_progress(naturalist, region_key):
-    samples = naturalist.get("samples", {})
-    collected = sum(1 for animal_key in CATEGORIES[region_key] if samples.get(animal_key, 0) > 0)
+    stamps = naturalist.get("stamps", {})
+    collected = sum(1 for animal_key in CATEGORIES[region_key] if stamps.get(animal_key, False))
     total = len(CATEGORIES[region_key])
     return collected, total
 
@@ -258,10 +409,12 @@ def build_gear_status(gear: dict) -> str:
     varmint_mark = "✅" if gear["varmint"] else "❌"
     reviver_mark = "✅" if gear["reviver"] else "❌"
     dart_mark    = "✅" if gear["dart"] else "❌"
+    pheromone_mark = "✅" if gear.get("pheromone") else "❌"
     return (
         f"{varmint_mark} Варминт-винтовка (+{NATURALIST_VARMINT_BONUS}%)\n"
         f"{reviver_mark} Оживитель (+{NATURALIST_REVIVER_BONUS}%)\n"
-        f"{dart_mark} Снотворная стрела (+{NATURALIST_DART_BONUS}%)"
+        f"{dart_mark} Снотворные патроны (+{NATURALIST_DART_BONUS}%)\n"
+        f"{pheromone_mark} Легендарные феромоны (+{NATURALIST_PHEROMONE_BONUS}%)"
     )
 
 
@@ -273,10 +426,16 @@ def build_naturalist_embed(guild, account, note=None, gear=None):
     needed = xp_for_next_level(naturalist["level"], 180)
     sample_cooldown = get_naturalist_sample_cooldown(naturalist)
     legendary_cooldown = get_naturalist_legendary_cooldown(naturalist)
+    harriet_cooldown = get_harriet_anger_cooldown(naturalist)
     sample_cooldown_text = "готово" if sample_cooldown <= 0 else format_duration(sample_cooldown)
     legendary_text = (
         "доступно" if legendary_cooldown <= 0
         else format_duration(legendary_cooldown)
+    )
+    harriet_text = (
+        "принимает посетителей"
+        if harriet_cooldown <= 0
+        else f"сердится ещё {format_duration(harriet_cooldown)}"
     )
     note_text = f"\n\n{note}" if note else ""
 
@@ -293,9 +452,12 @@ def build_naturalist_embed(guild, account, note=None, gear=None):
             f"├─ Уровень: **{naturalist['level']}/{NATURALIST_MAX_LEVEL}**\n"
             f"├─ Опыт: **{naturalist['xp']}/{needed}**\n"
             f"├─ Образцы: **{count_naturalist_samples(naturalist)}**\n"
+            f"├─ Шкуры для Криппса: **{count_legendary_pelts(naturalist)}**\n"
             f"├─ Обычная охота: **{sample_cooldown_text}**\n"
-            f"└─ Легендарка: **{legendary_text}**\n\n"
-            f"🎒 Снаряжение\n{gear_text}"
+            f"├─ Легендарка: **{legendary_text}**\n"
+            f"└─ Гарриет: **{harriet_text}**\n\n"
+            f"🎒 Снаряжение\n{gear_text}\n"
+            f"🏕️ Походный лагерь: **{'куплен' if naturalist['has_wilderness_camp'] else 'не куплен'}**"
             f"{note_text}"
         ),
         color=discord.Color.dark_green(),
@@ -309,8 +471,11 @@ def build_naturalist_collection_embed(naturalist):
     lines = []
     for region_key, region in NATURALIST_REGIONS.items():
         collected, total = get_naturalist_category_progress(naturalist, region_key)
-        status = "готово к сдаче" if collected == total else f"{collected}/{total}"
-        lines.append(f"{region['emoji']} **{region['name']}** — {status}")
+        status = "готово к сдаче" if collected == total else f"{collected}/{total} штампов"
+        lines.append(
+            f"{region['emoji']} **{region['name']}** — {status} · "
+            f"{format_money(region['payout'])} + 1000 XP"
+        )
     samples = format_naturalist_samples_short(naturalist)
     embed = build_bot_embed(
         "Справочник натуралиста",
@@ -325,15 +490,35 @@ def build_naturalist_collection_embed(naturalist):
 def build_naturalist_legendary_embed(naturalist):
     lines = []
     for animal_key, animal in LEGENDARY_ANIMALS.items():
-        from bot import get_lock_emoji
         lines.append(
             f"**{animal['name']}** — "
-            f"сдача {format_money(animal['cash'])} + {format_gold(animal['gold'])}"
+            f"сдача {format_money(animal['cash'])} + {animal['xp']} XP"
         )
     embed = build_bot_embed(
         "Легендарное животное",
         "\n".join(lines),
         color=discord.Color.dark_green(),
+    )
+    if os.path.exists(NATURALIST_IMAGE_FILE):
+        embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")
+    return embed
+
+
+def build_naturalist_pelt_embed(naturalist):
+    lines = []
+    for animal in LEGENDARY_ANIMALS.values():
+        lines.append(
+            f"**{animal['name']}** — "
+            f"{format_number(animal['pelt_materials'])} материалов Криппса"
+        )
+    embed = build_bot_embed(
+        "Легендарная шкура",
+        (
+            "Убийство гарантированно даёт цельную шкуру, но Гарриет "
+            "перестаёт иметь с вами дело на 5–7 минут.\n\n"
+            + "\n".join(lines)
+        ),
+        color=discord.Color.dark_red(),
     )
     if os.path.exists(NATURALIST_IMAGE_FILE):
         embed.set_image(url=f"attachment://{NATURALIST_IMAGE_ATTACHMENT_NAME}")

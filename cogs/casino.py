@@ -42,6 +42,24 @@ def add_to_casino_bank(bot, amount):
     bot_module.economy_data["casino_bank"] = balance
     return balance
 
+
+def _calculate_casino_payout(bank, requested_profit):
+    """Return the profit backed by the casino bank and its new balance."""
+    bank = _normalize_casino_amount(bank)
+    requested_profit = _normalize_casino_amount(requested_profit)
+    paid_profit = round(min(bank, requested_profit), 2)
+    return paid_profit, round(bank - paid_profit, 2)
+
+
+def take_from_casino_bank(bot, requested_profit):
+    """Pay a player's net profit from the casino bank."""
+    import bot as bot_module
+    paid_profit, balance = _calculate_casino_payout(
+        get_casino_bank(bot), requested_profit
+    )
+    bot_module.economy_data["casino_bank"] = balance
+    return paid_profit
+
 def format_card(card):
     return format_card_emoji(card)
 
@@ -197,27 +215,32 @@ class BlackjackView(discord.ui.View):
         hand["finished"] = True
 
         if outcome == "blackjack":
-            payout = round(hand["bet"] * 2.5, 2)
-            hand["result_text"] = f"Blackjack! Выплата: **{self.bot.format_money(payout)}**"
-        elif outcome == "push":
-            payout = hand["bet"]
-            hand["result_text"] = f"Ничья. Ставка возвращена: **{self.bot.format_money(payout)}**"
-        else:
-            payout = 0.0
-            hand["result_text"] = "Вы проиграли. Блэкджек у дилера."
-
-        if payout > 0:
+            requested_profit = round(hand["bet"] * 1.5, 2)
             async with self.bot.economy_lock:
+                paid_profit = take_from_casino_bank(self.bot, requested_profit)
+                payout = round(hand["bet"] + paid_profit, 2)
                 account = self.bot.get_account(self.user_id)
                 previous_balance = account["cash"]
                 account["cash"] += payout
-                if outcome == "blackjack":
-                    self.set_balance_text(previous_balance, payout, account["cash"])
+                self.set_balance_text(previous_balance, payout, account["cash"])
                 self.bot.save_economy()
-        elif hand["bet"] > 0:
+            hand["result_text"] = f"Blackjack! Выплата: **{self.bot.format_money(payout)}**"
+            if paid_profit < requested_profit:
+                hand["result_text"] += "\nКапитала казино не хватило для полной выплаты."
+        elif outcome == "push":
+            payout = hand["bet"]
+            hand["result_text"] = f"Ничья. Ставка возвращена: **{self.bot.format_money(payout)}**"
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(self.user_id)
+                account["cash"] += payout
+                self.bot.save_economy()
+        else:
+            payout = 0.0
+            hand["result_text"] = "Вы проиграли. Блэкджек у дилера."
             async with self.bot.economy_lock:
                 add_to_casino_bank(self.bot, hand["bet"])
                 self.bot.save_economy()
+        return payout
 
     async def finish_game(self, interaction=None):
         self.disable_all_buttons()
@@ -236,9 +259,9 @@ class BlackjackView(discord.ui.View):
         async with self.bot.economy_lock:
             account = self.bot.get_account(self.user_id)
             previous_balance = account["cash"]
+            settlements = []
             for hand in self.hands:
                 player_value = blackjack_hand_value(hand["cards"])
-                bet = hand["bet"]
 
                 if player_value > 21:
                     outcome = "loss"
@@ -248,10 +271,22 @@ class BlackjackView(discord.ui.View):
                     outcome = "push"
                 else:
                     outcome = "loss"
+                settlements.append((hand, outcome))
 
+            # Сначала зачисляем проигранные руки: при сплите результат и
+            # доступная выплата не должны зависеть от порядка рук.
+            for hand, outcome in settlements:
+                if outcome == "loss":
+                    add_to_casino_bank(self.bot, hand["bet"])
+
+            for hand, outcome in settlements:
+                bet = hand["bet"]
                 if outcome == "win":
-                    payout = round(bet * 2, 2)
+                    paid_profit = take_from_casino_bank(self.bot, bet)
+                    payout = round(bet + paid_profit, 2)
                     hand["result_text"] = f"Вы выиграли. Выплата: **{self.bot.format_money(payout)}**"
+                    if paid_profit < bet:
+                        hand["result_text"] += "\nКапитала казино не хватило для полной выплаты."
                     account["cash"] += payout
                     total_payout += payout
                     has_win = True
@@ -263,7 +298,6 @@ class BlackjackView(discord.ui.View):
                     total_payout += payout
                 else:
                     hand["result_text"] = "Вы проиграли. Ставка остаётся у дилера."
-                    add_to_casino_bank(self.bot, bet)
             if has_win:
                 self.set_balance_text(previous_balance, total_payout, account["cash"])
             self.bot.save_economy()
@@ -413,8 +447,11 @@ async def _start_selected_game(interaction, bot, game, bet):
         if game == "dice":
             player_roll, dealer_roll = random.randint(1, 6), random.randint(1, 6)
             if player_roll > dealer_roll:
-                account["cash"] += bet
-                result = f"Вы выиграли **{bot.format_money(bet)}**."
+                paid_profit = take_from_casino_bank(bot, bet)
+                account["cash"] += paid_profit
+                result = f"Вы выиграли **{bot.format_money(paid_profit)}**."
+                if paid_profit < bet:
+                    result += "\nКапитала казино не хватило для полной выплаты."
             elif player_roll < dealer_roll:
                 account["cash"] -= bet
                 add_to_casino_bank(bot, bet)
@@ -430,8 +467,11 @@ async def _start_selected_game(interaction, bot, game, bet):
             player_score, player_name = bot_module.evaluate_poker_hand(player_hand)
             dealer_score, dealer_name = bot_module.evaluate_poker_hand(dealer_hand)
             if player_score > dealer_score:
-                account["cash"] += bet
-                result = f"Вы выиграли **{bot.format_money(bet)}**."
+                paid_profit = take_from_casino_bank(bot, bet)
+                account["cash"] += paid_profit
+                result = f"Вы выиграли **{bot.format_money(paid_profit)}**."
+                if paid_profit < bet:
+                    result += "\nКапитала казино не хватило для полной выплаты."
             elif player_score < dealer_score:
                 account["cash"] -= bet
                 add_to_casino_bank(bot, bet)
@@ -698,7 +738,7 @@ class CasinoCog(commands.Cog):
             else:
                 outcome = "loss"
 
-            await view.settle_immediate_blackjack(outcome)
+            payout = await view.settle_immediate_blackjack(outcome)
             replay_view = view.replay_view()
             view.message = await interaction.followup.send(
                 embed=view.build_embed(reveal_dealer=True), view=replay_view, ephemeral=True
@@ -709,7 +749,7 @@ class CasinoCog(commands.Cog):
             ):
                 await interaction.channel.send(
                     f"{CASINO_LOGO_EMOJI} {interaction.user.mention} только что сорвал куш в блэкджек! "
-                    f"Выигрыш: **{self.bot.format_money(bet * (2.5 if outcome == 'blackjack' else 2))}**!"
+                    f"Выплата: **{self.bot.format_money(payout)}**!"
                 )
             return
 

@@ -128,6 +128,15 @@ def get_role_icon(role_definition: dict, role: discord.Role | None = None) -> st
     return role_definition.get("emoji", "")
 
 
+def get_role_base_price(role: discord.Role | None) -> float:
+    if role is None:
+        return ROLE_BASE_PRICE
+    role_definition = get_role_definition_for_role(role)
+    if role_definition is None:
+        return ROLE_BASE_PRICE
+    return max(0.0, float(role_definition.get("price", ROLE_BASE_PRICE)))
+
+
 def get_role_discount(role: discord.Role | None) -> dict | None:
     from src.economy_store import now_local, parse_local_datetime
     if role is None:
@@ -140,7 +149,7 @@ def get_role_discount(role: discord.Role | None) -> dict | None:
         _economy()["role_discounts"].pop(str(role.id), None)
         return None
     try:
-        price = max(0.0, float(discount.get("price", ROLE_BASE_PRICE)))
+        price = max(0.0, float(discount.get("price", get_role_base_price(role))))
     except (TypeError, ValueError):
         _economy()["role_discounts"].pop(str(role.id), None)
         return None
@@ -149,19 +158,20 @@ def get_role_discount(role: discord.Role | None) -> dict | None:
 
 def get_role_price(role: discord.Role | None) -> float:
     discount = get_role_discount(role)
-    return discount["price"] if discount else ROLE_BASE_PRICE
+    return discount["price"] if discount else get_role_base_price(role)
 
 
 def format_role_price_line(role: discord.Role | None) -> str:
     from src.constants import ROLE_DISCOUNT_DAYS
     from src.economy_store import MSK_TZ
     from src.formatters import format_role_price
+    base_price = get_role_base_price(role)
     discount = get_role_discount(role)
     if not discount:
-        return f"Цена: **{format_role_price(ROLE_BASE_PRICE)}**"
+        return f"Цена: **{format_role_price(base_price)}**"
     expires_text = discount["expires_at"].astimezone(MSK_TZ).strftime("%d.%m.%Y")
     return (
-        f"Цена: ~~{format_role_price(ROLE_BASE_PRICE)}~~ "
+        f"Цена: ~~{format_role_price(base_price)}~~ "
         f"**{format_role_price(discount['price'])}**\n"
         f"Скидка действует до **{expires_text}**."
     )
@@ -210,8 +220,11 @@ def get_role_command_hint(role_key: str) -> str:
     if role_key == DEALER_ROLE_KEY:
         return (
             "\n\nКоманды торговца:\n"
-            "`/dealer` — заполнить повозку на 10–35% раз в час.\n"
-            "`/dealer-delivery` — доставить полную повозку и получить 500–625."
+            "`/dealer` — добыть материалы или сдать легендарную шкуру.\n"
+            "`/dealer-supply` — пополнить припасы после каждых 25 товаров.\n"
+            "`/dealer-upgrade` — купить повозки.\n"
+            "`/dealer-route` — защитить поезд торгового пути с 4 уровня.\n"
+            "`/dealer-delivery` — доставить полную торговую повозку."
         )
     if role_key == MOONSHINER_ROLE_KEY:
         return (

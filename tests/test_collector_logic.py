@@ -3,8 +3,9 @@ import unittest
 from datetime import datetime, timezone
 
 from src.collector_logic import (
-    COLLECTIONS, COLLECTION_ITEMS, default_collector_data, normalize_collector_data,
-    progress, begin_search, grant_find, sell_set, sell_individual_items,
+    COLLECTIONS, COLLECTION_ITEMS, COLLECTOR_PLANTS, DETECTOR_PRICE,
+    SHOVEL_PRICE, begin_search, buy_plant, default_collector_data, grant_find,
+    normalize_collector_data, progress, sell_individual_items, sell_set,
 )
 
 class CollectorLogicTests(unittest.TestCase):
@@ -35,5 +36,49 @@ class CollectorLogicTests(unittest.TestCase):
     def test_normalize_discards_unknown_items(self):
         data = normalize_collector_data({"inventory": {"fake": 10}})
         self.assertEqual({}, data["inventory"])
+
+    def test_reference_tool_and_map_prices(self):
+        self.assertEqual(350, SHOVEL_PRICE)
+        self.assertEqual(700, DETECTOR_PRICE)
+        self.assertEqual(
+            {
+                "tarot": 14,
+                "bottles": 13,
+                "flowers": 12.50,
+                "eggs": 19,
+                "heirlooms": 14.50,
+                "arrowheads": 18,
+                "coins": 27,
+                "jewelry": 26,
+                "fossils": 30,
+            },
+            {key: rule["map_price"] for key, rule in COLLECTIONS.items()},
+        )
+
+    def test_shop_contains_only_reference_plants(self):
+        expected = {
+            "Корень лопуха",
+            "Тысячелистник агавоподобный",
+            "Индейский табак",
+            "Молочай",
+            "Фиолетовый подснежник",
+            "Дикий пиретрум",
+            "Пустынный мак",
+            "Тысячелистник",
+            "Олеандр",
+            "Женьшень",
+            "Смородина",
+            "Шалфей",
+        }
+        self.assertEqual(expected, set(COLLECTOR_PLANTS))
+
+    def test_plant_inventory_is_normalized_and_incremented(self):
+        data = normalize_collector_data(
+            {"plants": {"Олеандр": "2", "Одежда": 10}}
+        )
+        self.assertEqual({"Олеандр": 2}, data["plants"])
+        self.assertEqual(3, buy_plant(data, "Олеандр"))
+        with self.assertRaises(ValueError):
+            buy_plant(data, "Одежда")
 
 if __name__ == "__main__": unittest.main()

@@ -454,7 +454,7 @@ CATALOG_ITEMS = {
             "Повышает шанс получения образца натуралистом. "
             "Хранится в инвентаре, тратится при каждой охоте."
         ),
-        "base_price": 8,
+        "base_price": 5,
         "currency": "cash",
         "emoji": "🧪",
         "category": "hunting",
@@ -462,18 +462,18 @@ CATALOG_ITEMS = {
         "quantity": 1,
     },
     "sleeping_dart": {
-        "name": "Снотворная стрела",
+        "name": "Снотворные патроны (Варминт) x20",
         "description": (
-            "Специальная стрела с усыпляющим веществом для бесшумной охоты. "
+            "Патроны с усыпляющим веществом для винтовки «Варминт». "
             "Значительно повышает шанс получения образца натуралистом. "
             "Хранится в инвентаре, тратится при каждой охоте."
         ),
-        "base_price": 15,
+        "base_price": 0.56,
         "currency": "cash",
         "emoji": "💉",
         "category": "hunting",
         "type": "consumable",
-        "quantity": 1,
+        "quantity": 20,
     },
     # Боеприпасы добавляются ниже из единой таблицы, чтобы цены и пачки не расходились.
     # === Лошади и сбруя (заготовки) ===
@@ -895,7 +895,9 @@ class CatalogBuyButton(discord.ui.Button):
                     account, self.item_data["ingredient"], self.item_data["quantity"]
                 )
             else:
-                inventory[self.item_key] = inventory.get(self.item_key, 0) + 1
+                inventory[self.item_key] = (
+                    inventory.get(self.item_key, 0) + purchase_quantity
+                )
             save_economy()
 
             emoji = get_gold_emoji() if self.item_data["currency"] == "gold" else get_cash_emoji()

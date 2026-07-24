@@ -84,6 +84,47 @@ class MoonshinerStateTests(unittest.TestCase):
         moonshine.consume_moonshine_ingredients(data, recipe)
         self.assertEqual(data["ingredients"], {"Яблоко": 1})
 
+    def test_reference_recipe_payouts_are_preserved(self):
+        expected = {
+            "berry_mint": 206.25,
+            "wild_cider": 206.25,
+            "berry_apple": 226.87,
+            "evergreen": 226.87,
+            "tropical_punch": 226.87,
+            "berry_cobbler": 226.87,
+            "mahogany_sunrise": 247.50,
+            "wild_creek": 247.50,
+            "spiced_island": 247.50,
+            "poison_poppy": 247.50,
+        }
+
+        self.assertEqual(
+            {
+                recipe["key"]: recipe["payout"]
+                for recipe in moonshine.MOONSHINE_SPECIAL_RECIPES
+            },
+            expected,
+        )
+
+    def test_legacy_mahonia_inventory_migrates_to_magnolia(self):
+        data = moonshine.normalize_moonshine_data(
+            {"ingredients": {"Магония": 2, "Магнолия": 1}}
+        )
+
+        self.assertEqual(data["ingredients"], {"Магнолия": 3})
+        recipe = moonshine.get_moonshine_special_recipe("mahogany_sunrise")
+        self.assertIn("Магнолия", recipe["ingredients"])
+        self.assertEqual(recipe["name"], "Рассвет среди магнолий")
+
+    def test_level_15_skill_uses_reference_brewing_times(self):
+        expected_minutes = {"weak": 24, "medium": 36, "strong": 48}
+        for recipe in moonshine.MOONSHINE_MASH_RECIPES:
+            with self.subTest(recipe=recipe["key"]):
+                self.assertEqual(
+                    moonshine.get_moonshine_duration_seconds(recipe, skill=True),
+                    expected_minutes[recipe["strength_key"]] * 60,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

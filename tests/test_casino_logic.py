@@ -1,6 +1,10 @@
 import unittest
 
-from cogs.casino import _normalize_casino_amount, should_announce_blackjack_win
+from cogs.casino import (
+    _calculate_casino_payout,
+    _normalize_casino_amount,
+    should_announce_blackjack_win,
+)
 
 
 class BlackjackAnnouncementTests(unittest.TestCase):
@@ -26,6 +30,12 @@ class CasinoBankTests(unittest.TestCase):
 
     def test_bank_amount_is_rounded_for_persistence(self):
         self.assertEqual(_normalize_casino_amount("12.345"), 12.35)
+
+    def test_player_profit_is_taken_from_bank(self):
+        self.assertEqual(_calculate_casino_payout(500, 125), (125.0, 375.0))
+
+    def test_profit_is_limited_by_available_bank_capital(self):
+        self.assertEqual(_calculate_casino_payout(40, 100), (40.0, 0.0))
 
 
 if __name__ == "__main__":

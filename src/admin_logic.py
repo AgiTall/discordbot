@@ -18,6 +18,7 @@ from src.naturalist_logic import (
     default_naturalist_data,
     normalize_naturalist_data,
 )
+from src.trader_logic import default_trader_data
 
 
 PROFESSION_NAMES = {
@@ -136,6 +137,7 @@ def reset_account_cooldowns(account: dict, activity: str) -> list[str]:
             "legendary_cooldown_until",
             "Натуралист: легендарная охота",
         )
+        naturalist["harriet_angry_until"] = None
     if activity in {"robbery", "all"}:
         cooldowns = account.setdefault("cooldowns", {})
         if not isinstance(cooldowns, dict):
@@ -178,6 +180,7 @@ def reset_mechanic(account: dict, mechanic: str) -> list[str]:
             account["moonshine"] = default_moonshine_data()
             reset.append("Самогонщик")
         elif key == "trader":
+            account["trader"] = default_trader_data()
             account["dealer_wagon"] = 0.0
             account["last_dealer_at"] = None
             reset.append("Торговец")

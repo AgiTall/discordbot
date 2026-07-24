@@ -45,6 +45,7 @@ from src.bounty_logic import (
 )
 from src.moonshiner_logic import default_moonshine_data, normalize_moonshine_data
 from src.naturalist_logic import default_naturalist_data, normalize_naturalist_data
+from src.trader_logic import default_trader_data, get_trader_account
 from src.company_logic import normalize_companies
 
 # ──────────────────────────────────────────────────────────────
@@ -530,6 +531,7 @@ def get_account(user_id) -> dict:
             "owned_roles":        [],
             "dealer_wagon":       0.0,
             "last_dealer_at":     None,
+            "trader":              default_trader_data(),
             "bounty":             default_bounty_data(),
             "moonshine":          default_moonshine_data(),
             "naturalist":         default_naturalist_data(),
@@ -569,10 +571,7 @@ def get_account(user_id) -> dict:
         account["owned_roles"] = []
     if not isinstance(account["collection_showcase"], list):
         account["collection_showcase"] = []
-    try:
-        account["dealer_wagon"] = max(0.0, min(100.0, float(account["dealer_wagon"])))
-    except (TypeError, ValueError):
-        account["dealer_wagon"] = 0.0
+    account["trader"] = get_trader_account(account)
     account.setdefault("last_work_at", None)
     from src.weapon_system import WEAPON_CATALOG, normalize_weapon_state
     return normalize_weapon_state(account, WEAPON_CATALOG)

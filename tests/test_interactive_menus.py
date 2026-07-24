@@ -75,6 +75,17 @@ class InteractiveMenuContracts(unittest.TestCase):
         ):
             self.assertNotIn(removed_command, help_source)
 
+    def test_collector_uses_renderable_emojis_and_interactive_map(self):
+        collector = (ROOT / "cogs" / "collector.py").read_text(encoding="utf-8")
+        self.assertNotIn('COLLECTOR_EMOJI = "<:', collector)
+        self.assertNotIn('SHOVEL_EMOJI = "<:', collector)
+        self.assertNotIn('DETECTOR_EMOJI = "<:', collector)
+        self.assertNotIn('MAP_EMOJI = "<:', collector)
+        self.assertIn(
+            'COLLECTOR_MAP_URL = "https://jeanropke.github.io/RDR2CollectorsMap/"',
+            collector,
+        )
+
     def test_investments_is_the_only_company_investment_command(self):
         names = registered_command_names(ROOT / "cogs" / "catalog.py")
         self.assertIn("investments", names)

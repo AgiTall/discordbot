@@ -56,7 +56,8 @@ class BountyTargetButton(discord.ui.Button):
 
     async def callback(self, interaction):
         target = BOUNTY_TARGETS[self.target_key]
-        target_name = random.choice(target["targets"])
+        contract = roll_bounty_contract(self.target_key)
+        target_name = contract["name"]
 
         token = self.bot.set_economy_guild_id(interaction.guild_id)
         try:
@@ -70,6 +71,15 @@ class BountyTargetButton(discord.ui.Button):
                         get_custom_message("role_required").format(
                             role="Охотник за головами"
                         ),
+                        ephemeral=True,
+                    )
+                    return
+
+                if self.target_key == "legendary" and not bounty["prestigious_license"]:
+                    self.bot.save_economy()
+                    await interaction.response.send_message(
+                        "Для легендарных преступников нужна **знаменитая лицензия**. "
+                        "Купите её в разделе «Лицензия и фургон».",
                         ephemeral=True,
                     )
                     return
@@ -134,19 +144,20 @@ class BountyTargetButton(discord.ui.Button):
                 )
 
                 if caught:
-                    reward = round(
-                        random.randint(target["reward_min"], target["reward_max"]), 2
-                    )
+                    reward = contract["reward"]
                     gold_reward = target["gold"]
                     xp_reward = target["xp"]
                     account["cash"] += reward
                     account["gold"] += gold_reward
                     bounty["captures"] += 1
-                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                    levels = apply_role_xp(
+                        bounty, xp_reward, bounty_level_cap(bounty), 140
+                    )
                     interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
 
                     title = f"✅ Цель поймана — {target['label']}"
                     result_text = (
+                        f"Доставлено живыми: **{contract['count']}**.\n"
                         f"Награда: **{self.bot.format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
                         f"Опыт охотника: **+{xp_reward}**."
                     )
@@ -156,7 +167,9 @@ class BountyTargetButton(discord.ui.Button):
                 else:
                     xp_reward = max(20, target["xp"] // 5)
                     bounty["escaped"] += 1
-                    levels = apply_role_xp(bounty, xp_reward, BOUNTY_MAX_LEVEL, 140)
+                    levels = apply_role_xp(
+                        bounty, xp_reward, bounty_level_cap(bounty), 140
+                    )
                     interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
 
                     title = f"❌ Цель сбежала — {target['label']}"
@@ -192,7 +205,115 @@ class BountyMainView(BountyOwnerView):
         super().__init__(bot, user_id)
         for target_key in BOUNTY_TARGETS:
             self.add_item(BountyTargetButton(self.bot, target_key))
+        self.add_item(BountyEquipmentButton(self.bot))
         self.add_item(BountyLeaderboardButton(self.bot))
+
+
+class BountyEquipmentButton(discord.ui.Button):
+    def __init__(self, bot):
+        self.bot = bot
+        super().__init__(
+            label="Лицензия и фургон",
+            emoji="📜",
+            style=discord.ButtonStyle.secondary,
+            custom_id="bounty:equipment",
+        )
+
+    async def callback(self, interaction):
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(interaction.user.id)
+                bounty = get_bounty_account(account)
+                self.bot.save_economy()
+                embed = build_bounty_embed(interaction.guild, account)
+        finally:
+            self.bot.reset_economy_guild_id(token)
+        await interaction.response.edit_message(
+            embed=embed,
+            view=BountyEquipmentView(self.bot, interaction.user.id, bounty),
+        )
+
+
+class BountyEquipmentView(BountyOwnerView):
+    def __init__(self, bot, user_id, bounty):
+        super().__init__(bot, user_id)
+        self.buy_license.disabled = bounty["prestigious_license"]
+        self.buy_wagon.disabled = bounty["has_bounty_wagon"]
+
+    async def buy(self, interaction, item):
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(interaction.user.id)
+                bounty = get_bounty_account(account)
+                if item == "license":
+                    if bounty["prestigious_license"]:
+                        note = "Знаменитая лицензия уже куплена."
+                    elif account["gold"] + 0.0001 < PRESTIGIOUS_LICENSE_PRICE:
+                        note = (
+                            f"Нужно **{format_gold(PRESTIGIOUS_LICENSE_PRICE)}**, "
+                            f"у вас **{format_gold(account['gold'])}**."
+                        )
+                    else:
+                        account["gold"] -= PRESTIGIOUS_LICENSE_PRICE
+                        bounty["prestigious_license"] = True
+                        note = (
+                            "Знаменитая лицензия куплена: открыт **30 уровень** "
+                            "и легендарные преступники."
+                        )
+                else:
+                    if bounty["has_bounty_wagon"]:
+                        note = "Тюремный фургон уже куплен."
+                    elif account["cash"] + 0.0001 < BOUNTY_WAGON_PRICE:
+                        note = (
+                            f"Нужно **{self.bot.format_money(BOUNTY_WAGON_PRICE)}**, "
+                            f"у вас **{self.bot.format_money(account['cash'])}**."
+                        )
+                    else:
+                        account["cash"] -= BOUNTY_WAGON_PRICE
+                        bounty["has_bounty_wagon"] = True
+                        note = "Тюремный фургон куплен."
+                self.bot.save_economy()
+                embed = build_bounty_embed(interaction.guild, account)
+                embed.description = f"{note}\n\n{embed.description}"
+        finally:
+            self.bot.reset_economy_guild_id(token)
+        await interaction.response.edit_message(
+            embed=embed,
+            view=BountyEquipmentView(self.bot, interaction.user.id, bounty),
+        )
+
+    @discord.ui.button(
+        label="Знаменитая лицензия · 15 золота",
+        emoji="📜",
+        style=discord.ButtonStyle.success,
+    )
+    async def buy_license(self, interaction, button):
+        await self.buy(interaction, "license")
+
+    @discord.ui.button(
+        label="Тюремный фургон · $875",
+        emoji="🛞",
+        style=discord.ButtonStyle.success,
+    )
+    async def buy_wagon(self, interaction, button):
+        await self.buy(interaction, "wagon")
+
+    @discord.ui.button(label="Назад", emoji="↩️", style=discord.ButtonStyle.secondary)
+    async def back(self, interaction, button):
+        token = self.bot.set_economy_guild_id(interaction.guild_id)
+        try:
+            async with self.bot.economy_lock:
+                account = self.bot.get_account(interaction.user.id)
+                embed = build_bounty_embed(interaction.guild, account)
+                self.bot.save_economy()
+        finally:
+            self.bot.reset_economy_guild_id(token)
+        await interaction.response.edit_message(
+            embed=embed,
+            view=BountyMainView(self.bot, interaction.user.id),
+        )
 
 
 def _bounty_leaderboard_rows():

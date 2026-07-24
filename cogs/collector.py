@@ -12,10 +12,12 @@ from src.role_utils import has_game_role
 
 COLLECTOR_IMAGE_FILE = "assets/images/collector.png"
 COLLECTOR_IMAGE_NAME = "collector.png"
-COLLECTOR_EMOJI = "<:collector:1513992804672602356>"
-SHOVEL_EMOJI = "<:shovel:1518547808012079114>"
-DETECTOR_EMOJI = "<:weapon_kit_metal_detector:1527574659636400138>"
-MAP_EMOJI = "<:folder_maps:1527626199025844274>"
+COLLECTOR_EMOJI = "🧭"
+SHOVEL_EMOJI = "⛏️"
+DETECTOR_EMOJI = "📡"
+MAP_EMOJI = "🗺️"
+PLANT_EMOJI = "🌿"
+COLLECTOR_MAP_URL = "https://jeanropke.github.io/RDR2CollectorsMap/"
 
 
 async def get_emoji_map(bot):
@@ -41,15 +43,22 @@ def with_background(embed):
     return embed
 
 
+def format_dollars(amount):
+    value = f"{float(amount):.2f}".rstrip("0").rstrip(".")
+    return f"${value}"
+
+
 def main_embed(account, note=None):
     data = normalize_collector_data(account.get("collector"))
     unique = sum(progress(data, key)[0] for key in COLLECTIONS)
     total = sum(len(items) for items in COLLECTION_ITEMS.values())
     shovel = f"{SHOVEL_EMOJI} куплена" if data["tools"]["shovel"] else f"{SHOVEL_EMOJI} не куплена"
     detector = f"{DETECTOR_EMOJI} куплен" if data["tools"]["detector"] else f"{DETECTOR_EMOJI} не куплен"
+    plants = sum(data["plants"].values())
     text = (
         f"**Уровень:** {data['level']} · опыт {data['xp']}/{data['level'] * 100}\n"
         f"**Находки:** {total_items(data)} · уникальных {unique}/{total}\n"
+        f"**Растения:** {plants}\n"
         f"**Продано наборов:** {data['sets_sold']}\n\n"
         f"**Инструменты**\n└─ {shovel}\n└─ {detector}\n\n"
         "Купите карту нужной коллекции, выберите одну из трёх точек поиска, "
@@ -102,6 +111,18 @@ class CollectorView(discord.ui.View):
 
 
 class CollectorMainView(CollectorView):
+    def __init__(self, bot, owner_id):
+        super().__init__(bot, owner_id)
+        self.add_item(
+            discord.ui.Button(
+                label="Интерактивная карта",
+                emoji=MAP_EMOJI,
+                style=discord.ButtonStyle.link,
+                url=COLLECTOR_MAP_URL,
+                row=1,
+            )
+        )
+
     @discord.ui.button(label="Искать", emoji="🔎", style=discord.ButtonStyle.primary, row=0)
     async def find_button(self, interaction, button):
         async with self.bot.economy_lock:
@@ -121,7 +142,14 @@ class CollectorMainView(CollectorView):
             account = self.bot.get_account(interaction.user.id)
             data = normalize_collector_data(account.get("collector")); account["collector"] = data
             self.bot.save_economy()
-        text = f"{SHOVEL_EMOJI} **Лопата** — $35\n{DETECTOR_EMOJI} **Металлоискатель** — $250\n\n{MAP_EMOJI} **Карты коллекций**\n└─ Каждая карта открывает раскопки с тремя точками."
+        text = (
+            f"{SHOVEL_EMOJI} **Лопата** — {format_dollars(SHOVEL_PRICE)}\n"
+            f"{DETECTOR_EMOJI} **Металлоискатель** — {format_dollars(DETECTOR_PRICE)}\n\n"
+            f"{MAP_EMOJI} **Карты коллекций**\n"
+            "└─ Каждая карта открывает раскопки с тремя точками.\n\n"
+            f"{PLANT_EMOJI} **Растения** — {format_dollars(COLLECTOR_PLANT_PRICE)} за штуку\n"
+            "└─ Купленные растения хранятся в сумке коллекционера."
+        )
         await interaction.response.edit_message(embed=with_background(discord.Embed(title="Магазин коллекционера", description=text, color=discord.Color.gold())), view=CollectorShopView(self.bot, self.owner_id, data))
 
 
@@ -237,17 +265,68 @@ class CollectorDigButton(discord.ui.Button):
 class MapShopSelect(discord.ui.Select):
     def __init__(self,bot):
         self.bot=bot
-        options=[discord.SelectOption(label=rule["name"],value=key,description=f"Карта ${rule['map_price']} · с {rule['level']} уровня",emoji=discord.PartialEmoji.from_str(MAP_EMOJI)) for key,rule in COLLECTIONS.items()]
+        options=[
+            discord.SelectOption(
+                label=rule["name"],
+                value=key,
+                description=(
+                    f"Карта {format_dollars(rule['map_price'])} · "
+                    f"с {rule['level']} уровня"
+                ),
+                emoji=MAP_EMOJI,
+            )
+            for key,rule in COLLECTIONS.items()
+        ]
         super().__init__(placeholder="Купить карту коллекции",options=options)
     async def callback(self,interaction):
         key=self.values[0]; price=COLLECTIONS[key]["map_price"]
         async with self.bot.economy_lock:
             account=self.bot.get_account(interaction.user.id); data=normalize_collector_data(account.get("collector")); account["collector"]=data
             if data["level"]<COLLECTIONS[key]["level"]: note=f"Карта откроется с **{COLLECTIONS[key]['level']} уровня**."
-            elif account["cash"]<price: note=f"Не хватает денег: карта стоит **${price}**."
+            elif account["cash"]<price: note=f"Не хватает денег: карта стоит **{format_dollars(price)}**."
             else: account["cash"]-=price; data["maps"][key]+=1; note=f"{MAP_EMOJI} Куплена карта **{COLLECTIONS[key]['name']}**. Теперь их: **{data['maps'][key]}**."
             self.bot.save_economy(); embed=main_embed(account,note)
         await interaction.response.edit_message(embed=embed,view=CollectorMainView(self.bot,interaction.user.id))
+
+
+class PlantShopSelect(discord.ui.Select):
+    def __init__(self, bot):
+        self.bot = bot
+        options = [
+            discord.SelectOption(
+                label=plant,
+                value=plant,
+                description=f"Цена {format_dollars(COLLECTOR_PLANT_PRICE)}",
+                emoji=PLANT_EMOJI,
+            )
+            for plant in COLLECTOR_PLANTS
+        ]
+        super().__init__(placeholder="Купить растение", options=options)
+
+    async def callback(self, interaction):
+        plant = self.values[0]
+        async with self.bot.economy_lock:
+            account = self.bot.get_account(interaction.user.id)
+            data = normalize_collector_data(account.get("collector"))
+            account["collector"] = data
+            if account["cash"] + 0.0001 < COLLECTOR_PLANT_PRICE:
+                note = (
+                    f"Не хватает денег: растение стоит "
+                    f"**{format_dollars(COLLECTOR_PLANT_PRICE)}**."
+                )
+            else:
+                account["cash"] -= COLLECTOR_PLANT_PRICE
+                quantity = buy_plant(data, plant)
+                note = (
+                    f"{PLANT_EMOJI} Куплено растение **{plant}**. "
+                    f"Теперь в сумке: **{quantity}**."
+                )
+            self.bot.save_economy()
+            embed = main_embed(account, note)
+        await interaction.response.edit_message(
+            embed=embed,
+            view=CollectorMainView(self.bot, interaction.user.id),
+        )
 
 
 class CollectorShopView(CollectorView):
@@ -256,6 +335,7 @@ class CollectorShopView(CollectorView):
         self.buy_shovel.disabled = data["tools"]["shovel"]
         self.buy_detector.disabled = data["tools"]["detector"]
         self.add_item(MapShopSelect(bot))
+        self.add_item(PlantShopSelect(bot))
     async def buy(self, interaction, tool, price):
         async with self.bot.economy_lock:
             account=self.bot.get_account(interaction.user.id); data=normalize_collector_data(account.get("collector")); account["collector"]=data
@@ -264,9 +344,9 @@ class CollectorShopView(CollectorView):
             else: account["cash"]-=price; data["tools"][tool]=True; note="Инструмент куплен."
             self.bot.save_economy(); embed=main_embed(account,note)
         await interaction.response.edit_message(embed=embed,view=CollectorMainView(self.bot,self.owner_id))
-    @discord.ui.button(label="Купить лопату · $35", emoji=SHOVEL_EMOJI, style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Купить лопату · $350", emoji=SHOVEL_EMOJI, style=discord.ButtonStyle.success)
     async def buy_shovel(self, interaction, button): await self.buy(interaction,"shovel",SHOVEL_PRICE)
-    @discord.ui.button(label="Купить металлоискатель · $250", emoji=DETECTOR_EMOJI, style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Купить металлоискатель · $700", emoji=DETECTOR_EMOJI, style=discord.ButtonStyle.success)
     async def buy_detector(self, interaction, button): await self.buy(interaction,"detector",DETECTOR_PRICE)
     @discord.ui.button(label="Назад", emoji="↩️", style=discord.ButtonStyle.secondary)
     async def back(self, interaction, button): await self.show_main(interaction)

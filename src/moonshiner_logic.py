@@ -46,29 +46,28 @@ MOONSHINE_MASH_RECIPES = [
     {"key": "strong_9", "number": 9, "strength_key": "strong", "stars": 3, "required_level": 3, "payout": 165.0},
 ]
 
-# Особые рецепты — на ~50% дороже обычной бражки того же уровня
-# 1⭐=165$, 2⭐=220$, 3⭐=248$
+# Особые рецепты и выручка за полную повозку.
 MOONSHINE_SPECIAL_RECIPES = [
-    {"key": "mahogany_sunrise", "name": "Рассвет среди магоний",  "stars": 3,
-     "ingredients": {"Консервированная клубника": 1, "Черника овальнолистная": 1, "Магония": 1}, "payout": 248.0},
+    {"key": "mahogany_sunrise", "name": "Рассвет среди магнолий", "stars": 3,
+     "ingredients": {"Консервированная клубника": 1, "Черника овальнолистная": 1, "Магнолия": 1}, "payout": 247.50},
     {"key": "berry_apple",      "name": "Ягодно-яблочный",        "stars": 2,
-     "ingredients": {"Яблоко": 1, "Ежевика": 1, "Цветок ванили": 1},                             "payout": 220.0},
+     "ingredients": {"Яблоко": 1, "Ежевика": 1, "Цветок ванили": 1},                             "payout": 226.87},
     {"key": "berry_cobbler",    "name": "Ягодный пирог",          "stars": 2,
-     "ingredients": {"Консервированные персики": 1, "Малина": 1, "Персик": 1},                   "payout": 220.0},
+     "ingredients": {"Консервированные персики": 1, "Малина": 1, "Персик": 1},                   "payout": 226.87},
     {"key": "berry_mint",       "name": "Ягодно-мятный",          "stars": 1,
-     "ingredients": {"Консервированная клубника": 1, "Ежевика": 1, "Мята": 1},                   "payout": 165.0},
+     "ingredients": {"Консервированная клубника": 1, "Ежевика": 1, "Мята": 1},                   "payout": 206.25},
     {"key": "evergreen",        "name": "Хвойный",                "stars": 2,
-     "ingredients": {"Черника овальнолистная": 1, "Гаультерия": 1, "Женьшень": 1},               "payout": 220.0},
+     "ingredients": {"Черника овальнолистная": 1, "Гаультерия": 1, "Женьшень": 1},               "payout": 226.87},
     {"key": "poison_poppy",     "name": "Ядовитый мак",           "stars": 3,
-     "ingredients": {"Пустынный мак": 1, "Олеандр": 1, "Абсент": 1},                             "payout": 248.0},
+     "ingredients": {"Пустынный мак": 1, "Олеандр": 1, "Абсент": 1},                             "payout": 247.50},
     {"key": "spiced_island",    "name": "Пряный остров",          "stars": 3,
-     "ingredients": {"Консервированные абрикосы": 1, "Смородина": 1, "Карибский ром": 1},        "payout": 248.0},
+     "ingredients": {"Консервированные абрикосы": 1, "Смородина": 1, "Карибский ром": 1},        "payout": 247.50},
     {"key": "tropical_punch",   "name": "Тропический пунш",       "stars": 2,
-     "ingredients": {"Консервированные ананасы": 1, "Груша": 1, "Цветок ванили": 1},             "payout": 220.0},
+     "ingredients": {"Консервированные ананасы": 1, "Груша": 1, "Цветок ванили": 1},             "payout": 226.87},
     {"key": "wild_cider",       "name": "Дикий сидр",             "stars": 1,
-     "ingredients": {"Яблоко": 1, "Женьшень": 1, "Смородина": 1},                                "payout": 165.0},
+     "ingredients": {"Яблоко": 1, "Женьшень": 1, "Смородина": 1},                                "payout": 206.25},
     {"key": "wild_creek",       "name": "Дикий ручей",            "stars": 3,
-     "ingredients": {"Мята": 1, "Цветок ванили": 1, "Слива поручейная": 1},                      "payout": 248.0},
+     "ingredients": {"Мята": 1, "Цветок ванили": 1, "Слива поручейная": 1},                      "payout": 247.50},
 ]
 
 
@@ -79,6 +78,10 @@ MOONSHINE_INGREDIENTS = sorted(
         for ingredient in recipe["ingredients"]
     }
 )
+
+MOONSHINE_INGREDIENT_ALIASES = {
+    "магония": "Магнолия",
+}
 
 
 def get_moonshine_star_emoji(level):
@@ -184,7 +187,9 @@ def normalize_moonshine_data(moonshine):
         except (TypeError, ValueError):
             normalized_amount = 0
         if normalized_amount > 0:
-            normalized_ingredients[ingredient_name] = normalized_amount
+            normalized_ingredients[ingredient_name] = (
+                normalized_ingredients.get(ingredient_name, 0) + normalized_amount
+            )
 
     moonshine["ingredients"] = normalized_ingredients
     set_moonshine_level(moonshine, get_moonshine_level(moonshine))
@@ -238,6 +243,9 @@ def moonshine_text_key(value):
 
 def resolve_moonshine_ingredient(name):
     normalized = moonshine_text_key(name)
+    alias = MOONSHINE_INGREDIENT_ALIASES.get(normalized)
+    if alias is not None:
+        return alias
     for ingredient in MOONSHINE_INGREDIENTS:
         if moonshine_text_key(ingredient) == normalized:
             return ingredient

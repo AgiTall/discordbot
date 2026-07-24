@@ -5,8 +5,24 @@ from pathlib import Path
 import random
 
 COLLECTOR_ROLE_KEY = "collector"
-SHOVEL_PRICE = 35.0
-DETECTOR_PRICE = 250.0
+SHOVEL_PRICE = 350.0
+DETECTOR_PRICE = 700.0
+
+COLLECTOR_PLANTS = (
+    "Корень лопуха",
+    "Тысячелистник агавоподобный",
+    "Индейский табак",
+    "Молочай",
+    "Фиолетовый подснежник",
+    "Дикий пиретрум",
+    "Пустынный мак",
+    "Тысячелистник",
+    "Олеандр",
+    "Женьшень",
+    "Смородина",
+    "Шалфей",
+)
+COLLECTOR_PLANT_PRICE = 1.0
 
 _ITEM_DIR = Path(__file__).resolve().parents[1] / "ref" / "collector" / "items"
 _ALL = sorted(p.stem for p in _ITEM_DIR.glob("*.png"))
@@ -14,15 +30,15 @@ _ALL = sorted(p.stem for p in _ITEM_DIR.glob("*.png"))
 def _eggs(key): return key.startswith("provision_") and key.endswith("_egg")
 
 COLLECTIONS = {
-    "tarot": {"name": "Карты Таро", "prefix": "document_card_", "level": 1, "tools": (), "payout": 520, "map_price": 12},
-    "bottles": {"name": "Редкий алкоголь", "prefix": "consumable_", "level": 1, "tools": (), "payout": 190, "map_price": 10},
-    "flowers": {"name": "Дикие цветы", "prefix": "provision_wldflwr_", "level": 1, "tools": (), "payout": 145, "map_price": 8},
-    "eggs": {"name": "Птичьи яйца", "test": _eggs, "level": 2, "tools": (), "payout": 180, "map_price": 10},
-    "heirlooms": {"name": "Семейные реликвии", "prefix": "provision_hrlm_", "level": 3, "tools": ("shovel",), "payout": 330, "map_price": 16},
+    "tarot": {"name": "Карты Таро", "prefix": "document_card_", "level": 1, "tools": (), "payout": 520, "map_price": 14},
+    "bottles": {"name": "Редкий алкоголь", "prefix": "consumable_", "level": 1, "tools": (), "payout": 190, "map_price": 13},
+    "flowers": {"name": "Дикие цветы", "prefix": "provision_wldflwr_", "level": 1, "tools": (), "payout": 145, "map_price": 12.50},
+    "eggs": {"name": "Птичьи яйца", "test": _eggs, "level": 2, "tools": (), "payout": 180, "map_price": 19},
+    "heirlooms": {"name": "Семейные реликвии", "prefix": "provision_hrlm_", "level": 3, "tools": ("shovel",), "payout": 330, "map_price": 14.50},
     "arrowheads": {"name": "Наконечники стрел", "prefix": "provision_arrowhead_", "level": 5, "tools": ("shovel",), "payout": 310, "map_price": 18},
-    "coins": {"name": "Старинные монеты", "prefix": "provision_coin_", "level": 8, "tools": ("detector",), "payout": 440, "map_price": 24},
-    "jewelry": {"name": "Украшения", "prefix": "provision_jewelry_", "level": 10, "tools": ("detector",), "payout": 850, "map_price": 30},
-    "fossils": {"name": "Окаменелости", "prefix": "collector_fossil_", "level": 12, "tools": ("shovel", "detector"), "payout": 650, "map_price": 28},
+    "coins": {"name": "Старинные монеты", "prefix": "provision_coin_", "level": 8, "tools": ("detector",), "payout": 440, "map_price": 27},
+    "jewelry": {"name": "Украшения", "prefix": "provision_jewelry_", "level": 10, "tools": ("detector",), "payout": 850, "map_price": 26},
+    "fossils": {"name": "Окаменелости", "prefix": "collector_fossil_", "level": 12, "tools": ("shovel", "detector"), "payout": 650, "map_price": 30},
 }
 
 def _items(rule):
@@ -32,7 +48,15 @@ def _items(rule):
 COLLECTION_ITEMS = {key: _items(rule) for key, rule in COLLECTIONS.items()}
 
 def default_collector_data():
-    return {"level": 1, "xp": 0, "inventory": {}, "maps": {}, "tools": {"shovel": False, "detector": False}, "sets_sold": 0}
+    return {
+        "level": 1,
+        "xp": 0,
+        "inventory": {},
+        "maps": {},
+        "plants": {},
+        "tools": {"shovel": False, "detector": False},
+        "sets_sold": 0,
+    }
 
 def normalize_collector_data(raw):
     data = default_collector_data()
@@ -54,9 +78,24 @@ def normalize_collector_data(raw):
     for key in COLLECTIONS:
         try: data["maps"][key] = max(0, int(maps.get(key, 0) or 0))
         except (TypeError, ValueError): data["maps"][key] = 0
+    plants = data.get("plants") if isinstance(data.get("plants"), dict) else {}
+    data["plants"] = {}
+    for plant in COLLECTOR_PLANTS:
+        try: quantity = max(0, int(plants.get(plant, 0) or 0))
+        except (TypeError, ValueError): quantity = 0
+        if quantity:
+            data["plants"][plant] = quantity
     tools = data.get("tools") if isinstance(data.get("tools"), dict) else {}
     data["tools"] = {"shovel": bool(tools.get("shovel")), "detector": bool(tools.get("detector"))}
     return data
+
+
+def buy_plant(data, plant):
+    if plant not in COLLECTOR_PLANTS:
+        raise ValueError("unknown collector plant")
+    plants = data.setdefault("plants", {})
+    plants[plant] = plants.get(plant, 0) + 1
+    return plants[plant]
 
 def item_display_name(key):
     prefixes = ("collector_fossil_", "document_card_", "provision_arrowhead_", "provision_coin_", "provision_hrlm_", "provision_jewelry_", "provision_wldflwr_", "provision_", "consumable_")

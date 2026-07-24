@@ -36,7 +36,27 @@ BOUNTY_ROLE_KEY = "bounty_hunter"
 BOUNTY_COOLDOWN_SECONDS = 10 * 60
 
 
-BOUNTY_MAX_LEVEL = 20
+BOUNTY_BASE_MAX_LEVEL = 20
+BOUNTY_MAX_LEVEL = 30
+PRESTIGIOUS_LICENSE_PRICE = 15.0
+BOUNTY_WAGON_PRICE = 875.0
+
+
+LEGENDARY_BOUNTIES = (
+    {"name": "Вирджил «Пастырь» Эдвардс", "reward_min": 150.0, "reward_max": 225.0},
+    {"name": "Джин «Бо» Финли", "reward_min": 125.0, "reward_max": 187.50},
+    {"name": "Кармела «Куколка» Монтес", "reward_min": 125.0, "reward_max": 187.50},
+    {"name": "Филипп Карлье", "reward_min": 125.0, "reward_max": 187.50},
+    {"name": "Волк", "reward_min": 100.0, "reward_max": 150.0},
+    {"name": "Сесил С. Такер", "reward_min": 100.0, "reward_max": 150.0},
+    {"name": "Николай «Юконский» Бородин", "reward_min": 125.0, "reward_max": 187.50},
+    {"name": "Барбарелла Алькасар", "reward_min": 100.0, "reward_max": 150.0},
+    {"name": "Этта Дойл", "reward_min": 150.0, "reward_max": 225.0},
+    {"name": "Семейка Филинов", "reward_min": 125.0, "reward_max": 187.50},
+    {"name": "Серджо Винченца", "reward_min": 125.0, "reward_max": 187.50},
+    {"name": "Тобин Уинфилд", "reward_min": 150.0, "reward_max": 225.0},
+    {"name": "Красный Бен Клемпсон", "reward_min": 150.0, "reward_max": 225.0},
+)
 
 
 # ---------------------------------------------------------------------------
@@ -46,42 +66,46 @@ BOUNTY_TARGETS = {
     "cheap": {
         "name": "Дешёвый $ преступник",
         "label": "$",
+        "target_count": (1, 2),
         "base_chance": 55,          # базовый шанс поимки (%)
-        "reward_min": 80,
-        "reward_max": 120,
-        "gold": 0.05,
-        "xp": 70,
+        "reward_min": 30.0,
+        "reward_max": 50.0,
+        "gold": 0.08,
+        "xp": 450,
         "targets": ["Карманник из Валентайна", "Пьяный налётчик", "Беглый конокрад", "Мелкий жулик"],
     },
     "medium": {
         "name": "Средний $$ преступник",
         "label": "$$",
+        "target_count": (1, 4),
         "base_chance": 40,
-        "reward_min": 160,
-        "reward_max": 230,
-        "gold": 0.12,
-        "xp": 130,
+        "reward_min": 37.50,
+        "reward_max": 75.0,
+        "gold": 0.08,
+        "xp": 700,
         "targets": ["Главарь шайки", "Грабитель дилижансов", "Поджигатель складов", "Беглый бандит"],
     },
     "expensive": {
         "name": "Дорогой $$$ преступник",
         "label": "$$$",
+        "target_count": (1, 6),
         "base_chance": 25,
-        "reward_min": 300,
-        "reward_max": 420,
-        "gold": 0.25,
-        "xp": 230,
+        "reward_min": 45.0,
+        "reward_max": 90.0,
+        "gold": 0.08,
+        "xp": 900,
         "targets": ["Чёрный стрелок", "Королева контрабандистов", "Мясник из каньона", "Беглый наёмный убийца"],
     },
     "legendary": {
-        "name": "Легендарный ★ преступник",
-        "label": "★",
+        "name": "Легендарный $$$$ преступник",
+        "label": "$$$$",
+        "target_count": (1, 6),
         "base_chance": 15,
-        "reward_min": 600,
-        "reward_max": 900,
-        "gold": 0.60,
-        "xp": 450,
-        "targets": ["Призрак Дикого Запада", "Проклятый Торговец Смертью", "Демон Приграничья", "Бессмертный Стрелок"],
+        "reward_min": 100.0,
+        "reward_max": 225.0,
+        "gold": 0.24,
+        "xp": 1000,
+        "targets": [bounty["name"] for bounty in LEGENDARY_BOUNTIES],
     },
 }
 
@@ -133,6 +157,33 @@ def calculate_catch_chance(target_key: str, shot: dict, level: int) -> int:
     return max(5, min(95, total))  # ограничиваем 5–95%
 
 
+def bounty_level_cap(bounty):
+    return BOUNTY_MAX_LEVEL if bounty.get("prestigious_license") else BOUNTY_BASE_MAX_LEVEL
+
+
+def roll_bounty_contract(target_key, rng=None):
+    rng = rng or random
+    target = BOUNTY_TARGETS[target_key]
+    target_count = rng.randint(*target["target_count"])
+    if target_key == "legendary":
+        selected = rng.choice(LEGENDARY_BOUNTIES)
+        reward_min = selected["reward_min"]
+        reward_max = selected["reward_max"]
+        target_name = selected["name"]
+    else:
+        reward_min = target["reward_min"]
+        reward_max = target["reward_max"]
+        target_name = rng.choice(target["targets"])
+    reward = round(rng.uniform(reward_min, reward_max), 2)
+    return {
+        "name": target_name,
+        "count": target_count,
+        "reward": reward,
+        "reward_min": reward_min,
+        "reward_max": reward_max,
+    }
+
+
 def get_bounty_button_emoji(button_key):
     emojis = economy_data.get("bounty_button_emojis", {})
     emoji = emojis.get(button_key)
@@ -147,6 +198,8 @@ def default_bounty_data():
         "xp": 0,
         "captures": 0,
         "escaped": 0,
+        "prestigious_license": False,
+        "has_bounty_wagon": False,
         "last_bounty_at": None,
     }
 
@@ -155,8 +208,10 @@ def normalize_bounty_data(bounty):
     if not isinstance(bounty, dict):
         bounty = default_bounty_data()
 
+    bounty["prestigious_license"] = bool(bounty.get("prestigious_license", False))
+    bounty["has_bounty_wagon"] = bool(bounty.get("has_bounty_wagon", False))
     try:
-        bounty["level"] = max(1, min(BOUNTY_MAX_LEVEL, int(bounty.get("level", 1))))
+        bounty["level"] = max(1, min(bounty_level_cap(bounty), int(bounty.get("level", 1))))
     except (TypeError, ValueError):
         bounty["level"] = 1
     try:
@@ -209,14 +264,18 @@ def build_bounty_embed(guild, account):
     role = find_guild_role(guild, role_definition)
     icon = get_role_icon(role_definition, role)
     needed = xp_for_next_level(bounty["level"], 140)
+    level_cap = bounty_level_cap(bounty)
     cooldown = get_bounty_cooldown(bounty)
     cooldown_text = "готов к контракту" if cooldown <= 0 else format_duration(cooldown)
 
     # Показываем шансы поимки для ориентира (без учёта оружия — базовые)
     chances_lines = []
     for key, t in BOUNTY_TARGETS.items():
+        count_min, count_max = t["target_count"]
         chances_lines.append(
-            f"├─ {t['name']}: базовый шанс **{t['base_chance']}%** (+оружие/патроны)"
+            f"├─ {t['label']}: **{count_min}–{count_max} целей**, "
+            f"**${t['reward_min']:g}–{t['reward_max']:g}**, "
+            f"**{format_gold(t['gold'])}**, **{t['xp']} XP**"
         )
     chances_lines[-1] = chances_lines[-1].replace("├─", "└─")
 
@@ -225,12 +284,15 @@ def build_bounty_embed(guild, account):
         description=(
             "Выберите уровень преступника. Шанс поимки зависит от вашего **оружия** и **патронов**.\n\n"
             f"{EMOJI_LIST} Прогресс\n"
-            f"├─ Уровень: **{bounty['level']}/{BOUNTY_MAX_LEVEL}**\n"
+            f"├─ Уровень: **{bounty['level']}/{level_cap}**\n"
             f"├─ Опыт: **{bounty['xp']}/{needed}**\n"
             f"├─ Поймано: **{format_integer(bounty['captures'])}**\n"
             f"├─ Сбежало: **{format_integer(bounty['escaped'])}**\n"
             f"└─ Кулдаун: **{cooldown_text}**\n\n"
-            f"{EMOJI_WEAPON} Шансы поимки\n"
+            f"{EMOJI_TROPHY} Лицензия и снаряжение\n"
+            f"├─ Знаменитая лицензия: **{'куплена' if bounty['prestigious_license'] else 'не куплена'}**\n"
+            f"└─ Тюремный фургон: **{'куплен' if bounty['has_bounty_wagon'] else 'не куплен'}**\n\n"
+            f"{EMOJI_WEAPON} Контракты\n"
             + "\n".join(chances_lines)
         ),
         color=discord.Color.dark_gold(),
