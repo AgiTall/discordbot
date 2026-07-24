@@ -678,7 +678,7 @@ class PokerTableView(discord.ui.View):
                 await self.table.update_message()
         await self._notice(interaction, notice)
 
-    @discord.ui.button(label="Мои карты", emoji="🂠", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Мои карты", emoji="🃏", style=discord.ButtonStyle.secondary, row=1)
     async def cards_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         await self._defer(interaction)
         game = self.table.game
