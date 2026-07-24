@@ -220,11 +220,9 @@ def get_role_command_hint(role_key: str) -> str:
     if role_key == DEALER_ROLE_KEY:
         return (
             "\n\nКоманды торговца:\n"
-            "`/dealer` — добыть материалы или сдать легендарную шкуру.\n"
-            "`/dealer-supply` — пополнить припасы после каждых 25 товаров.\n"
-            "`/dealer-upgrade` — купить повозки.\n"
-            "`/dealer-route` — защитить поезд торгового пути с 4 уровня.\n"
-            "`/dealer-delivery` — доставить полную торговую повозку."
+            "`/dealer` — заполнить повозку на 10–35% раз в час "
+            "или сдать легендарную шкуру.\n"
+            "`/dealer-delivery` — доставить полную повозку и получить 500–625."
         )
     if role_key == MOONSHINER_ROLE_KEY:
         return (

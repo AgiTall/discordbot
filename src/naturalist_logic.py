@@ -276,6 +276,14 @@ def pop_best_legendary_pelt(naturalist):
     return animal_key, LEGENDARY_ANIMALS[animal_key]
 
 
+def calculate_legendary_pelt_wagon_fill(current_fill, animal_key):
+    animal = LEGENDARY_ANIMALS[animal_key]
+    current_fill = max(0.0, min(100.0, float(current_fill)))
+    if animal["pelt_materials"] >= 50:
+        return 100.0
+    return min(100.0, current_fill + 50.0)
+
+
 def get_naturalist_gear(account, catalog_items):
     """Возвращает словарь доступного снаряжения натуралиста."""
     inventory = account.get("inventory", {})
@@ -356,11 +364,6 @@ def count_naturalist_samples(naturalist):
 
 def count_legendary_pelts(naturalist):
     return sum(int(amount) for amount in naturalist.get("legendary_pelts", {}).values())
-
-
-def get_legendary_pelt_capacity(account):
-    trader = account.get("trader", {})
-    return 5 if isinstance(trader, dict) and trader.get("has_hunting_wagon") else 1
 
 
 def format_naturalist_samples_short(naturalist):

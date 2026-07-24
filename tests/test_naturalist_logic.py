@@ -13,9 +13,9 @@ from src.naturalist_logic import (
     NATURALIST_TRANQ_PACK_SIZE,
     add_legendary_pelt,
     anger_harriet,
+    calculate_legendary_pelt_wagon_fill,
     default_naturalist_data,
     get_naturalist_category_progress,
-    get_legendary_pelt_capacity,
     get_naturalist_tranq_cap,
     has_full_naturalist_category,
     normalize_naturalist_data,
@@ -104,12 +104,19 @@ class NaturalistLogicTests(unittest.TestCase):
         self.assertEqual("bear_golden_spirit", key)
         self.assertEqual(62.5, animal["pelt_materials"])
         self.assertEqual({}, data["legendary_pelts"])
-        self.assertEqual(1, get_legendary_pelt_capacity({"naturalist": data}))
+
+    def test_legendary_pelts_fill_half_or_all_of_trader_wagon(self):
         self.assertEqual(
-            5,
-            get_legendary_pelt_capacity(
-                {"naturalist": data, "trader": {"has_hunting_wagon": True}}
-            ),
+            50.0,
+            calculate_legendary_pelt_wagon_fill(0, "alligator_brown_blood"),
+        )
+        self.assertEqual(
+            80.0,
+            calculate_legendary_pelt_wagon_fill(30, "alligator_brown_blood"),
+        )
+        self.assertEqual(
+            100.0,
+            calculate_legendary_pelt_wagon_fill(0, "bear_golden_spirit"),
         )
 
     def test_catalog_uses_the_same_harriet_supply_prices(self):

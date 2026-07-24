@@ -551,15 +551,6 @@ class NaturalistPeltSelect(discord.ui.Select):
                 )
                 return
 
-            pelt_capacity = get_legendary_pelt_capacity(account)
-            if count_legendary_pelts(naturalist) >= pelt_capacity:
-                self.bot.save_economy()
-                await interaction.response.send_message(
-                    f"Для крупных шкур нет места: **{pelt_capacity}/{pelt_capacity}**. "
-                    "Передайте шкуру Криппсу или купите охотничью повозку.",
-                    ephemeral=True,
-                )
-                return
             materials = add_legendary_pelt(naturalist, animal_key)
             anger_seconds = anger_harriet(naturalist)
             naturalist["legendary_cooldown_until"] = (
