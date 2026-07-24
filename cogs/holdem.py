@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import logging
+import re
 import time
 
 import discord
@@ -43,6 +44,12 @@ def blind_structure(max_bet: int) -> tuple[int, int]:
     big_blind = max(1, max_bet // 10)
     small_blind = max(1, big_blind // 2)
     return small_blind, big_blind
+
+
+def poker_channel_name(display_name: str, user_id: int) -> str:
+    clean = re.sub(r"[^\w-]+", "-", display_name.casefold(), flags=re.UNICODE)
+    clean = clean.strip("-_") or "host"
+    return f"poker-{clean}-{str(user_id)[-4:]}"[:90]
 
 
 def _render_table(*args, **kwargs):
@@ -164,6 +171,56 @@ class DiscordPokerTable:
         finally:
             self.bot.reset_economy_guild_id(token)
 
+    def channel(self) -> discord.TextChannel | None:
+        getter = getattr(self.bot, "get_channel", None)
+        channel = getter(self.channel_id) if getter else None
+        return channel if isinstance(channel, discord.TextChannel) else None
+
+    async def grant_channel_access(
+        self,
+        member: discord.Member | discord.User,
+    ) -> bool:
+        channel = self.channel()
+        if channel is None:
+            return False
+        try:
+            await channel.set_permissions(
+                member,
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                reason="Игрок присоединился к покерному столу",
+            )
+            return True
+        except (discord.Forbidden, discord.HTTPException):
+            LOGGER.exception("Failed to grant access to Hold'em channel")
+            return False
+
+    async def revoke_channel_access(self, user_id: int) -> None:
+        channel = self.channel()
+        if channel is None:
+            return
+        member = channel.guild.get_member(user_id)
+        if member is None:
+            return
+        try:
+            await channel.set_permissions(
+                member,
+                overwrite=None,
+                reason="Игрок вышел из-за покерного стола",
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            LOGGER.exception("Failed to revoke access to Hold'em channel")
+
+    async def delete_channel(self, reason: str) -> None:
+        channel = self.channel()
+        if channel is None:
+            return
+        try:
+            await channel.delete(reason=reason)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            LOGGER.exception("Failed to delete temporary Hold'em channel")
+
     @staticmethod
     def _cancel_task(task: asyncio.Task | None) -> None:
         if task and task is not asyncio.current_task():
@@ -210,11 +267,10 @@ class DiscordPokerTable:
                 if self.closed or self.hand_active or len(self.players) >= 2:
                     return
                 notice = await self.close(self.host_id)
-                if notice.ok and self.message:
-                    try:
-                        await self.message.delete()
-                    except discord.HTTPException:
-                        await self.update_message()
+                if notice.ok:
+                    await self.delete_channel(
+                        "За 2,5 минуты к покерному столу никто не присоединился"
+                    )
         except asyncio.CancelledError:
             return
         except Exception:
@@ -290,6 +346,7 @@ class DiscordPokerTable:
             return TableNotice(False, "Не удалось вернуть фишки на баланс.")
         self.players.remove(player)
         self.avatars.pop(user_id, None)
+        await self.revoke_channel_access(user_id)
         self._return_to_waiting()
         if self.host_id == user_id and self.players:
             self.host_id = self.players[0].user_id
@@ -528,12 +585,12 @@ class RaiseModal(discord.ui.Modal, title="Поднять ставку"):
         except ValueError:
             await interaction.response.send_message("Введите целое число.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
         async with self.table.lock:
             notice = self.table.perform_action(interaction.user.id, "raise", amount)
             if notice.ok:
                 await self.table.update_message()
-        await interaction.followup.send(notice.text, ephemeral=True)
+        await interaction.edit_original_response(content=notice.text)
 
 
 class PokerTableView(discord.ui.View):
@@ -543,7 +600,6 @@ class PokerTableView(discord.ui.View):
         game = table.game
         active = table.hand_active
 
-        self.join_button.disabled = active or len(table.players) >= MAX_PLAYERS
         self.start_button.disabled = active or sum(player.stack > 0 for player in table.players) < 2
         self.rebuy_button.disabled = active
         self.leave_button.disabled = active
@@ -572,24 +628,15 @@ class PokerTableView(discord.ui.View):
             self.call_button.label = "Чек / Колл"
 
     async def _defer(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
 
     async def _notice(self, interaction: discord.Interaction, notice: TableNotice) -> None:
-        await interaction.followup.send(notice.text, ephemeral=True)
+        await interaction.edit_original_response(content=notice.text)
 
     async def _act(self, interaction: discord.Interaction, action: str) -> None:
         await self._defer(interaction)
         async with self.table.lock:
             notice = self.table.perform_action(interaction.user.id, action)
-            if notice.ok:
-                await self.table.update_message()
-        await self._notice(interaction, notice)
-
-    @discord.ui.button(label="Сесть за стол", style=discord.ButtonStyle.success, row=0)
-    async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        await self._defer(interaction)
-        async with self.table.lock:
-            notice = await self.table.seat_member(interaction.user)
             if notice.ok:
                 await self.table.update_message()
         await self._notice(interaction, notice)
@@ -659,9 +706,9 @@ class PokerTableView(discord.ui.View):
         await self._defer(interaction)
         async with self.table.lock:
             notice = await self.table.close(interaction.user.id)
-            if notice.ok:
-                await self.table.update_message()
         await self._notice(interaction, notice)
+        if notice.ok:
+            await self.table.delete_channel("Хозяин закрыл покерный стол")
 
 
 class CreatePokerTableModal(discord.ui.Modal, title="Создать покерный стол"):
@@ -767,15 +814,28 @@ class JoinPokerTableSelect(discord.ui.Select):
                 ephemeral=True,
             )
             return
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.edit_original_response(
+            content="⏳ Подключаю вас к столу и открываю временный канал…",
+            view=None,
+        )
         async with table.lock:
             notice = await table.seat_member(interaction.user)
             if notice.ok:
-                await table.update_message()
+                granted = await table.grant_channel_access(interaction.user)
+                if not granted:
+                    await table.leave(interaction.user.id)
+                    notice = TableNotice(
+                        False,
+                        "Не удалось открыть доступ к временному каналу. "
+                        "Проверьте право бота «Управлять каналами».",
+                    )
+                else:
+                    await table.update_message()
         text = notice.text
         if notice.ok and table.message:
             text += f"\nПерейти к столу: {table.message.jump_url}"
-        await interaction.followup.send(text, ephemeral=True)
+        await interaction.edit_original_response(content=text, view=None)
 
 
 class JoinPokerTableView(discord.ui.View):
@@ -838,46 +898,154 @@ class HoldemCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        await interaction.response.defer(ephemeral=True)
-        key = (interaction.guild_id, interaction.channel_id)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.edit_original_response(
+            content="⏳ Проверяю настройки и права для временного канала…"
+        )
+        guild = interaction.guild
+        bot_member = guild.me
+        if bot_member is None or not bot_member.guild_permissions.manage_channels:
+            await interaction.edit_original_response(
+                content=(
+                    "Не могу создать стол: боту требуется право "
+                    "**«Управлять каналами»**."
+                )
+            )
+            return
+
+        current_table = next(
+            (
+                table
+                for table in self.tables.values()
+                if not table.closed
+                and table.guild_id == interaction.guild_id
+                and table.player_by_id(interaction.user.id)
+            ),
+            None,
+        )
+        if current_table and current_table.message:
+            await interaction.edit_original_response(
+                content=f"Вы уже участвуете в столе: {current_table.message.jump_url}"
+            )
+            return
+
+        temporary_channel: discord.TextChannel | None = None
+        table: DiscordPokerTable | None = None
+        notice: TableNotice | None = None
         async with self.creation_lock:
-            existing = self.tables.get(key)
-            if existing and not existing.closed and existing.message:
-                await interaction.followup.send(
-                    f"В этом канале уже есть стол: {existing.message.jump_url}",
-                    ephemeral=True,
+            await interaction.edit_original_response(
+                content="⏳ Создаю закрытый канал для покерного стола…"
+            )
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                interaction.user: discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    attach_files=True,
+                    embed_links=True,
+                ),
+                bot_member: discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    manage_channels=True,
+                    manage_messages=True,
+                    attach_files=True,
+                    embed_links=True,
+                ),
+            }
+            category = (
+                interaction.channel.category
+                if isinstance(interaction.channel, discord.TextChannel)
+                else None
+            )
+            try:
+                temporary_channel = await guild.create_text_channel(
+                    poker_channel_name(
+                        interaction.user.display_name,
+                        interaction.user.id,
+                    ),
+                    overwrites=overwrites,
+                    category=category,
+                    topic=(
+                        f"Временный Texas Hold'em · хост {interaction.user} · "
+                        f"макс. ставка {max_bet} · бай-ин {max_bet * 5}"
+                    ),
+                    reason="Создан временный покерный стол",
+                )
+                await interaction.edit_original_response(
+                    content="⏳ Канал готов. Загружаю фон, карты и создаю стол…"
+                )
+                table = DiscordPokerTable(
+                    self,
+                    guild_id=interaction.guild_id,
+                    channel_id=temporary_channel.id,
+                    host_id=interaction.user.id,
+                    max_bet=max_bet,
+                )
+                notice = await table.seat_member(interaction.user)
+                if not notice.ok:
+                    await temporary_channel.delete(
+                        reason="Хост не смог внести бай-ин"
+                    )
+                    await interaction.edit_original_response(content=notice.text)
+                    return
+                self.tables[table.key] = table
+                table.schedule_join_timeout()
+                await table.send_initial(temporary_channel)
+            except (discord.Forbidden, discord.HTTPException) as error:
+                LOGGER.exception("Failed to create private Hold'em channel")
+                if table:
+                    self.tables.pop(table.key, None)
+                    table.cancel_lobby_tasks()
+                    if table.player_by_id(interaction.user.id):
+                        await table._change_cash(interaction.user.id, table.buy_in)
+                if temporary_channel:
+                    try:
+                        await temporary_channel.delete(
+                            reason="Ошибка создания покерного стола"
+                        )
+                    except discord.HTTPException:
+                        pass
+                await interaction.edit_original_response(
+                    content=(
+                        "Не удалось создать временный канал или отправить стол. "
+                        "Проверьте права бота: **Управлять каналами**, "
+                        "**Просматривать канал**, **Отправлять сообщения** и "
+                        "**Прикреплять файлы**."
+                    )
                 )
                 return
-
-            table = DiscordPokerTable(
-                self,
-                guild_id=interaction.guild_id,
-                channel_id=interaction.channel_id,
-                host_id=interaction.user.id,
-                max_bet=max_bet,
-            )
-            notice = await table.seat_member(interaction.user)
-            if not notice.ok:
-                await interaction.followup.send(notice.text, ephemeral=True)
-                return
-            self.tables[key] = table
-            table.schedule_join_timeout()
-            try:
-                await table.send_initial(interaction.channel)
             except Exception:
-                self.tables.pop(key, None)
-                table.cancel_lobby_tasks()
-                await table._change_cash(interaction.user.id, table.buy_in)
-                table.players.clear()
-                table.closed = True
-                raise
+                LOGGER.exception("Unexpected Hold'em table creation failure")
+                if table:
+                    self.tables.pop(table.key, None)
+                    table.cancel_lobby_tasks()
+                    if table.player_by_id(interaction.user.id):
+                        await table._change_cash(interaction.user.id, table.buy_in)
+                if temporary_channel:
+                    try:
+                        await temporary_channel.delete(
+                            reason="Ошибка создания покерного стола"
+                        )
+                    except discord.HTTPException:
+                        pass
+                await interaction.edit_original_response(
+                    content=(
+                        "Стол не создался из-за внутренней ошибки. Деньги не списаны "
+                        "или уже возвращены. Подробности записаны в лог бота."
+                    )
+                )
+                return
 
         text = (
             f"{notice.text}\n"
             f"Максимальная ставка: **{table.max_bet}**, бай-ин: **{table.buy_in}**.\n"
-            f"Стол создан: {table.message.jump_url}"
+            f"Приватный стол создан: {table.message.jump_url}\n"
+            "Другие игроки входят через «Присоединиться к существующему»."
         )
-        await interaction.followup.send(text, ephemeral=True)
+        await interaction.edit_original_response(content=text)
 
     async def show_joinable_tables(self, interaction: discord.Interaction) -> None:
         existing_membership = next(
@@ -934,9 +1102,13 @@ class HoldemCog(commands.Cog):
                             await table._change_cash(player.user_id, refund)
                     table.players.clear()
                     table.closed = True
+                    table.cancel_lobby_tasks()
                     self.tables.pop(table.key, None)
                 else:
                     await table.close(table.host_id)
+                await table.delete_channel(
+                    "Покерный стол закрыт при перезагрузке бота"
+                )
             except Exception:
                 LOGGER.exception("Failed to refund a closing Hold'em table")
 

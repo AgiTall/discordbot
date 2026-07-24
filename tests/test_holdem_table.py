@@ -6,7 +6,9 @@ from cogs.holdem import (
     DEFAULT_BUY_IN,
     DiscordPokerTable,
     PokerMenuView,
+    PokerTableView,
     blind_structure,
+    poker_channel_name,
 )
 
 
@@ -181,6 +183,23 @@ class PokerLobbyContractTests(unittest.TestCase):
     def test_blinds_scale_with_maximum_bet(self):
         self.assertEqual((1, 1), blind_structure(5))
         self.assertEqual((10, 20), blind_structure(200))
+
+    def test_temporary_channel_name_is_safe_and_identifiable(self):
+        self.assertEqual(
+            "poker-arthur-morgan-2345",
+            poker_channel_name("Arthur Morgan!", 12345),
+        )
+
+    def test_private_table_has_no_redundant_join_button(self):
+        cog = FakeCog()
+        table = DiscordPokerTable(
+            cog,
+            guild_id=10,
+            channel_id=20,
+            host_id=1,
+        )
+        labels = [item.label for item in PokerTableView(table).children]
+        self.assertNotIn("Сесть за стол", labels)
 
 
 if __name__ == "__main__":
