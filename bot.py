@@ -1066,13 +1066,12 @@ def format_balance_role_sections(guild, member, account):
             elif role_key == BOUNTY_ROLE_KEY:
                 bounty = get_bounty_account(account)
                 status = (
-                    f"ур. {bounty['level']}, поймано {format_integer(bounty['captures'])}, "
+                    f"поймано {format_integer(bounty['captures'])}, "
                     f"сбежало {format_integer(bounty['escaped'])}"
                 )
             elif role_key == NATURALIST_ROLE_KEY:
                 naturalist = get_naturalist_account(account)
                 status = (
-                    f"ур. {naturalist['level']}, "
                     f"образцов {format_integer(count_naturalist_samples(naturalist))}"
                 )
             elif role_key == "miner":
@@ -1082,7 +1081,7 @@ def format_balance_role_sections(guild, member, account):
                 unique = sum(progress(collector, key)[0] for key in COLLECTIONS)
                 total = sum(len(items) for items in COLLECTION_ITEMS.values())
                 status = (
-                    f"ур. {collector['level']}, находок {total_items(collector)}, "
+                    f"находок {total_items(collector)}, "
                     f"уникальных {unique}/{total}, наборов продано {collector['sets_sold']}"
                 )
             else:
@@ -1700,8 +1699,8 @@ def get_role_command_hint(role_key):
     if role_key == "miner":
         return (
             "\n\nКоманда шахтёра:\n"
-            "`/mine` — открыть единое меню шахты: копка, инвентарь, лавка, "
-            "продажа, кузнец и ювелир (5 попыток в день)."
+            "`/mine` — копать и одной кнопкой продавать всю добычу "
+            "(5 попыток в день)."
         )
     return ""
 
@@ -2594,7 +2593,7 @@ class RoleBuyButton(discord.ui.Button):
         await buy_game_role(interaction, self.role_key)
 class RoleShopView(discord.ui.View):
     def __init__(self, guild, member=None, account=None):
-        super().__init__(timeout=600)
+        super().__init__(timeout=None)
         for role_definition in ROLE_DEFINITIONS:
             self.add_item(RoleBuyButton(role_definition, guild, member, account))
 
@@ -2673,10 +2672,10 @@ def build_help_pages(is_admin):
             "`/roles` — список профессий с описаниями и кнопками покупки.\n"
             "`/dealer` / `/dealer-delivery` — заполнение и доставка повозки торговца.\n"
             "`/moonshine` — варка и продажа самогона, прокачка аппарата.\n"
-            "`/bounty` — контракты и доска охотников в одном меню.\n"
-            "`/naturalist` — справочник животных и сбор образцов.\n"
-            "`/mine` — шахта, инвентарь, лавка, кузнец и ювелир.\n"
-            "`/collector` — поиск редкостей, наборы и инструменты."
+            "`/bounty` — взять автоматически подобранный контракт.\n"
+            "`/naturalist` — найти или сдать образцы.\n"
+            "`/mine` — копать и продать всю добычу.\n"
+            "`/collector` — искать находки и продать всё."
         ),
         inline=False,
     )
@@ -2765,8 +2764,8 @@ def build_help_pages(is_admin):
         name="Торговля и ремесло",
         value=(
             "Кнопка **Продать** — продать ресурсы и украшения в факторию.\n"
-            "Кнопка **Кузнец** — переплавить руду в слитки.\n"
-            "Кнопка **Ювелир** — создать украшение из слитка и самоцвета."
+            "Кнопка **Копать** — добыть руду или редкую находку.\n"
+            "Кнопка **Продать всё** — сразу продать весь запас."
         ),
         inline=False,
     )
@@ -3056,11 +3055,12 @@ async def deliver_moonshine_batch(interaction):
         interaction,
         "Повозка едет...",
         embed,
+        view=MoonshineMainView(interaction.user.id),
     )
 
 
 class MoonshineOwnerView(discord.ui.View):
-    def __init__(self, user_id, timeout=600):
+    def __init__(self, user_id, timeout=None):
         super().__init__(timeout=timeout)
         self.user_id = user_id
 
@@ -3090,6 +3090,26 @@ class MoonshineOwnerView(discord.ui.View):
             )
         except discord.HTTPException:
             pass
+
+
+class MoonshineBackButton(discord.ui.Button):
+    def __init__(self, row=1):
+        super().__init__(
+            label="Назад",
+            emoji="↩️",
+            style=discord.ButtonStyle.secondary,
+            row=row,
+        )
+
+    async def callback(self, interaction):
+        async with economy_lock:
+            account = get_account(interaction.user.id)
+            embed = build_moonshine_embed(interaction.guild, account)
+            save_economy()
+        await interaction.response.edit_message(
+            embed=embed,
+            view=MoonshineMainView(interaction.user.id),
+        )
 
 
 class MoonshineMashSelect(discord.ui.Select):
@@ -3186,6 +3206,7 @@ class MoonshineMashSelect(discord.ui.Select):
             interaction,
             "Перегонка идёт...",
             embed,
+            view=MoonshineMainView(interaction.user.id),
             ephemeral=True,
         )
 
@@ -3194,6 +3215,7 @@ class MoonshineMashView(MoonshineOwnerView):
     def __init__(self, user_id, moonshine):
         super().__init__(user_id)
         self.add_item(MoonshineMashSelect(moonshine))
+        self.add_item(MoonshineBackButton())
 
 
 class MoonshineSpecialSelect(discord.ui.Select):
@@ -3335,6 +3357,7 @@ class MoonshineSpecialSelect(discord.ui.Select):
             interaction,
             "Марсель колдует над котлом...",
             embed,
+            view=MoonshineMainView(interaction.user.id),
             ephemeral=True,
         )
 
@@ -3343,9 +3366,14 @@ class MoonshineSpecialView(MoonshineOwnerView):
     def __init__(self, user_id, moonshine):
         super().__init__(user_id)
         self.add_item(MoonshineSpecialSelect(moonshine))
+        self.add_item(MoonshineBackButton())
 
 
 class MoonshineUpgradeView(MoonshineOwnerView):
+    def __init__(self, user_id):
+        super().__init__(user_id)
+        self.add_item(MoonshineBackButton())
+
     @discord.ui.button(label="Конденсатор $825", style=discord.ButtonStyle.success)
     async def condenser_button(self, interaction, button):
         if not interaction.response.is_done():
@@ -3380,6 +3408,7 @@ class MoonshineUpgradeView(MoonshineOwnerView):
         await send_interaction_response(
             interaction,
             "Конденсатор куплен. Открыт самогон **2 уровня**.",
+            view=MoonshineMainView(interaction.user.id),
             ephemeral=True,
         )
 
@@ -3425,6 +3454,7 @@ class MoonshineUpgradeView(MoonshineOwnerView):
         await send_interaction_response(
             interaction,
             "Медный дистиллятор куплен. Открыт самогон **3 уровня**.",
+            view=MoonshineMainView(interaction.user.id),
             ephemeral=True,
         )
 

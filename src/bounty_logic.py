@@ -143,22 +143,27 @@ def condition_chance_bonus(condition: float) -> int:
     return -8
 
 
-def calculate_catch_chance(target_key: str, shot: dict, level: int) -> int:
-    """Рассчитывает итоговый шанс поимки (%) с учётом оружия, патронов и уровня."""
+def calculate_catch_chance(target_key: str, shot: dict, level: int = 1) -> int:
+    """Рассчитывает итоговый шанс без привязки к уровню профессии."""
     target = BOUNTY_TARGETS[target_key]
     base = target["base_chance"]
 
     weapon_bonus = WEAPON_CLASS_CHANCE_BONUS.get(shot["class"], 5)
     ammo_bonus = AMMO_CHANCE_BONUS.get(shot["ammo_type"], 0)
     cond_bonus = condition_chance_bonus(shot["condition_before"])
-    level_bonus = level // 5  # +1% за каждые 5 уровней
-
-    total = base + weapon_bonus + ammo_bonus + cond_bonus + level_bonus
+    total = base + weapon_bonus + ammo_bonus + cond_bonus
     return max(5, min(95, total))  # ограничиваем 5–95%
 
 
 def bounty_level_cap(bounty):
     return BOUNTY_MAX_LEVEL if bounty.get("prestigious_license") else BOUNTY_BASE_MAX_LEVEL
+
+
+def simple_bounty_target_key(bounty):
+    """Return the best contract tier; profession levels do not gate contracts."""
+    if bounty.get("prestigious_license"):
+        return "legendary"
+    return "expensive"
 
 
 def roll_bounty_contract(target_key, rng=None):
@@ -245,11 +250,7 @@ def get_bounty_cooldown(bounty):
 
 def format_bounty_short(account):
     bounty = get_bounty_account(account)
-    needed = xp_for_next_level(bounty["level"], 140)
-    return (
-        f"уровень {bounty['level']}, опыт {bounty['xp']}/{needed}, "
-        f"поймано {format_integer(bounty['captures'])}"
-    )
+    return f"поймано {format_integer(bounty['captures'])}"
 
 
 def get_bounty_image_file():
@@ -263,37 +264,26 @@ def build_bounty_embed(guild, account):
     role_definition = get_role_definition(BOUNTY_ROLE_KEY)
     role = find_guild_role(guild, role_definition)
     icon = get_role_icon(role_definition, role)
-    needed = xp_for_next_level(bounty["level"], 140)
-    level_cap = bounty_level_cap(bounty)
     cooldown = get_bounty_cooldown(bounty)
     cooldown_text = "готов к контракту" if cooldown <= 0 else format_duration(cooldown)
 
-    # Показываем шансы поимки для ориентира (без учёта оружия — базовые)
-    chances_lines = []
-    for key, t in BOUNTY_TARGETS.items():
-        count_min, count_max = t["target_count"]
-        chances_lines.append(
-            f"├─ {t['label']}: **{count_min}–{count_max} целей**, "
-            f"**${t['reward_min']:g}–{t['reward_max']:g}**, "
-            f"**{format_gold(t['gold'])}**, **{t['xp']} XP**"
-        )
-    chances_lines[-1] = chances_lines[-1].replace("├─", "└─")
+    target = BOUNTY_TARGETS[simple_bounty_target_key(bounty)]
+    count_min, count_max = target["target_count"]
 
     embed = discord.Embed(
         title=f"{icon} Охотник за головами",
         description=(
-            "Выберите уровень преступника. Шанс поимки зависит от вашего **оружия** и **патронов**.\n\n"
+            "Нажмите **«Взять контракт»** — подходящая цель выбирается автоматически.\n\n"
             f"{EMOJI_LIST} Прогресс\n"
-            f"├─ Уровень: **{bounty['level']}/{level_cap}**\n"
-            f"├─ Опыт: **{bounty['xp']}/{needed}**\n"
             f"├─ Поймано: **{format_integer(bounty['captures'])}**\n"
             f"├─ Сбежало: **{format_integer(bounty['escaped'])}**\n"
             f"└─ Кулдаун: **{cooldown_text}**\n\n"
-            f"{EMOJI_TROPHY} Лицензия и снаряжение\n"
-            f"├─ Знаменитая лицензия: **{'куплена' if bounty['prestigious_license'] else 'не куплена'}**\n"
-            f"└─ Тюремный фургон: **{'куплен' if bounty['has_bounty_wagon'] else 'не куплен'}**\n\n"
-            f"{EMOJI_WEAPON} Контракты\n"
-            + "\n".join(chances_lines)
+            f"{EMOJI_TROPHY} Улучшение\n"
+            f"└─ Знаменитая лицензия: **{'куплена' if bounty['prestigious_license'] else 'не куплена'}**\n\n"
+            f"{EMOJI_WEAPON} Текущий контракт\n"
+            f"└─ {target['label']}: **{count_min}–{count_max} целей**, "
+            f"**${target['reward_min']:g}–{target['reward_max']:g}**, "
+            f"**{format_gold(target['gold'])}**"
         ),
         color=discord.Color.dark_gold(),
     )

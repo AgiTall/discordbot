@@ -366,7 +366,6 @@ class AdminCog(commands.Cog):
                 embed.add_field(
                     name="Охотник",
                     value=(
-                        f"Ур. **{bounty['level']}**, XP **{bounty['xp']}**\n"
                         f"Поймано/сбежало: **{bounty['captures']}/{bounty['escaped']}**\n"
                         f"Контракт: **{_ready_text(get_bounty_cooldown(bounty))}**"
                     ),
@@ -375,7 +374,6 @@ class AdminCog(commands.Cog):
                 embed.add_field(
                     name="Натуралист",
                     value=(
-                        f"Ур. **{naturalist['level']}**, XP **{naturalist['xp']}**\n"
                         f"Образцы: **{count_naturalist_samples(naturalist)}** · "
                         f"транквилизаторы: **{naturalist['inventory']['tranquilizers']}**\n"
                         f"Охота: **{_ready_text(get_naturalist_sample_cooldown(naturalist))}** · "
@@ -386,8 +384,7 @@ class AdminCog(commands.Cog):
                 embed.add_field(
                     name="Коллекционер",
                     value=(
-                        f"Ур. **{collector['level']}**, XP **{collector['xp']}** · "
-                        f"находок: **{collector_total_items(collector)}**\n"
+                        f"Находок: **{collector_total_items(collector)}**\n"
                         f"Карт: **{sum(collector['maps'].values())}** · "
                         f"лопата: **{'да' if collector['tools']['shovel'] else 'нет'}** · "
                         f"металлоискатель: **{'да' if collector['tools']['detector'] else 'нет'}**"
@@ -484,48 +481,30 @@ class AdminCog(commands.Cog):
             ephemeral=True,
         )
 
-    @admin.command(name="progress", description="Установить уровень и опыт игрока")
+    @admin.command(name="progress", description="Установить общий уровень и опыт игрока")
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
         member="Участник",
-        profession="Общий ранг или профессия",
-        level="Новый уровень",
-        xp="Опыт: общий для ранга, текущий для профессии",
+        level="Новый общий уровень",
+        xp="Общий опыт",
     )
-    @app_commands.choices(profession=PROGRESS_CHOICES)
     async def progress(
         self,
         interaction: discord.Interaction,
         member: discord.Member,
-        profession: app_commands.Choice[str],
         level: app_commands.Range[int, 1, 1000],
         xp: app_commands.Range[int, 0, 2_000_000_000] = 0,
     ):
         await interaction.response.defer(ephemeral=True)
-        selected = profession.value
-        if selected == "rank":
-            leveling_cog = self.bot.get_cog("LevelingCog")
-            if not leveling_cog:
-                await interaction.followup.send("Модуль уровней не загружен.", ephemeral=True)
-                return
-            leveling_cog.db.set_user(str(interaction.guild_id), str(member.id), xp, level)
-            await leveling_cog.handle_level_up(member, level, notify=False)
-            actual_level, actual_xp = level, xp
-            label = "Общий ранг"
-        else:
-            token = set_economy_guild_id(interaction.guild_id)
-            try:
-                async with economy_lock:
-                    account = get_account(member.id)
-                    data = set_profession_progress(account, selected, level, xp)
-                    save_economy()
-                    actual_level, actual_xp = data["level"], data["xp"]
-            finally:
-                reset_economy_guild_id(token)
-            label = PROFESSION_NAMES[selected]
+        leveling_cog = self.bot.get_cog("LevelingCog")
+        if not leveling_cog:
+            await interaction.followup.send("Модуль уровней не загружен.", ephemeral=True)
+            return
+        leveling_cog.db.set_user(str(interaction.guild_id), str(member.id), xp, level)
+        await leveling_cog.handle_level_up(member, level, notify=False)
 
         await interaction.followup.send(
-            f"{member.mention}: **{label}** — уровень **{actual_level}**, XP **{actual_xp}**.",
+            f"{member.mention}: **Общий ранг** — уровень **{level}**, XP **{xp}**.",
             ephemeral=True,
         )
 

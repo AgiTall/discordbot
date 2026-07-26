@@ -120,6 +120,27 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertIn("get_jewelry_emoji", miner)
         self.assertIn("price_each = get_item_price(item)", miner)
 
+    def test_miner_shop_does_not_put_custom_money_markup_in_select_labels(self):
+        miner = (ROOT / "cogs" / "miner.py").read_text(encoding="utf-8")
+        shop = miner[miner.index("def _shop_options"):miner.index("async def _open_miner_shop")]
+        self.assertIn("${info['price']:g}", shop)
+        self.assertNotIn("get_cash_emoji", shop)
+        self.assertIn("MinerRestockButton", miner)
+
+    def test_profession_submenus_keep_a_return_path(self):
+        miner = (ROOT / "cogs" / "miner.py").read_text(encoding="utf-8")
+        bounty = (ROOT / "cogs" / "bounty.py").read_text(encoding="utf-8")
+        naturalist = (ROOT / "cogs" / "naturalist.py").read_text(encoding="utf-8")
+        collector = (ROOT / "cogs" / "collector.py").read_text(encoding="utf-8")
+        bot = (ROOT / "bot.py").read_text(encoding="utf-8")
+
+        self.assertIn("timeout=None", miner)
+        self.assertIn("timeout=None", bounty)
+        self.assertIn("NaturalistBackButton", naturalist)
+        self.assertIn('label="В меню"', collector)
+        self.assertIn("MoonshineBackButton", bot)
+        self.assertIn("view=MoonshineMainView(interaction.user.id)", bot)
+
     def test_mine_acknowledges_interaction_before_database_work(self):
         miner = (ROOT / "cogs" / "miner.py").read_text(encoding="utf-8")
         command = miner[miner.index("async def mine_cmd"):]
@@ -143,14 +164,15 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertIn('message.content or ""', handler)
         self.assertIn("await message.add_reaction", handler)
 
-    def test_bounty_leaderboard_lives_inside_bounty_menu(self):
+    def test_bounty_menu_uses_one_automatic_contract(self):
         bounty_path = ROOT / "cogs" / "bounty.py"
         names = registered_command_names(bounty_path)
         source = bounty_path.read_text(encoding="utf-8")
         self.assertIn("bounty", names)
         self.assertNotIn("bounty-leaderboard", names)
-        self.assertIn("class BountyLeaderboardButton", source)
-        self.assertIn("has_usable_ammo(account, CATALOG_ITEMS)", source)
+        self.assertIn('target_button.label = "Взять контракт"', source)
+        self.assertIn("simple_bounty_target_key(bounty)", source)
+        self.assertNotIn("has_usable_ammo(account, CATALOG_ITEMS)", source)
 
     def test_weapon_menu_acknowledges_buttons_before_database_work(self):
         catalog = (ROOT / "cogs" / "catalog.py").read_text(encoding="utf-8")

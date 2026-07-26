@@ -113,6 +113,28 @@ def progress(data, collection):
 
 def total_items(data): return sum(data["inventory"].values())
 
+
+def simple_search_collections(data):
+    """All collections are available immediately."""
+    return tuple(COLLECTIONS)
+
+
+def sell_all_collections(data):
+    """Sell every full set first, then all remaining individual items."""
+    reward = 0
+    count = 0
+    sets = 0
+    for key in COLLECTIONS:
+        while complete_sets(data, key):
+            reward += sell_set(data, key)
+            count += len(COLLECTION_ITEMS[key])
+            sets += 1
+        sold_count, sold_reward = sell_individual_items(data, key)
+        count += sold_count
+        reward += sold_reward
+    return {"count": count, "sets": sets, "reward": reward}
+
+
 def complete_sets(data, collection):
     items = COLLECTION_ITEMS[collection]
     return min((data["inventory"].get(x, 0) for x in items), default=0)
@@ -132,10 +154,6 @@ def sell_individual_items(data, collection):
     return count, count * unit_price
 
 def begin_search(data, collection):
-    rule = COLLECTIONS[collection]
-    if data["level"] < rule["level"]: return {"error": "level", "required": rule["level"]}
-    missing = [x for x in rule["tools"] if not data["tools"].get(x)]
-    if missing: return {"error": "tools", "missing": missing}
     if data["maps"].get(collection, 0) < 1: return {"error": "map"}
     data["maps"][collection] -= 1
     return {"ready": True}
@@ -144,7 +162,4 @@ def grant_find(data, collection, rng=None):
     rng = rng or random
     item = rng.choice(COLLECTION_ITEMS[collection])
     data["inventory"][item] = data["inventory"].get(item, 0) + 1
-    xp = rng.randint(12, 22); data["xp"] += xp; levels = 0
-    while data["level"] < 20 and data["xp"] >= data["level"] * 100:
-        data["xp"] -= data["level"] * 100; data["level"] += 1; levels += 1
-    return {"found": True, "item": item, "quantity": data["inventory"][item], "xp": xp, "levels": levels}
+    return {"found": True, "item": item, "quantity": data["inventory"][item], "xp": 0, "levels": 0}

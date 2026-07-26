@@ -45,6 +45,8 @@ from src.mine_logic import (
     get_jewelry_emoji,
     get_item_name,
     get_item_price,
+    sell_all_inventory,
+    depleted_shop_items,
 )
 
 from bot import (
@@ -159,20 +161,14 @@ def build_main_embed(player: dict, account: dict, guild) -> discord.Embed:
     pickaxe = PICKAXES.get(player.get("pickaxe_type", "basic"), PICKAXES["basic"])
     dur = player.get("pickaxe_durability", 0)
     max_dur = pickaxe["max_durability"]
-    dbar = durability_bar(dur, max_dur)
     cash_e = get_cash_emoji()
 
     desc = (
         f"**Глубина:** {player['current_depth']} м · _{layer['name']}_\n"
-        f"**Баланс:** {account['cash']} {cash_e}\n\n"
-        f"**Инструмент:** {pickaxe['name']}\n"
-        f"`{dbar}`\n\n"
-        f"**Расходники:**\n"
-        f"🪔 Масло: **{player.get('oil_units', 0)}** фл."
-        f" · 🪵 Лес: **{player.get('wood_count', 0)}** бр."
-        f" · 💣 Динамит: **{player.get('dynamite_count', 0)}** пт."
-        f" · 🐦 Канарейки: **{player.get('canary_count', 0)}** шт.\n\n"
-        f"**Попытки сегодня:** {player['daily_mines_left']} / {DAILY_MINE_LIMIT}"
+        f"**Баланс:** {account['cash']} {cash_e}\n"
+        f"**Добыто всего:** {player.get('total_mined', 0)}\n"
+        f"**Попытки сегодня:** {player['daily_mines_left']} / {DAILY_MINE_LIMIT}\n\n"
+        "Копайте одной кнопкой, а затем продавайте весь запас сразу."
     )
     return build_mine_embed(f"{EMOJI_MINE_DIG} Шахта Аннесберга", desc, with_image=True)
 
@@ -182,7 +178,7 @@ def build_main_embed(player: dict, account: dict, guild) -> discord.Embed:
 # ─────────────────────────────────────────────────
 
 class MinerOwnerView(discord.ui.View):
-    def __init__(self, bot, db: MineDB, user_id: int, gid: str, uid: str, timeout=600):
+    def __init__(self, bot, db: MineDB, user_id: int, gid: str, uid: str, timeout=None):
         super().__init__(timeout=timeout)
         self.bot = bot
         self.db = db
@@ -251,6 +247,12 @@ def _make_back_only_view(bot, db, user_id, gid, uid):
 class MineResultView(MinerOwnerView):
     """Result screen keeps the primary action available without a detour home."""
 
+    def __init__(self, bot, db, user_id, gid, uid, depleted_items=None):
+        super().__init__(bot, db, user_id, gid, uid)
+        depleted_items = list(depleted_items or ())
+        if depleted_items:
+            self.add_item(MinerRestockButton(depleted_items))
+
     @discord.ui.button(label="Копать ещё", emoji=EMOJI_MINE_DIG, style=discord.ButtonStyle.primary, row=0)
     async def dig_again_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await _do_mine(interaction, self.db, self.gid, self.uid, self.bot)
@@ -258,6 +260,88 @@ class MineResultView(MinerOwnerView):
     @discord.ui.button(label="К меню шахты", emoji=EMOJI_MINE_BACK, style=discord.ButtonStyle.secondary, row=0)
     async def menu_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await _go_back_to_main(interaction, self.db, self.gid, self.uid, self.bot)
+
+
+class MinerRestockButton(discord.ui.Button):
+    def __init__(self, item_keys):
+        self.item_keys = item_keys
+        names = ", ".join(SHOP_ITEMS[key]["name"] for key in item_keys)
+        super().__init__(
+            label=f"Купить: {names}"[:80],
+            emoji=EMOJI_MINE_BUY,
+            style=discord.ButtonStyle.success,
+            row=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        await _open_miner_shop(
+            interaction,
+            view.bot,
+            view.db,
+            view.user_id,
+            view.gid,
+            view.uid,
+            item_keys=self.item_keys,
+            return_to_mine=True,
+        )
+
+
+def _shop_options(item_keys=None):
+    keys = item_keys or SHOP_ITEMS.keys()
+    item_emojis = {
+        "oil": "🪔",
+        "wood": "🪵",
+        "dynamite": "💣",
+        "canary": "🐦",
+        "pickaxe_steel": "⛏️",
+        "pickaxe_putilov": "⛏️",
+    }
+    options = []
+    for key in keys:
+        info = SHOP_ITEMS[key]
+        # Discord select labels/descriptions are plain text: custom emoji
+        # markup such as <:money:...> is shown literally there.
+        label = f"{info['name']} — ${info['price']:g}/{info['unit']}"
+        options.append(discord.SelectOption(
+            label=label[:100],
+            value=key,
+            description=info.get("description", "")[:100],
+            emoji=item_emojis.get(key),
+        ))
+    return options
+
+
+async def _open_miner_shop(
+    interaction,
+    bot,
+    db,
+    user_id,
+    gid,
+    uid,
+    *,
+    item_keys=None,
+    return_to_mine=False,
+):
+    options = _shop_options(item_keys)
+    description = (
+        "Запас закончился во время копания. Купите нужное и продолжайте работу."
+        if return_to_mine
+        else "Выберите товар для покупки. Кирки заменяют текущую."
+    )
+    embed = build_mine_embed(
+        f"{EMOJI_MINE_BUY} Лавка шахтёра",
+        description,
+        with_image=True,
+    )
+    view = MinerBuyView(
+        bot, db, user_id, gid, uid, options, return_to_mine=return_to_mine
+    )
+    image = get_miner_image_file()
+    if image:
+        await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
+    else:
+        await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
 
 # ─────────────────────────────────────────────────
@@ -282,14 +366,21 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
         return
 
     if player["pickaxe_durability"] <= 0:
-        embed = build_mine_embed(
-            "🔧 Сломанный инструмент",
-            f"Инструмент сломан — работать невозможно.\nКупите новую через кнопку **{EMOJI_MINE_BUY} Купить**.",
-            color=discord.Color.dark_red(),
+        # The simplified loop always provides a free basic tool.
+        player["pickaxe_type"] = "basic"
+        player["pickaxe_durability"] = PICKAXES["basic"]["max_durability"]
+
+    stock_before = {
+        field: player.get(field, 0)
+        for field in (
+            "oil_units",
+            "wood_count",
+            "dynamite_count",
+            "canary_count",
+            "pickaxe_durability",
+            "pickaxe_type",
         )
-        view = _make_back_only_view(bot, db, interaction.user.id, gid, uid)
-        await interaction.response.edit_message(embed=embed, view=view, attachments=[])
-        return
+    }
 
     has_oil = player.get("oil_units", 0) > 0
     new_total = player.get("total_mined", 0) + 1
@@ -378,7 +469,12 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
         lines.append(f"🪔 Масло: **{oil_left}** фл. — скоро кончится.")
 
     embed = build_mine_embed(f"{EMOJI_MINE_DIG} Забой Аннесберга", "\n".join(lines), color=color)
-    view = MineResultView(bot, db, interaction.user.id, gid, uid)
+    depleted = depleted_shop_items(stock_before, player)
+    if depleted:
+        names = ", ".join(SHOP_ITEMS[key]["name"] for key in depleted)
+        lines.append(f"{EMOJI_MINE_BUY} Закончились: **{names}** — можно купить ниже.")
+        embed.description = "\n".join(lines)
+    view = MineResultView(bot, db, interaction.user.id, gid, uid, depleted)
     await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
 
@@ -389,6 +485,8 @@ async def _do_mine(interaction: discord.Interaction, db: MineDB, gid: str, uid: 
 class MinerMainView(MinerOwnerView):
     def __init__(self, bot, db, user_id, gid, uid):
         super().__init__(bot, db, user_id, gid, uid)
+        for item in (self.smelt_button, self.forge_button):
+            self.remove_item(item)
 
     @discord.ui.button(label="Копать", emoji=EMOJI_MINE_DIG, style=discord.ButtonStyle.primary, row=0)
     async def dig_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -396,65 +494,40 @@ class MinerMainView(MinerOwnerView):
 
     @discord.ui.button(label="Купить", emoji=EMOJI_MINE_BUY, style=discord.ButtonStyle.secondary, row=0)
     async def buy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        cash_e = get_cash_emoji()
-        options = []
-        for key, info in SHOP_ITEMS.items():
-            label = f"{info['name']} — {info['price']} {cash_e}/{info['unit']}"
-            options.append(discord.SelectOption(
-                label=label[:100],
-                value=key,
-                description=info.get("description", "")[:100],
-            ))
-        embed = build_mine_embed(
-            f"{EMOJI_MINE_BUY} Лавка шахтёра",
-            "Выберите товар для покупки. Кирки заменяют текущую.",
-            with_image=True,
+        await _open_miner_shop(
+            interaction, self.bot, self.db, self.user_id, self.gid, self.uid
         )
-        view = MinerBuyView(self.bot, self.db, self.user_id, self.gid, self.uid, options)
-        image = get_miner_image_file()
-        if image:
-            await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
-        else:
-            await interaction.response.edit_message(embed=embed, view=view, attachments=[])
 
-    @discord.ui.button(label="Продать", emoji=EMOJI_MINE_SELL, style=discord.ButtonStyle.success, row=1)
+    @discord.ui.button(label="Продать всё", emoji=EMOJI_MINE_SELL, style=discord.ButtonStyle.success, row=0)
     async def sell_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         player = self.db.get_player(self.gid, self.uid)
-        inv = player.get("inventory", {})
-        cash_e = get_cash_emoji()
-        options = []
-        for key, qty in inv.items():
-            if not isinstance(qty, int) or qty <= 0:
-                continue
-            name = get_item_name(key)
-            if not name:
-                continue
-            price = get_item_price(key)
-            label = f"{name} ×{qty} — {price} {cash_e}/шт."
-            emoji = get_jewelry_emoji(key) if key.startswith(JEWELRY_KEY_PREFIX) else None
-            options.append(discord.SelectOption(label=label[:100], value=key, emoji=emoji))
+        result = sell_all_inventory(player)
+        self.db.save_player(self.gid, self.uid, player)
 
-        if not options:
-            embed = build_mine_embed(
-                f"{EMOJI_MINE_SELL} Фактория",
-                "Инвентарь пуст — нечего продавать в факторию.",
-                color=discord.Color.dark_grey(),
-            )
-            back_view = _make_back_only_view(self.bot, self.db, self.user_id, self.gid, self.uid)
-            await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
-            return
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                account["cash"] += result["reward"]
+                save_economy()
+        finally:
+            reset_economy_guild_id(token)
 
-        embed = build_mine_embed(
-            f"{EMOJI_MINE_SELL} Фактория",
-            "Выберите предмет для продажи. Продаётся весь запас.",
-            with_image=True,
+        note = (
+            f"Продано **{result['count']}** предметов за "
+            f"**{result['reward']:g} {get_cash_emoji()}**."
+            if result["count"]
+            else "В шахтёрской сумке пока нечего продавать."
         )
-        view = MinerSellView(self.bot, self.db, self.user_id, self.gid, self.uid, options)
-        image = get_miner_image_file()
-        if image:
-            await interaction.response.edit_message(embed=embed, view=view, attachments=[image])
-        else:
-            await interaction.response.edit_message(embed=embed, view=view, attachments=[])
+        embed = build_main_embed(player, account, interaction.guild)
+        embed.description = f"{note}\n\n{embed.description}"
+        await interaction.response.edit_message(
+            embed=embed,
+            view=MinerMainView(
+                self.bot, self.db, self.user_id, self.gid, self.uid
+            ),
+            attachments=[],
+        )
 
     @discord.ui.button(label="Кузнец", emoji=EMOJI_MINE_SMELT, style=discord.ButtonStyle.secondary, row=1)
     async def smelt_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -470,11 +543,11 @@ class MinerMainView(MinerOwnerView):
             ore_name = ORE_NAMES.get(ore_key, ore_key)
             if recipe.get("economy_gold"):
                 earned = batches * MINE_GOLD_TO_ECONOMY_RATE
-                desc = f"{ore_name} ×{qty} → {earned:.4g} золота (такса {recipe['fee'] * batches} {cash_e})"
+                desc = f"{ore_name} ×{qty} → {earned:.4g} золота (такса ${recipe['fee'] * batches:g})"
             else:
                 desc = (
                     f"{ore_name} ×{qty} → {batches}× {recipe['bar_name']}"
-                    f" (такса {recipe['fee'] * batches} {cash_e})"
+                    f" (такса ${recipe['fee'] * batches:g})"
                 )
             options.append(discord.SelectOption(
                 label=ore_name[:100],
@@ -524,7 +597,7 @@ class MinerMainView(MinerOwnerView):
             if qty <= 0:
                 continue
             gem_options.append(discord.SelectOption(
-                label=f"{gem['name']} ×{qty} — {gem['sell']} {cash_e}/шт.",
+                label=f"{gem['name']} ×{qty} — ${gem['sell']:g}/шт.",
                 value=gem_key,
             ))
 
@@ -605,7 +678,11 @@ class MinerBuySelect(discord.ui.Select):
                             f"Не хватает средств. Нужно **{cost} {cash_e}**, у вас **{account['cash']} {cash_e}**.",
                             color=discord.Color.dark_red(),
                         )
-                        back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                        back_view = (
+                            MineResultView(view.bot, view.db, view.user_id, gid, uid)
+                            if view.return_to_mine
+                            else _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                        )
                         await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
                         return
                     account["cash"] -= cost
@@ -625,7 +702,11 @@ class MinerBuySelect(discord.ui.Select):
                 f"Прочность: {pickaxe_data['max_durability']} ед.\n"
                 f"Остаток: **{bal} {cash_e}**.",
             )
-            back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            back_view = (
+                MineResultView(view.bot, view.db, view.user_id, gid, uid)
+                if view.return_to_mine
+                else _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+            )
             await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
@@ -642,7 +723,11 @@ class MinerBuySelect(discord.ui.Select):
                         f"Не хватает средств. Нужно **{total_cost} {cash_e}**, у вас **{account['cash']} {cash_e}**.",
                         color=discord.Color.dark_red(),
                     )
-                    back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                    back_view = (
+                        MineResultView(view.bot, view.db, view.user_id, gid, uid)
+                        if view.return_to_mine
+                        else _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+                    )
                     await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
                     return
                 account["cash"] -= total_cost
@@ -670,13 +755,18 @@ class MinerBuySelect(discord.ui.Select):
             f"Остаток: **{bal} {cash_e}**.\n\n"
             f"_{info['description']}_",
         )
-        back_view = _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+        back_view = (
+            MineResultView(view.bot, view.db, view.user_id, gid, uid)
+            if view.return_to_mine
+            else _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
+        )
         await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
 
 
 class MinerBuyView(MinerOwnerView):
-    def __init__(self, bot, db, user_id, gid, uid, options):
+    def __init__(self, bot, db, user_id, gid, uid, options, return_to_mine=False):
         super().__init__(bot, db, user_id, gid, uid)
+        self.return_to_mine = return_to_mine
         self.add_item(MinerBuySelect(options))
         self.add_item(BackToMainButton(row=1))
 
@@ -1073,7 +1163,7 @@ class MinerCog(commands.Cog, name="MinerCog"):
         else:
             await interaction.response.send_message(message, ephemeral=True)
 
-    @app_commands.command(name="mine", description="Шахтёр: открыть меню шахты")
+    @app_commands.command(name="mine", description="Шахтёр: копать и продавать добычу")
     async def mine_cmd(self, interaction: discord.Interaction):
         if interaction.guild is None:
             await interaction.response.send_message(

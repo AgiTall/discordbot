@@ -382,11 +382,7 @@ def format_naturalist_samples_short(naturalist):
 
 def format_naturalist_short(account):
     naturalist = get_naturalist_account(account)
-    needed = xp_for_next_level(naturalist["level"], 180)
-    return (
-        f"уровень {naturalist['level']}, опыт {naturalist['xp']}/{needed}, "
-        f"образцы: {format_naturalist_samples_short(naturalist)}"
-    )
+    return f"образцы: {format_naturalist_samples_short(naturalist)}"
 
 
 def has_full_naturalist_category(naturalist, region_key):
@@ -426,15 +422,9 @@ def build_naturalist_embed(guild, account, note=None, gear=None):
     role_definition = get_role_definition(NATURALIST_ROLE_KEY)
     role = find_guild_role(guild, role_definition)
     icon = get_role_icon(role_definition, role)
-    needed = xp_for_next_level(naturalist["level"], 180)
     sample_cooldown = get_naturalist_sample_cooldown(naturalist)
-    legendary_cooldown = get_naturalist_legendary_cooldown(naturalist)
     harriet_cooldown = get_harriet_anger_cooldown(naturalist)
     sample_cooldown_text = "готово" if sample_cooldown <= 0 else format_duration(sample_cooldown)
-    legendary_text = (
-        "доступно" if legendary_cooldown <= 0
-        else format_duration(legendary_cooldown)
-    )
     harriet_text = (
         "принимает посетителей"
         if harriet_cooldown <= 0
@@ -442,25 +432,15 @@ def build_naturalist_embed(guild, account, note=None, gear=None):
     )
     note_text = f"\n\n{note}" if note else ""
 
-    gear_text = build_gear_status(gear) if gear else (
-        "🔍 Откройте `/naturalist` для проверки снаряжения"
-    )
-
     embed = discord.Embed(
         title=f"{icon} Натуралист",
         description=(
-            "Собирайте образцы, сдавайте их Гарриет и закрывайте категории справочника.\n"
-            "Шанс поимки зависит от **снаряжения** в вашем loadout и инвентаре.\n\n"
+            "Найдите случайное животное, возьмите образец и сдайте его Гарриет.\n\n"
             "🌿 Прогресс\n"
-            f"├─ Уровень: **{naturalist['level']}/{NATURALIST_MAX_LEVEL}**\n"
-            f"├─ Опыт: **{naturalist['xp']}/{needed}**\n"
             f"├─ Образцы: **{count_naturalist_samples(naturalist)}**\n"
-            f"├─ Шкуры для Криппса: **{count_legendary_pelts(naturalist)}**\n"
             f"├─ Обычная охота: **{sample_cooldown_text}**\n"
-            f"├─ Легендарка: **{legendary_text}**\n"
             f"└─ Гарриет: **{harriet_text}**\n\n"
-            f"🎒 Снаряжение\n{gear_text}\n"
-            f"🏕️ Походный лагерь: **{'куплен' if naturalist['has_wilderness_camp'] else 'не куплен'}**"
+            "Снаряжение для обычного поиска выдаётся вместе с профессией."
             f"{note_text}"
         ),
         color=discord.Color.dark_green(),
@@ -477,7 +457,7 @@ def build_naturalist_collection_embed(naturalist):
         status = "готово к сдаче" if collected == total else f"{collected}/{total} штампов"
         lines.append(
             f"{region['emoji']} **{region['name']}** — {status} · "
-            f"{format_money(region['payout'])} + 1000 XP"
+            f"{format_money(region['payout'])}"
         )
     samples = format_naturalist_samples_short(naturalist)
     embed = build_bot_embed(
@@ -495,7 +475,7 @@ def build_naturalist_legendary_embed(naturalist):
     for animal_key, animal in LEGENDARY_ANIMALS.items():
         lines.append(
             f"**{animal['name']}** — "
-            f"сдача {format_money(animal['cash'])} + {animal['xp']} XP"
+            f"сдача {format_money(animal['cash'])}"
         )
     embed = build_bot_embed(
         "Легендарное животное",

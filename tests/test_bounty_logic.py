@@ -12,6 +12,7 @@ from src.bounty_logic import (
     bounty_level_cap,
     normalize_bounty_data,
     roll_bounty_contract,
+    simple_bounty_target_key,
 )
 
 
@@ -76,6 +77,16 @@ class BountyLogicTests(unittest.TestCase):
     def test_reference_equipment_prices(self):
         self.assertEqual(15.0, PRESTIGIOUS_LICENSE_PRICE)
         self.assertEqual(875.0, BOUNTY_WAGON_PRICE)
+
+    def test_simple_menu_has_no_profession_level_gate(self):
+        self.assertEqual("expensive", simple_bounty_target_key({"level": 1}))
+        self.assertEqual("expensive", simple_bounty_target_key({"level": 10}))
+        self.assertEqual(
+            "legendary",
+            simple_bounty_target_key(
+                {"level": 1, "prestigious_license": True}
+            ),
+        )
 
 
 if __name__ == "__main__":

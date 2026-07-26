@@ -6,6 +6,7 @@ from src.collector_logic import (
     COLLECTIONS, COLLECTION_ITEMS, COLLECTOR_PLANTS, DETECTOR_PRICE,
     SHOVEL_PRICE, begin_search, buy_plant, default_collector_data, grant_find,
     normalize_collector_data, progress, sell_individual_items, sell_set,
+    sell_all_collections, simple_search_collections,
 )
 
 class CollectorLogicTests(unittest.TestCase):
@@ -13,12 +14,9 @@ class CollectorLogicTests(unittest.TestCase):
         self.assertEqual(9, len(COLLECTIONS))
         self.assertTrue(all(COLLECTION_ITEMS[key] for key in COLLECTIONS))
 
-    def test_locked_tool_and_successful_search(self):
-        data = default_collector_data(); data["level"] = 20
+    def test_search_has_no_level_or_tool_gate(self):
+        data = default_collector_data()
         data["maps"]["fossils"] = 1
-        blocked = begin_search(data, "fossils")
-        self.assertEqual("tools", blocked["error"])
-        data["tools"] = {"shovel": True, "detector": True}
         self.assertTrue(begin_search(data, "fossils")["ready"])
         found = grant_find(data, "fossils", random.Random(1))
         self.assertTrue(found["found"])
@@ -80,5 +78,22 @@ class CollectorLogicTests(unittest.TestCase):
         self.assertEqual(3, buy_plant(data, "Олеандр"))
         with self.assertRaises(ValueError):
             buy_plant(data, "Одежда")
+
+    def test_simple_search_opens_every_collection_immediately(self):
+        data = default_collector_data()
+        self.assertEqual(set(COLLECTIONS), set(simple_search_collections(data)))
+
+    def test_sell_all_prioritizes_complete_sets(self):
+        data = default_collector_data()
+        for item in COLLECTION_ITEMS["flowers"]:
+            data["inventory"][item] = 1
+        extra = COLLECTION_ITEMS["tarot"][0]
+        data["inventory"][extra] = 2
+        result = sell_all_collections(data)
+        self.assertEqual(1, result["sets"])
+        self.assertEqual(len(COLLECTION_ITEMS["flowers"]) + 2, result["count"])
+        self.assertEqual({}, {
+            key: qty for key, qty in data["inventory"].items() if qty
+        })
 
 if __name__ == "__main__": unittest.main()

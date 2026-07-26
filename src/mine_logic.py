@@ -105,6 +105,13 @@ SHOP_ITEMS = {
     },
 }
 
+SHOP_STOCK_FIELDS = {
+    "oil": "oil_units",
+    "wood": "wood_count",
+    "dynamite": "dynamite_count",
+    "canary": "canary_count",
+}
+
 # ─────────────────────────────────────────────────
 #  СЛОИ ПОРОД
 # ─────────────────────────────────────────────────
@@ -708,6 +715,44 @@ def get_item_price(key: str) -> float:
     if key.startswith(JEWELRY_KEY_PREFIX):
         return get_jewelry_sell_price(key)
     return 0.0
+
+
+def sell_all_inventory(player: dict) -> dict:
+    """Sell every recognized item in a miner inventory in one operation."""
+    inventory = player.setdefault("inventory", {})
+    sold = 0
+    reward = 0.0
+    for key, quantity in list(inventory.items()):
+        if (
+            not isinstance(quantity, int)
+            or quantity <= 0
+            or not get_item_name(key)
+        ):
+            continue
+        sold += quantity
+        reward += quantity * get_item_price(key)
+        inventory[key] = 0
+    return {"count": sold, "reward": round(reward, 2)}
+
+
+def depleted_shop_items(before: dict, after: dict) -> list[str]:
+    """Return supplies/tools that were consumed completely by the last dig."""
+    depleted = []
+    for item, field in SHOP_STOCK_FIELDS.items():
+        if int(before.get(field, 0) or 0) > 0 and int(after.get(field, 0) or 0) <= 0:
+            depleted.append(item)
+    if (
+        int(before.get("pickaxe_durability", 0) or 0) > 0
+        and int(after.get("pickaxe_durability", 0) or 0) <= 0
+    ):
+        pickaxe_type = before.get("pickaxe_type")
+        replacement = (
+            f"pickaxe_{pickaxe_type}"
+            if f"pickaxe_{pickaxe_type}" in SHOP_ITEMS
+            else "pickaxe_steel"
+        )
+        depleted.append(replacement)
+    return depleted
 
 
 def roll_gem(depth: int, jewelry_bonus: float = 1.0):

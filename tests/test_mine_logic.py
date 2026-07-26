@@ -11,6 +11,8 @@ from src.mine_logic import (
     get_jewelry_name,
     get_jewelry_emoji,
     get_jewelry_sell_price,
+    depleted_shop_items,
+    sell_all_inventory,
     make_jewelry_key,
     parse_jewelry_key,
     reset_daily_if_needed,
@@ -61,6 +63,43 @@ class MineJewelryTests(unittest.TestCase):
         key = "jewel_unknown_value"
         self.assertIsNone(parse_jewelry_key(key))
         self.assertEqual(get_jewelry_sell_price(key), 0.0)
+
+    def test_simplified_sale_sells_all_known_inventory(self):
+        player = {
+            "inventory": {
+                "coal": 3,
+                "iron": 2,
+                "unknown": 99,
+            }
+        }
+        result = sell_all_inventory(player)
+        self.assertEqual(5, result["count"])
+        self.assertGreater(result["reward"], 0)
+        self.assertEqual(0, player["inventory"]["coal"])
+        self.assertEqual(0, player["inventory"]["iron"])
+        self.assertEqual(99, player["inventory"]["unknown"])
+
+    def test_depleted_supplies_are_offered_after_the_dig(self):
+        before = {
+            "oil_units": 1,
+            "wood_count": 1,
+            "canary_count": 0,
+            "dynamite_count": 2,
+            "pickaxe_durability": 1,
+            "pickaxe_type": "basic",
+        }
+        after = {
+            "oil_units": 0,
+            "wood_count": 0,
+            "canary_count": 0,
+            "dynamite_count": 2,
+            "pickaxe_durability": 0,
+            "pickaxe_type": "basic",
+        }
+        self.assertEqual(
+            ["oil", "wood", "pickaxe_steel"],
+            depleted_shop_items(before, after),
+        )
 
 
 class MineRollTests(unittest.TestCase):

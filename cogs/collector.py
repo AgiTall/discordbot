@@ -52,17 +52,12 @@ def main_embed(account, note=None):
     data = normalize_collector_data(account.get("collector"))
     unique = sum(progress(data, key)[0] for key in COLLECTIONS)
     total = sum(len(items) for items in COLLECTION_ITEMS.values())
-    shovel = f"{SHOVEL_EMOJI} куплена" if data["tools"]["shovel"] else f"{SHOVEL_EMOJI} не куплена"
-    detector = f"{DETECTOR_EMOJI} куплен" if data["tools"]["detector"] else f"{DETECTOR_EMOJI} не куплен"
-    plants = sum(data["plants"].values())
     text = (
-        f"**Уровень:** {data['level']} · опыт {data['xp']}/{data['level'] * 100}\n"
         f"**Находки:** {total_items(data)} · уникальных {unique}/{total}\n"
-        f"**Растения:** {plants}\n"
         f"**Продано наборов:** {data['sets_sold']}\n\n"
-        f"**Инструменты**\n└─ {shovel}\n└─ {detector}\n\n"
-        "Купите карту нужной коллекции, выберите одну из трёх точек поиска, "
-        "а найденные предметы продавайте поштучно или полным набором."
+        "Нажмите **«Искать находку»**: подходящая коллекция и карта "
+        "выберутся автоматически. Кнопка **«Продать всё»** сначала "
+        "сдаёт полные наборы, затем остальные предметы."
     )
     if note:
         text = f"{note}\n\n{text}"
@@ -73,15 +68,14 @@ def list_embed(data):
     lines = []
     for key, rule in COLLECTIONS.items():
         owned, total = progress(data, key)
-        requirements = f"с {rule['level']} ур."
-        lines.append(f"**{rule['name']}** — {owned}/{total}\n└─ {requirements} · комплект ${rule['payout']}")
+        lines.append(f"**{rule['name']}** — {owned}/{total}\n└─ комплект ${rule['payout']}")
     return with_background(discord.Embed(title="Коллекционные наборы", description="\n".join(lines), color=discord.Color.gold()))
 
 
 def collection_options(action):
     options = []
     for key, rule in COLLECTIONS.items():
-        description = f"С {rule['level']} уровня · {len(COLLECTION_ITEMS[key])} предметов"
+        description = f"{len(COLLECTION_ITEMS[key])} предметов"
         if action == "sell":
             description = f"Комплект: ${rule['payout']}"
         options.append(discord.SelectOption(label=rule["name"], value=key, description=description))
@@ -89,7 +83,7 @@ def collection_options(action):
 
 
 class CollectorView(discord.ui.View):
-    def __init__(self, bot, owner_id, timeout=600):
+    def __init__(self, bot, owner_id, timeout=None):
         super().__init__(timeout=timeout)
         self.bot = bot
         self.owner_id = owner_id
@@ -113,44 +107,62 @@ class CollectorView(discord.ui.View):
 class CollectorMainView(CollectorView):
     def __init__(self, bot, owner_id):
         super().__init__(bot, owner_id)
-        self.add_item(
-            discord.ui.Button(
-                label="Интерактивная карта",
-                emoji=MAP_EMOJI,
-                style=discord.ButtonStyle.link,
-                url=COLLECTOR_MAP_URL,
-                row=1,
-            )
-        )
 
-    @discord.ui.button(label="Искать", emoji="🔎", style=discord.ButtonStyle.primary, row=0)
+    @discord.ui.button(label="Искать находку", emoji="🔎", style=discord.ButtonStyle.primary, row=0)
     async def find_button(self, interaction, button):
         async with self.bot.economy_lock:
-            account=self.bot.get_account(interaction.user.id); data=normalize_collector_data(account.get("collector")); account["collector"]=data; self.bot.save_economy()
-        maps="\n".join(f"└─ {rule['name']}: **{data['maps'].get(key,0)}**" for key,rule in COLLECTIONS.items())
-        embed = with_background(discord.Embed(title="Поиск коллекций", description=f"{MAP_EMOJI} Выберите карту коллекции. Одна карта расходуется на три точки поиска.\n\n**Ваши карты**\n{maps}", color=discord.Color.gold()))
-        await interaction.response.edit_message(embed=embed, view=CollectorSelectView(self.bot, self.owner_id, "search"))
+            account = self.bot.get_account(interaction.user.id)
+            data = normalize_collector_data(account.get("collector"))
+            account["collector"] = data
+            choices = simple_search_collections(data)
+            key = random.choice(choices)
+            price = COLLECTIONS[key]["map_price"]
+            if data["maps"].get(key, 0) > 0:
+                data["maps"][key] -= 1
+                paid = 0
+            elif account["cash"] + 0.0001 >= price:
+                account["cash"] -= price
+                paid = price
+            else:
+                self.bot.save_economy()
+                await interaction.response.send_message(
+                    f"Для поиска нужно **{format_dollars(price)}** на карту.",
+                    ephemeral=True,
+                )
+                return
 
-    @discord.ui.button(label="Продать", emoji="💰", style=discord.ButtonStyle.success, row=0)
+            result = grant_find(data, key)
+            note = (
+                f"🔎 Найдено: **{item_display_name(result['item'])}** "
+                f"из набора «{COLLECTIONS[key]['name']}»."
+            )
+            if paid:
+                note += f"\nКарта куплена автоматически за **{format_dollars(paid)}**."
+            self.bot.save_economy()
+            embed = main_embed(account, note)
+        await interaction.response.edit_message(
+            embed=embed, view=CollectorMainView(self.bot, self.owner_id)
+        )
+
+    @discord.ui.button(label="Продать всё", emoji="💰", style=discord.ButtonStyle.success, row=0)
     async def sell_button(self, interaction, button):
-        embed = with_background(discord.Embed(title="Продажа коллекций", description="Выберите коллекцию: дальше можно продать все её предметы поштучно либо один полный набор.", color=discord.Color.gold()))
-        await interaction.response.edit_message(embed=embed, view=CollectorSelectView(self.bot, self.owner_id, "sell"))
-
-    @discord.ui.button(label="Магазин", emoji="🛒", style=discord.ButtonStyle.secondary, row=0)
-    async def shop_button(self, interaction, button):
         async with self.bot.economy_lock:
             account = self.bot.get_account(interaction.user.id)
-            data = normalize_collector_data(account.get("collector")); account["collector"] = data
+            data = normalize_collector_data(account.get("collector"))
+            account["collector"] = data
+            result = sell_all_collections(data)
+            account["cash"] += result["reward"]
             self.bot.save_economy()
-        text = (
-            f"{SHOVEL_EMOJI} **Лопата** — {format_dollars(SHOVEL_PRICE)}\n"
-            f"{DETECTOR_EMOJI} **Металлоискатель** — {format_dollars(DETECTOR_PRICE)}\n\n"
-            f"{MAP_EMOJI} **Карты коллекций**\n"
-            "└─ Каждая карта открывает раскопки с тремя точками.\n\n"
-            f"{PLANT_EMOJI} **Растения** — {format_dollars(COLLECTOR_PLANT_PRICE)} за штуку\n"
-            "└─ Купленные растения хранятся в сумке коллекционера."
+            note = (
+                f"Продано предметов: **{result['count']}**, полных наборов: "
+                f"**{result['sets']}**. Получено **{format_dollars(result['reward'])}**."
+                if result["count"]
+                else "В сумке пока нет находок для продажи."
+            )
+            embed = main_embed(account, note)
+        await interaction.response.edit_message(
+            embed=embed, view=CollectorMainView(self.bot, self.owner_id)
         )
-        await interaction.response.edit_message(embed=with_background(discord.Embed(title="Магазин коллекционера", description=text, color=discord.Color.gold())), view=CollectorShopView(self.bot, self.owner_id, data))
 
 
 class CollectionSelect(discord.ui.Select):
@@ -167,9 +179,7 @@ class CollectionSelect(discord.ui.Select):
             if self.action == "search":
                 result = begin_search(data, key)
                 self.bot.save_economy()
-                if result.get("error") == "level": note = f"Для этой карты нужен **{result['required']} уровень**."
-                elif result.get("error") == "tools": note = "Не хватает: **" + ", ".join("лопаты" if x == "shovel" else "металлоискателя" for x in result["missing"]) + "**."
-                elif result.get("error") == "map": note = f"Нет карты **{COLLECTIONS[key]['name']}**. Купите её в магазине."
+                if result.get("error") == "map": note = f"Нет карты **{COLLECTIONS[key]['name']}**. Купите её в магазине."
                 else:
                     remaining=data["maps"].get(key,0)
                     embed=with_background(discord.Embed(title=f"{MAP_EMOJI} {COLLECTIONS[key]['name']}", description=f"На карте отмечены три возможные точки. У вас две попытки.\nКарт этого вида осталось: **{remaining}**.", color=discord.Color.gold()))
@@ -230,7 +240,7 @@ class CollectorSellView(CollectorView):
 
 class CollectorHuntView(CollectorView):
     def __init__(self,bot,owner_id,key):
-        super().__init__(bot,owner_id,timeout=120); self.key=key; self.target=random.randrange(3); self.attempts=0; self.done=False
+        super().__init__(bot,owner_id); self.key=key; self.target=random.randrange(3); self.attempts=0; self.done=False
         for index in range(3): self.add_item(CollectorDigButton(index))
     async def dig(self,interaction,button):
         if self.done or button.disabled: return await interaction.response.send_message("Эта точка уже проверена.",ephemeral=True)
@@ -240,20 +250,27 @@ class CollectorHuntView(CollectorView):
             async with self.bot.economy_lock:
                 account=self.bot.get_account(interaction.user.id); data=normalize_collector_data(account.get("collector")); account["collector"]=data
                 result=grant_find(data,self.key); self.bot.save_economy(); emojis=await get_emoji_map(self.bot); item=result["item"]
-                note=f"{emojis.get(emoji_name(item),'🔎')} Найдено: **{item_display_name(item)}** · в сумке {result['quantity']} · +{result['xp']} XP."
-                if result["levels"]: note+=f"\nНовый уровень: **{data['level']}**!"
+                note=f"{emojis.get(emoji_name(item),'🔎')} Найдено: **{item_display_name(item)}** · в сумке {result['quantity']}."
                 embed=main_embed(account,note)
-            for child in self.children: child.disabled=True
+            for child in self.children:
+                if isinstance(child, CollectorDigButton): child.disabled=True
             return await interaction.response.edit_message(embed=embed,view=CollectorMainView(self.bot,self.owner_id))
         button.style=discord.ButtonStyle.danger
         if self.attempts>=2:
             self.done=True
-            for child in self.children: child.disabled=True
-            self.children[self.target].style=discord.ButtonStyle.success
+            for child in self.children:
+                if isinstance(child, CollectorDigButton): child.disabled=True
+            for child in self.children:
+                if isinstance(child, CollectorDigButton) and child.index == self.target:
+                    child.style=discord.ButtonStyle.success
             embed=with_background(discord.Embed(title="Находка ускользнула",description="Две точки оказались пустыми. Карта израсходована, а место находки отмечено зелёным.",color=discord.Color.dark_red()))
             return await interaction.response.edit_message(embed=embed,view=self)
         embed=with_background(discord.Embed(title="Пустая точка",description="Здесь ничего нет. Осталась ещё одна попытка.",color=discord.Color.gold()))
         await interaction.response.edit_message(embed=embed,view=self)
+
+    @discord.ui.button(label="В меню", emoji="↩️", style=discord.ButtonStyle.secondary, row=1)
+    async def menu(self, interaction, button):
+        await self.show_main(interaction)
 
 
 class CollectorDigButton(discord.ui.Button):
@@ -269,10 +286,7 @@ class MapShopSelect(discord.ui.Select):
             discord.SelectOption(
                 label=rule["name"],
                 value=key,
-                description=(
-                    f"Карта {format_dollars(rule['map_price'])} · "
-                    f"с {rule['level']} уровня"
-                ),
+                description=f"Карта {format_dollars(rule['map_price'])}",
                 emoji=MAP_EMOJI,
             )
             for key,rule in COLLECTIONS.items()
@@ -282,8 +296,7 @@ class MapShopSelect(discord.ui.Select):
         key=self.values[0]; price=COLLECTIONS[key]["map_price"]
         async with self.bot.economy_lock:
             account=self.bot.get_account(interaction.user.id); data=normalize_collector_data(account.get("collector")); account["collector"]=data
-            if data["level"]<COLLECTIONS[key]["level"]: note=f"Карта откроется с **{COLLECTIONS[key]['level']} уровня**."
-            elif account["cash"]<price: note=f"Не хватает денег: карта стоит **{format_dollars(price)}**."
+            if account["cash"]<price: note=f"Не хватает денег: карта стоит **{format_dollars(price)}**."
             else: account["cash"]-=price; data["maps"][key]+=1; note=f"{MAP_EMOJI} Куплена карта **{COLLECTIONS[key]['name']}**. Теперь их: **{data['maps'][key]}**."
             self.bot.save_economy(); embed=main_embed(account,note)
         await interaction.response.edit_message(embed=embed,view=CollectorMainView(self.bot,interaction.user.id))
@@ -355,7 +368,7 @@ class CollectorShopView(CollectorView):
 class CollectorCog(commands.Cog):
     def __init__(self, bot): self.bot = bot
 
-    @app_commands.command(name="collector", description="Коллекционер: поиск, наборы и инструменты")
+    @app_commands.command(name="collector", description="Коллекционер: искать или продать находки")
     async def collector(self, interaction: discord.Interaction):
         if not isinstance(interaction.user, discord.Member):
             return await interaction.response.send_message("Команда доступна только на сервере.", ephemeral=True)

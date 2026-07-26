@@ -2,18 +2,11 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
-from src.weapon_system import (
-    AMMO_TYPE_NAMES,
-    WEAPON_CLASS_NAMES,
-    has_usable_ammo,
-    normalize_weapon_state,
-    use_weapon_shot,
-)
 from src.bounty_logic import *
 
 
 class BountyOwnerView(discord.ui.View):
-    def __init__(self, bot, user_id, timeout=600):
+    def __init__(self, bot, user_id, timeout=None):
         self.bot = bot
         super().__init__(timeout=timeout)
         self.user_id = user_id
@@ -79,7 +72,7 @@ class BountyTargetButton(discord.ui.Button):
                     self.bot.save_economy()
                     await interaction.response.send_message(
                         "Для легендарных преступников нужна **знаменитая лицензия**. "
-                        "Купите её в разделе «Лицензия и фургон».",
+                        "Купите её через кнопку «Улучшение».",
                         ephemeral=True,
                     )
                     return
@@ -93,54 +86,22 @@ class BountyTargetButton(discord.ui.Button):
                     )
                     return
 
-                # Проверяем наличие оружия и патронов
-                from cogs.catalog import CATALOG_ITEMS
-                normalize_weapon_state(account, CATALOG_ITEMS)
-                if not any(account["weapon_loadout"].values()):
-                    self.bot.save_economy()
-                    await interaction.response.send_message(
-                        "Возьмите купленное оружие через `/balance` → «Оружие».", ephemeral=True
-                    )
-                    return
-                if not has_usable_ammo(account, CATALOG_ITEMS):
-                    self.bot.save_economy()
-                    await interaction.response.send_message(
-                        "Для оружия в руках нет подходящих патронов. "
-                        "Купите их в `/catalog` или смените оружие через `/balance`.",
-                        ephemeral=True,
-                    )
-                    return
-
-                # Один выстрел — одна попытка
-                shot = use_weapon_shot(account, CATALOG_ITEMS)
-                if not shot:
-                    self.bot.save_economy()
-                    await interaction.response.send_message(
-                        "Боезапас закончился прямо в самый неподходящий момент.",
-                        ephemeral=True,
-                    )
-                    return
-
-                # Рассчитываем шанс поимки
-                catch_chance = calculate_catch_chance(self.target_key, shot, bounty["level"])
+                # Снаряжение входит в профессию: отдельная покупка оружия и
+                # патронов больше не нужна для основного цикла.
+                shot = {
+                    "class": "repeater",
+                    "ammo_type": "normal",
+                    "condition_before": 100,
+                }
+                catch_chance = calculate_catch_chance(self.target_key, shot)
                 roll = random.randint(1, 100)
                 caught = roll <= catch_chance
 
                 bounty["last_bounty_at"] = now_local().isoformat(timespec="seconds")
 
-                weapon_name = CATALOG_ITEMS[shot["weapon"]]["name"]
-                weapon_class_name = WEAPON_CLASS_NAMES.get(shot["class"], shot["class"])
-                ammo_name = AMMO_TYPE_NAMES[shot["ammo_type"]]
-
-                weapon_line = (
-                    f"🔫 **{weapon_name}** ({weapon_class_name}) · "
-                    f"патроны: {ammo_name} · "
-                    f"состояние: {shot['condition_after']:g}%"
-                )
-
                 chance_breakdown = (
                     f"Шанс поимки: **{catch_chance}%** "
-                    f"(база {target['base_chance']}% + оружие + патроны + уровень)"
+                    f"(сложность контракта и снаряжение)"
                 )
 
                 if caught:
@@ -150,32 +111,22 @@ class BountyTargetButton(discord.ui.Button):
                     account["cash"] += reward
                     account["gold"] += gold_reward
                     bounty["captures"] += 1
-                    levels = apply_role_xp(
-                        bounty, xp_reward, bounty_level_cap(bounty), 140
-                    )
                     interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
 
                     title = f"✅ Цель поймана — {target['label']}"
                     result_text = (
                         f"Доставлено живыми: **{contract['count']}**.\n"
                         f"Награда: **{self.bot.format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
-                        f"Опыт охотника: **+{xp_reward}**."
+                        f"Общий опыт: **+{xp_reward}**."
                     )
-                    if levels:
-                        result_text += f"\nНовый уровень: **{bounty['level']}**! 🎉"
                     color = discord.Color.green() if self.target_key != "legendary" else discord.Color.gold()
                 else:
                     xp_reward = max(20, target["xp"] // 5)
                     bounty["escaped"] += 1
-                    levels = apply_role_xp(
-                        bounty, xp_reward, bounty_level_cap(bounty), 140
-                    )
                     interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
 
                     title = f"❌ Цель сбежала — {target['label']}"
-                    result_text = f"Вы получили **+{xp_reward}** опыта за попытку."
-                    if levels:
-                        result_text += f"\nНовый уровень: **{bounty['level']}**."
+                    result_text = f"Вы получили **+{xp_reward}** общего опыта за попытку."
                     color = discord.Color.red()
 
                 self.bot.save_economy()
@@ -186,7 +137,6 @@ class BountyTargetButton(discord.ui.Button):
             title=title,
             description=(
                 f"Цель: **{target_name}**\n"
-                f"{weapon_line}\n"
                 f"{chance_breakdown}\n"
                 f"🎲 Бросок: **{roll}** из 100\n\n"
                 f"{result_text}"
@@ -196,24 +146,28 @@ class BountyTargetButton(discord.ui.Button):
         if os.path.exists(BOUNTY_IMAGE_FILE):
             embed.set_image(url=f"attachment://{BOUNTY_IMAGE_ATTACHMENT_NAME}")
         await interaction.response.edit_message(
-            embed=embed, view=BountyMainView(self.bot, interaction.user.id)
+            embed=embed,
+            view=BountyMainView(self.bot, interaction.user.id, bounty),
         )
 
 
 class BountyMainView(BountyOwnerView):
-    def __init__(self, bot, user_id):
+    def __init__(self, bot, user_id, bounty=None):
         super().__init__(bot, user_id)
-        for target_key in BOUNTY_TARGETS:
-            self.add_item(BountyTargetButton(self.bot, target_key))
+        bounty = bounty or default_bounty_data()
+        target_button = BountyTargetButton(
+            self.bot, simple_bounty_target_key(bounty)
+        )
+        target_button.label = "Взять контракт"
+        self.add_item(target_button)
         self.add_item(BountyEquipmentButton(self.bot))
-        self.add_item(BountyLeaderboardButton(self.bot))
 
 
 class BountyEquipmentButton(discord.ui.Button):
     def __init__(self, bot):
         self.bot = bot
         super().__init__(
-            label="Лицензия и фургон",
+            label="Улучшение",
             emoji="📜",
             style=discord.ButtonStyle.secondary,
             custom_id="bounty:equipment",
@@ -239,7 +193,7 @@ class BountyEquipmentView(BountyOwnerView):
     def __init__(self, bot, user_id, bounty):
         super().__init__(bot, user_id)
         self.buy_license.disabled = bounty["prestigious_license"]
-        self.buy_wagon.disabled = bounty["has_bounty_wagon"]
+        self.remove_item(self.buy_wagon)
 
     async def buy(self, interaction, item):
         token = self.bot.set_economy_guild_id(interaction.guild_id)
@@ -259,8 +213,8 @@ class BountyEquipmentView(BountyOwnerView):
                         account["gold"] -= PRESTIGIOUS_LICENSE_PRICE
                         bounty["prestigious_license"] = True
                         note = (
-                            "Знаменитая лицензия куплена: открыт **30 уровень** "
-                            "и легендарные преступники."
+                            "Знаменитая лицензия куплена: открыты "
+                            "**легендарные контракты**."
                         )
                 else:
                     if bounty["has_bounty_wagon"]:
@@ -306,13 +260,14 @@ class BountyEquipmentView(BountyOwnerView):
         try:
             async with self.bot.economy_lock:
                 account = self.bot.get_account(interaction.user.id)
+                bounty = get_bounty_account(account)
                 embed = build_bounty_embed(interaction.guild, account)
                 self.bot.save_economy()
         finally:
             self.bot.reset_economy_guild_id(token)
         await interaction.response.edit_message(
             embed=embed,
-            view=BountyMainView(self.bot, interaction.user.id),
+            view=BountyMainView(self.bot, interaction.user.id, bounty),
         )
 
 
@@ -345,8 +300,8 @@ def _build_bounty_leaderboard_embed(guild, rows):
             member = guild.get_member(int(user_id)) if guild else None
             name = member.mention if member else f"`{user_id}`"
             lines.append(
-                f"**{index}.** {name} — ур. {bounty['level']}, "
-                f"поймано {format_integer(bounty['captures'])}, опыт {bounty['xp']}"
+                f"**{index}.** {name} — "
+                f"поймано {format_integer(bounty['captures'])}"
             )
         description = "\n".join(lines)
     embed = build_bot_embed(
@@ -422,7 +377,9 @@ class BountyCog(commands.Cog):
             self.bot.reset_economy_guild_id(token)
 
         image = get_bounty_image_file()
-        view = BountyMainView(self.bot, interaction.user.id)
+        view = BountyMainView(
+            self.bot, interaction.user.id, get_bounty_account(account)
+        )
         if image:
             await interaction.response.send_message(
                 embed=embed, view=view, file=image, ephemeral=True
