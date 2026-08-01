@@ -43,6 +43,9 @@ from emoji_config import (
     EMOJI_MEMBERS,
     EMOJI_SEARCH,
     EMOJI_PACKAGE,
+    EMOJI_BACK,
+    EMOJI_POTION,
+    DEFAULT_BALANCE_ECONOMY_EMOJI,
     EMOJI_PAW,
     EMOJI_POTION,
     EMOJI_SHOP,
@@ -456,7 +459,7 @@ CATALOG_ITEMS = {
         ),
         "base_price": 5,
         "currency": "cash",
-        "emoji": "🧪",
+        "emoji": EMOJI_POTION,
         "category": "hunting",
         "type": "consumable",
         "quantity": 1,
@@ -470,7 +473,7 @@ CATALOG_ITEMS = {
         ),
         "base_price": 0.56,
         "currency": "cash",
-        "emoji": "💉",
+        "emoji": EMOJI_POTION,
         "category": "hunting",
         "type": "consumable",
         "quantity": 20,
@@ -1279,7 +1282,7 @@ class BalanceWeaponButtonView(discord.ui.View):
         from cogs.gangs import GangCreateFromBalanceModal
         await interaction.response.send_modal(GangCreateFromBalanceModal())
 
-    @discord.ui.button(label="Инвестиции", emoji="📈", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Инвестиции", emoji=DEFAULT_BALANCE_ECONOMY_EMOJI, style=discord.ButtonStyle.secondary, row=1)
     async def investments_button(self, interaction, button):
         if interaction.user.id != self.member.id:
             await interaction.response.send_message("Это не ваш баланс!", ephemeral=True)
@@ -1601,7 +1604,7 @@ class InvestmentsView(discord.ui.View):
         finally:
             reset_economy_guild_id(token)
 
-    @discord.ui.button(label="Вернуться к балансу", emoji="↩️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Вернуться к балансу", emoji=EMOJI_BACK, style=discord.ButtonStyle.secondary)
     async def back_button(self, interaction, button):
         token = set_economy_guild_id(interaction.guild_id)
         try:

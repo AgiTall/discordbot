@@ -640,6 +640,101 @@ class MinerMainView(MinerOwnerView):
 #  МЕНЮ ПОКУПКИ
 # ─────────────────────────────────────────────────
 
+class MinerBulkBuyModal(discord.ui.Modal):
+    quantity = discord.ui.TextInput(
+        label="Количество",
+        placeholder="Например: 10, 100 или 1000",
+        default="10",
+        min_length=1,
+        max_length=7,
+    )
+
+    def __init__(self, view, item):
+        info = SHOP_ITEMS[item]
+        super().__init__(title=f"Купить: {info['name']}"[:45])
+        self.miner_view = view
+        self.item = item
+
+    async def on_submit(self, interaction: discord.Interaction):
+        view = self.miner_view
+        if interaction.user.id != view.user_id:
+            await interaction.response.send_message(
+                "Это меню шахтёра открыто не для вас.", ephemeral=True
+            )
+            return
+
+        try:
+            quantity = int(str(self.quantity.value).strip())
+        except ValueError:
+            quantity = 0
+        if not 1 <= quantity <= 1_000_000:
+            await interaction.response.send_message(
+                "Введите целое количество от 1 до 1 000 000.", ephemeral=True
+            )
+            return
+
+        info = SHOP_ITEMS[self.item]
+        total_cost = info["price"] * quantity
+        cash_e = get_cash_emoji()
+        token = set_economy_guild_id(interaction.guild_id)
+        try:
+            async with economy_lock:
+                account = get_account(interaction.user.id)
+                if account["cash"] < total_cost - 0.001:
+                    embed = build_mine_embed(
+                        f"{EMOJI_MINE_BUY} Лавка шахтёра",
+                        f"Не хватает средств. За **{quantity} {info['unit']}** "
+                        f"нужно **{total_cost:g} {cash_e}**, у вас "
+                        f"**{account['cash']:g} {cash_e}**.",
+                        color=discord.Color.dark_red(),
+                    )
+                    back_view = (
+                        MineResultView(view.bot, view.db, view.user_id, view.gid, view.uid)
+                        if view.return_to_mine
+                        else _make_back_only_view(
+                            view.bot, view.db, view.user_id, view.gid, view.uid
+                        )
+                    )
+                    await interaction.response.edit_message(
+                        embed=embed, view=back_view, attachments=[]
+                    )
+                    return
+                account["cash"] -= total_cost
+                balance = account["cash"]
+                save_economy()
+        finally:
+            reset_economy_guild_id(token)
+
+        field_map = {
+            "oil": "oil_units",
+            "wood": "wood_count",
+            "dynamite": "dynamite_count",
+            "canary": "canary_count",
+        }
+        field = field_map[self.item]
+        player = view.db.get_player(view.gid, view.uid)
+        player[field] = player.get(field, 0) + quantity
+        view.db.save_player(view.gid, view.uid, player)
+
+        embed = build_mine_embed(
+            f"{EMOJI_MINE_BUY} Оптовая покупка",
+            f"Куплено: **{info['name']}** × {quantity} {info['unit']}.\n"
+            f"Потрачено: **{total_cost:g} {cash_e}**.\n"
+            f"Остаток: **{balance:g} {cash_e}**.\n\n"
+            f"_{info['description']}_",
+        )
+        back_view = (
+            MineResultView(view.bot, view.db, view.user_id, view.gid, view.uid)
+            if view.return_to_mine
+            else _make_back_only_view(
+                view.bot, view.db, view.user_id, view.gid, view.uid
+            )
+        )
+        await interaction.response.edit_message(
+            embed=embed, view=back_view, attachments=[]
+        )
+
+
 class MinerBuySelect(discord.ui.Select):
     def __init__(self, options):
         super().__init__(
@@ -710,57 +805,7 @@ class MinerBuySelect(discord.ui.Select):
             await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
             return
 
-        quantity = 1
-        total_cost = info["price"] * quantity
-        token = set_economy_guild_id(interaction.guild_id)
-        try:
-            async with economy_lock:
-                account = get_account(interaction.user.id)
-                if account["cash"] < total_cost - 0.001:
-                    save_economy()
-                    embed = build_mine_embed(
-                        f"{EMOJI_MINE_BUY} Лавка шахтёра",
-                        f"Не хватает средств. Нужно **{total_cost} {cash_e}**, у вас **{account['cash']} {cash_e}**.",
-                        color=discord.Color.dark_red(),
-                    )
-                    back_view = (
-                        MineResultView(view.bot, view.db, view.user_id, gid, uid)
-                        if view.return_to_mine
-                        else _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
-                    )
-                    await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
-                    return
-                account["cash"] -= total_cost
-                bal = account["cash"]
-                save_economy()
-        finally:
-            reset_economy_guild_id(token)
-
-        field_map = {
-            "oil":      "oil_units",
-            "wood":     "wood_count",
-            "dynamite": "dynamite_count",
-            "canary":   "canary_count",
-        }
-        field = field_map.get(item)
-        player = view.db.get_player(gid, uid)
-        if field:
-            player[field] = player.get(field, 0) + quantity
-        view.db.save_player(gid, uid, player)
-
-        embed = build_mine_embed(
-            f"{EMOJI_MINE_BUY} Покупка в лавке",
-            f"Куплено: **{info['name']}** × {quantity} {info['unit']}.\n"
-            f"Потрачено: **{total_cost} {cash_e}**.\n"
-            f"Остаток: **{bal} {cash_e}**.\n\n"
-            f"_{info['description']}_",
-        )
-        back_view = (
-            MineResultView(view.bot, view.db, view.user_id, gid, uid)
-            if view.return_to_mine
-            else _make_back_only_view(view.bot, view.db, view.user_id, gid, uid)
-        )
-        await interaction.response.edit_message(embed=embed, view=back_view, attachments=[])
+        await interaction.response.send_modal(MinerBulkBuyModal(view, item))
 
 
 class MinerBuyView(MinerOwnerView):

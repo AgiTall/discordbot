@@ -5,6 +5,7 @@ import random
 from datetime import timedelta
 from src.naturalist_logic import *
 from src.weapon_system import normalize_weapon_state
+from emoji_config import EMOJI_BACK, EMOJI_ERROR, EMOJI_PAW, EMOJI_POTION, EMOJI_SUCCESS
 
 
 class NaturalistOwnerView(discord.ui.View):
@@ -27,7 +28,7 @@ class NaturalistBackButton(discord.ui.Button):
     def __init__(self, row=1):
         super().__init__(
             label="Назад",
-            emoji="↩️",
+            emoji=EMOJI_BACK,
             style=discord.ButtonStyle.secondary,
             row=row,
         )
@@ -67,11 +68,11 @@ async def take_random_naturalist_sample(bot, interaction):
                 naturalist["samples"].get(animal_key, 0) + 1
             )
             note = (
-                f"✅ Найдено животное: **{animal['name']}**. Образец получен; "
+                f"{EMOJI_SUCCESS} Найдено животное: **{animal['name']}**. Образец получен; "
                 "его можно сразу сдать Гарриет."
             )
         else:
-            note = f"❌ **{animal['name']}** убежал. Попробуйте снова позже."
+            note = f"{EMOJI_ERROR} **{animal['name']}** убежал. Попробуйте снова позже."
         bot.save_economy()
         embed = build_naturalist_embed(interaction.guild, account, note=note)
 
@@ -87,14 +88,12 @@ class NaturalistMainView(NaturalistOwnerView):
         self.sell_button.emoji      = get_naturalist_button_emoji("sell")
         self.collection_button.emoji = get_naturalist_button_emoji("collection")
         self.legendary_button.emoji = get_naturalist_button_emoji("legendary")
-        self.pelt_button.emoji       = "🦌"
+        self.pelt_button.emoji       = EMOJI_PAW
         self.shop_button.emoji       = get_naturalist_button_emoji("shop")
         self.refresh_button.emoji   = get_naturalist_button_emoji("refresh")
         for item in (
+            self.sample_button,
             self.collection_button,
-            self.legendary_button,
-            self.pelt_button,
-            self.shop_button,
             self.refresh_button,
         ):
             self.remove_item(item)
@@ -210,11 +209,11 @@ class NaturalistMainView(NaturalistOwnerView):
         embed = build_bot_embed(
             "Магазин Гарриет",
             (
-                f"💉 **Снотворные патроны x{NATURALIST_TRANQ_PACK_SIZE}** — "
+                f"{EMOJI_POTION} **Снотворные патроны x{NATURALIST_TRANQ_PACK_SIZE}** — "
                 f"{self.bot.format_money(NATURALIST_TRANQ_PACK_PRICE)}\n"
-                f"🧪 **Оживитель животных** — "
+                f"{EMOJI_POTION} **Оживитель животных** — "
                 f"{self.bot.format_money(NATURALIST_REVIVER_PRICE)}\n"
-                f"🐾 **Легендарные звериные феромоны** — "
+                f"{EMOJI_PAW} **Легендарные звериные феромоны** — "
                 f"{self.bot.format_money(NATURALIST_PHEROMONE_PRICE)}\n"
                 f"🏕️ **Походный лагерь** — "
                 f"{self.bot.format_money(NATURALIST_CAMP_PRICE)}\n\n"
@@ -371,13 +370,13 @@ class NaturalistAnimalSelect(discord.ui.Select):
             if success:
                 naturalist["samples"][animal_key] = naturalist["samples"].get(animal_key, 0) + 1
                 note = (
-                    f"✅ Образец **{animal['name']}** получен! "
+                    f"{EMOJI_SUCCESS} Образец **{animal['name']}** получен! "
                     f"Шанс был **{format_percent(chance * 100)}**. "
                     "Продайте его Гарриет, чтобы получить деньги, опыт и штамп."
                 )
             else:
                 note = (
-                    f"❌ **{animal['name']}** убежал. "
+                    f"{EMOJI_ERROR} **{animal['name']}** убежал. "
                     f"Шанс был **{format_percent(chance * 100)}**. "
                     f"Улучшите снаряжение, чтобы повысить шанс!"
                 )
@@ -525,13 +524,13 @@ class NaturalistLegendarySelect(discord.ui.Select):
             if success:
                 naturalist["samples"][animal_key] = naturalist["samples"].get(animal_key, 0) + 1
                 note = (
-                    f"⭐ Легендарный образец **{animal['name']}** получен! "
+                    f"{EMOJI_PAW} Легендарный образец **{animal['name']}** получен! "
                     f"Шанс был **{format_percent(chance * 100)}**. "
                     "Продайте его Гарриет за награду."
                 )
             else:
                 note = (
-                    f"❌ **{animal['name']}** ушёл от вас. "
+                    f"{EMOJI_ERROR} **{animal['name']}** ушёл от вас. "
                     f"Шанс был **{format_percent(chance * 100)}**."
                 )
             self.bot.save_economy()
@@ -690,15 +689,15 @@ class NaturalistShopView(NaturalistOwnerView):
             view=NaturalistMainView(self.bot, interaction.user.id),
         )
 
-    @discord.ui.button(label="Патроны x20 · $0.56", emoji="💉", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Патроны x20 · $0.56", emoji=EMOJI_POTION, style=discord.ButtonStyle.success)
     async def buy_tranquilizers(self, interaction, button):
         await self.buy(interaction, "tranquilizers")
 
-    @discord.ui.button(label="Оживитель · $5", emoji="🧪", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Оживитель · $5", emoji=EMOJI_POTION, style=discord.ButtonStyle.success)
     async def buy_reviver(self, interaction, button):
         await self.buy(interaction, "reviver")
 
-    @discord.ui.button(label="Феромоны · $20", emoji="🐾", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Феромоны · $20", emoji=EMOJI_PAW, style=discord.ButtonStyle.success)
     async def buy_pheromone(self, interaction, button):
         await self.buy(interaction, "pheromone")
 
@@ -706,7 +705,7 @@ class NaturalistShopView(NaturalistOwnerView):
     async def buy_camp(self, interaction, button):
         await self.buy(interaction, "camp")
 
-    @discord.ui.button(label="Назад", emoji="↩️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Назад", emoji=EMOJI_BACK, style=discord.ButtonStyle.secondary)
     async def back(self, interaction, button):
         async with self.bot.economy_lock:
             account = self.bot.get_account(interaction.user.id)

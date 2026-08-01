@@ -405,10 +405,10 @@ def get_naturalist_image_file():
 
 def build_gear_status(gear: dict) -> str:
     """Формирует строку снаряжения натуралиста для embed."""
-    varmint_mark = "✅" if gear["varmint"] else "❌"
-    reviver_mark = "✅" if gear["reviver"] else "❌"
-    dart_mark    = "✅" if gear["dart"] else "❌"
-    pheromone_mark = "✅" if gear.get("pheromone") else "❌"
+    varmint_mark = EMOJI_SUCCESS if gear["varmint"] else EMOJI_ERROR
+    reviver_mark = EMOJI_SUCCESS if gear["reviver"] else EMOJI_ERROR
+    dart_mark    = EMOJI_SUCCESS if gear["dart"] else EMOJI_ERROR
+    pheromone_mark = EMOJI_SUCCESS if gear.get("pheromone") else EMOJI_ERROR
     return (
         f"{varmint_mark} Варминт-винтовка (+{NATURALIST_VARMINT_BONUS}%)\n"
         f"{reviver_mark} Оживитель (+{NATURALIST_REVIVER_BONUS}%)\n"
@@ -422,9 +422,13 @@ def build_naturalist_embed(guild, account, note=None, gear=None):
     role_definition = get_role_definition(NATURALIST_ROLE_KEY)
     role = find_guild_role(guild, role_definition)
     icon = get_role_icon(role_definition, role)
-    sample_cooldown = get_naturalist_sample_cooldown(naturalist)
+    legendary_cooldown = get_naturalist_legendary_cooldown(naturalist)
     harriet_cooldown = get_harriet_anger_cooldown(naturalist)
-    sample_cooldown_text = "готово" if sample_cooldown <= 0 else format_duration(sample_cooldown)
+    legendary_cooldown_text = (
+        "готово"
+        if legendary_cooldown <= 0
+        else format_duration(legendary_cooldown)
+    )
     harriet_text = (
         "принимает посетителей"
         if harriet_cooldown <= 0
@@ -435,12 +439,13 @@ def build_naturalist_embed(guild, account, note=None, gear=None):
     embed = discord.Embed(
         title=f"{icon} Натуралист",
         description=(
-            "Найдите случайное животное, возьмите образец и сдайте его Гарриет.\n\n"
-            "🌿 Прогресс\n"
+            "Выслеживайте только легендарных животных: берите образцы "
+            "для Гарриет или добывайте шкуры для Криппса.\n\n"
+            f"{EMOJI_PAW} Легендарная охота\n"
             f"├─ Образцы: **{count_naturalist_samples(naturalist)}**\n"
-            f"├─ Обычная охота: **{sample_cooldown_text}**\n"
+            f"├─ Следующее задание: **{legendary_cooldown_text}**\n"
             f"└─ Гарриет: **{harriet_text}**\n\n"
-            "Снаряжение для обычного поиска выдаётся вместе с профессией."
+            "Обычные животные больше не появляются в меню натуралиста."
             f"{note_text}"
         ),
         color=discord.Color.dark_green(),

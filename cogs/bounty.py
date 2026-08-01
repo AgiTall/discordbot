@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import random
 from src.bounty_logic import *
+from emoji_config import EMOJI_BACK, EMOJI_DICE, EMOJI_ERROR, EMOJI_LIST, EMOJI_SUCCESS, DEFAULT_MOONSHINE_WAGON_EMOJI
 
 
 class BountyOwnerView(discord.ui.View):
@@ -113,7 +114,7 @@ class BountyTargetButton(discord.ui.Button):
                     bounty["captures"] += 1
                     interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
 
-                    title = f"✅ Цель поймана — {target['label']}"
+                    title = f"{EMOJI_SUCCESS} Цель поймана — {target['label']}"
                     result_text = (
                         f"Доставлено живыми: **{contract['count']}**.\n"
                         f"Награда: **{self.bot.format_money(reward)}** и **{format_gold(gold_reward)}**.\n"
@@ -125,7 +126,7 @@ class BountyTargetButton(discord.ui.Button):
                     bounty["escaped"] += 1
                     interaction.client.dispatch("leveling_add_xp", interaction.user, xp_reward, "jobs")
 
-                    title = f"❌ Цель сбежала — {target['label']}"
+                    title = f"{EMOJI_ERROR} Цель сбежала — {target['label']}"
                     result_text = f"Вы получили **+{xp_reward}** общего опыта за попытку."
                     color = discord.Color.red()
 
@@ -138,7 +139,7 @@ class BountyTargetButton(discord.ui.Button):
             description=(
                 f"Цель: **{target_name}**\n"
                 f"{chance_breakdown}\n"
-                f"🎲 Бросок: **{roll}** из 100\n\n"
+                f"{EMOJI_DICE} Бросок: **{roll}** из 100\n\n"
                 f"{result_text}"
             ),
             color=color,
@@ -168,7 +169,7 @@ class BountyEquipmentButton(discord.ui.Button):
         self.bot = bot
         super().__init__(
             label="Улучшение",
-            emoji="📜",
+            emoji=EMOJI_LIST,
             style=discord.ButtonStyle.secondary,
             custom_id="bounty:equipment",
         )
@@ -240,7 +241,7 @@ class BountyEquipmentView(BountyOwnerView):
 
     @discord.ui.button(
         label="Знаменитая лицензия · 15 золота",
-        emoji="📜",
+        emoji=EMOJI_LIST,
         style=discord.ButtonStyle.success,
     )
     async def buy_license(self, interaction, button):
@@ -248,13 +249,13 @@ class BountyEquipmentView(BountyOwnerView):
 
     @discord.ui.button(
         label="Тюремный фургон · $875",
-        emoji="🛞",
+        emoji=DEFAULT_MOONSHINE_WAGON_EMOJI,
         style=discord.ButtonStyle.success,
     )
     async def buy_wagon(self, interaction, button):
         await self.buy(interaction, "wagon")
 
-    @discord.ui.button(label="Назад", emoji="↩️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Назад", emoji=EMOJI_BACK, style=discord.ButtonStyle.secondary)
     async def back(self, interaction, button):
         token = self.bot.set_economy_guild_id(interaction.guild_id)
         try:

@@ -900,15 +900,15 @@ def format_role_balance_sections(guild, account):
         branch = "└─" if index == len(ROLE_DEFINITIONS) - 1 else "├─"
 
         if role_definition["key"] == DEALER_ROLE_KEY:
-            body = f"🛒 Повозка торговца: {format_progress_percent(account['dealer_wagon'])}"
+            body = f"{EMOJI_ROLE_TRADER} Повозка торговца: {format_progress_percent(account['dealer_wagon'])}"
         elif role_definition["key"] == MOONSHINER_ROLE_KEY:
             moonshine = get_moonshine_account(account)
             body = (
-                f"🥃 Самогон: {format_moonshine_bottles(moonshine)}; "
+                f"{EMOJI_ROLE_MOONSHINER} Самогон: {format_moonshine_bottles(moonshine)}; "
                 f"{format_moonshine_batch_status(moonshine)}"
             )
         elif role_definition["key"] == "collector":
-            body = "🖼️ Недоступен"
+            body = f"{EMOJI_BLOCKED} Недоступен"
         else:
             body = f"{get_lock_emoji()} Недоступен"
 
@@ -2624,7 +2624,7 @@ def build_help_pages(is_admin):
     pages["overview"] = {
         "label": "Обзор",
         "description": "Главная страница справки",
-        "emoji": "📖",
+        "emoji": EMOJI_BOOK,
         "embed": overview
     }
 
@@ -2656,7 +2656,7 @@ def build_help_pages(is_admin):
     pages["economy"] = {
         "label": "Экономика и Действия",
         "description": "Баланс, работа, магазин, банк и ограбления",
-        "emoji": "💰",
+        "emoji": DEFAULT_CASH_EMOJI,
         "embed": economy
     }
 
@@ -2721,7 +2721,7 @@ def build_help_pages(is_admin):
     pages["gangs"] = {
         "label": "Банды",
         "description": "Создание банд, общак, войны и управление",
-        "emoji": "🔫",
+        "emoji": EMOJI_WEAPON,
         "embed": gangs
     }
 
@@ -2772,7 +2772,7 @@ def build_help_pages(is_admin):
     pages["miner"] = {
         "label": "Шахтёр",
         "description": "Копка, руда, слитки и украшения",
-        "emoji": "⛏️",
+        "emoji": EMOJI_ROLE_MINER,
         "embed": miner
     }
 
@@ -2832,7 +2832,7 @@ def build_help_pages(is_admin):
     pages["admin"] = {
         "label": "Админ-команды",
         "description": "Настройки и управление ботом",
-        "emoji": "⚙️",
+        "emoji": EMOJI_SETTINGS,
         "embed": admin
     }
 
@@ -3096,7 +3096,7 @@ class MoonshineBackButton(discord.ui.Button):
     def __init__(self, row=1):
         super().__init__(
             label="Назад",
-            emoji="↩️",
+            emoji=EMOJI_BACK,
             style=discord.ButtonStyle.secondary,
             row=row,
         )
@@ -3826,10 +3826,10 @@ async def news_command(
                     raise ValueError
                 embed_color = discord.Color(int(hex_color, 16))
             except ValueError:
-                await interaction.response.send_message(f"❌ Некорректный HEX-код: `{color}`. Используйте формат, например, `#FF8800`.", ephemeral=True)
+                await interaction.response.send_message(f"{EMOJI_ERROR} Некорректный HEX-код: `{color}`. Используйте формат, например, `#FF8800`.", ephemeral=True)
                 return
         else:
-            await interaction.response.send_message(f"❌ Неизвестный цвет: `{color}`. Укажите название цвета (например: red, blue) или HEX-код.", ephemeral=True)
+            await interaction.response.send_message(f"{EMOJI_ERROR} Неизвестный цвет: `{color}`. Укажите название цвета (например: red, blue) или HEX-код.", ephemeral=True)
             return
 
     actual_content = content.replace('\\n', '\n')
@@ -3854,7 +3854,7 @@ async def news_command(
         if image.content_type and image.content_type.startswith('image/'):
             embed.set_image(url=image.url)
         else:
-            await interaction.response.send_message("❌ Прикрепленный файл не является изображением.", ephemeral=True)
+            await interaction.response.send_message(f"{EMOJI_ERROR} Прикрепленный файл не является изображением.", ephemeral=True)
             return
 
     author_name = interaction.user.display_name
@@ -4169,15 +4169,15 @@ async def restart_roles_command(interaction: discord.Interaction):
 
     lines = []
     if result["created"]:
-        lines.append(f"✅ Создано ({len(result['created'])}): " + ", ".join(f"**{n}**" for n in result["created"]))
+        lines.append(f"{EMOJI_SUCCESS} Создано ({len(result['created'])}): " + ", ".join(f"**{n}**" for n in result["created"]))
     if result["updated"]:
-        lines.append(f"🔄 Обновлено ({len(result['updated'])}): " + ", ".join(f"**{n}**" for n in result["updated"]))
+        lines.append(f"{EMOJI_REFRESH} Обновлено ({len(result['updated'])}): " + ", ".join(f"**{n}**" for n in result["updated"]))
     if result["skipped"]:
         lines.append(f"⏭️ Без изменений: {len(result['skipped'])} шт.")
     if result.get("assigned"):
-        lines.append(f"👤 Выдано заголовочных ролей участникам: **{result['assigned']}**")
+        lines.append(f"{EMOJI_MEMBERS} Выдано заголовочных ролей участникам: **{result['assigned']}**")
     if result["errors"]:
-        lines.append("❌ Ошибки:\n" + "\n".join(result["errors"]))
+        lines.append(f"{EMOJI_ERROR} Ошибки:\n" + "\n".join(result["errors"]))
     if not lines:
         lines.append("Все роли уже в порядке.")
 
@@ -4273,8 +4273,8 @@ async def dice_command(interaction: discord.Interaction, bet: float = 0.0):
 
     await interaction.followup.send(
         f"{CASINO_LOGO_EMOJI} **Казино · Кости**\n"
-        f"🎲 {interaction.user.mention}: **{player_roll}**\n"
-        f"🎲 Бот: **{bot_roll}**\n"
+        f"{EMOJI_DICE} {interaction.user.mention}: **{player_roll}**\n"
+        f"{EMOJI_DICE} Бот: **{bot_roll}**\n"
         f"{result}",
         ephemeral=True
     )
@@ -4325,8 +4325,8 @@ async def poker_command(interaction: discord.Interaction, bet: float = 0.0):
 
     await interaction.followup.send(
         f"{CASINO_LOGO_EMOJI} **Казино · Покер**\n"
-        f"🃏 {interaction.user.mention}: **{format_cards(player_hand)}** — {player_name}\n"
-        f"🃏 Бот: **{format_cards(bot_hand)}** — {bot_name}\n"
+        f"{CASINO_LOGO_EMOJI} {interaction.user.mention}: **{format_cards(player_hand)}** — {player_name}\n"
+        f"{CASINO_LOGO_EMOJI} Бот: **{format_cards(bot_hand)}** — {bot_name}\n"
         f"{result}",
         ephemeral=True
     )
@@ -5848,6 +5848,30 @@ async def on_member_join(member):
     token = set_economy_guild_id(member.guild.id)
     try:
         data = economy_data.current()
+
+        # Новый участник начинает с 1-го уровня, поэтому сразу синхронизируем
+        # его ранговую роль. Раньше это происходило только после получения XP.
+        if not member.bot:
+            leveling_cog = bot.get_cog("LevelingCog")
+            if leveling_cog is not None:
+                try:
+                    user_data = leveling_cog.db.get_user(
+                        str(member.guild.id),
+                        str(member.id),
+                    )
+                    await leveling_cog.handle_level_up(
+                        member,
+                        max(1, int(user_data.get("level", 1))),
+                        notify=False,
+                    )
+                except Exception as e:
+                    logging.error(
+                        "Failed to assign initial rank role to %s in guild %s: %s",
+                        member,
+                        member.guild.id,
+                        e,
+                    )
+
         if data.get("welcome_role_id"):
             role = member.guild.get_role(int(data["welcome_role_id"]))
             if role:

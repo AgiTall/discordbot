@@ -9,13 +9,21 @@ from discord.ext import commands
 
 from src.collector_logic import *
 from src.role_utils import has_game_role
+from emoji_config import (
+    COLLECTOR_METAL_DETECTOR_EMOJI,
+    COLLECTOR_SHOVEL_EMOJI,
+    DEFAULT_CASH_EMOJI,
+    DEFAULT_MAP_EMOJI,
+    EMOJI_BACK,
+    EMOJI_BOOK,
+)
 
 COLLECTOR_IMAGE_FILE = "assets/images/collector.png"
 COLLECTOR_IMAGE_NAME = "collector.png"
-COLLECTOR_EMOJI = "🧭"
-SHOVEL_EMOJI = "⛏️"
-DETECTOR_EMOJI = "📡"
-MAP_EMOJI = "🗺️"
+COLLECTOR_EMOJI = EMOJI_BOOK
+SHOVEL_EMOJI = COLLECTOR_SHOVEL_EMOJI
+DETECTOR_EMOJI = COLLECTOR_METAL_DETECTOR_EMOJI
+MAP_EMOJI = DEFAULT_MAP_EMOJI
 PLANT_EMOJI = "🌿"
 COLLECTOR_MAP_URL = "https://jeanropke.github.io/RDR2CollectorsMap/"
 
@@ -144,7 +152,7 @@ class CollectorMainView(CollectorView):
             embed=embed, view=CollectorMainView(self.bot, self.owner_id)
         )
 
-    @discord.ui.button(label="Продать всё", emoji="💰", style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label="Продать всё", emoji=DEFAULT_CASH_EMOJI, style=discord.ButtonStyle.success, row=0)
     async def sell_button(self, interaction, button):
         async with self.bot.economy_lock:
             account = self.bot.get_account(interaction.user.id)
@@ -197,7 +205,7 @@ class CollectionSelect(discord.ui.Select):
 class CollectorSelectView(CollectorView):
     def __init__(self, bot, owner_id, action):
         super().__init__(bot, owner_id); self.add_item(CollectionSelect(bot, action))
-    @discord.ui.button(label="Назад", emoji="↩️", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="Назад", emoji=EMOJI_BACK, style=discord.ButtonStyle.secondary, row=1)
     async def back(self, interaction, button): await self.show_main(interaction)
 
 
@@ -212,7 +220,7 @@ class CollectorPages(CollectorView):
     async def prev(self, interaction, button): self.page=max(0,self.page-1); await interaction.response.edit_message(embed=self.embed(),view=self)
     @discord.ui.button(label="Дальше", emoji="▶️", style=discord.ButtonStyle.secondary)
     async def nxt(self, interaction, button): self.page=min(max(0,math.ceil(len(self.rows)/12)-1),self.page+1); await interaction.response.edit_message(embed=self.embed(),view=self)
-    @discord.ui.button(label="В меню", emoji="↩️", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="В меню", emoji=EMOJI_BACK, style=discord.ButtonStyle.primary)
     async def menu(self, interaction, button): await self.show_main(interaction)
 
 
@@ -230,11 +238,11 @@ class CollectorSellView(CollectorView):
                 note=f"Поштучно продано предметов: **{count}**, получено **${reward}**."
             account["cash"]+=reward; self.bot.save_economy(); embed=main_embed(account,note)
         await interaction.response.edit_message(embed=embed,view=CollectorMainView(self.bot,self.owner_id))
-    @discord.ui.button(label="Продать поштучно",emoji="🪙",style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Продать поштучно",emoji=DEFAULT_CASH_EMOJI,style=discord.ButtonStyle.success)
     async def singles(self,interaction,button): await self.finish(interaction,"singles")
-    @discord.ui.button(label="Продать полный набор",emoji="💰",style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Продать полный набор",emoji=DEFAULT_CASH_EMOJI,style=discord.ButtonStyle.success)
     async def full_set(self,interaction,button): await self.finish(interaction,"set")
-    @discord.ui.button(label="Назад",emoji="↩️",style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Назад",emoji=EMOJI_BACK,style=discord.ButtonStyle.secondary)
     async def back(self,interaction,button): await self.show_main(interaction)
 
 
@@ -268,14 +276,14 @@ class CollectorHuntView(CollectorView):
         embed=with_background(discord.Embed(title="Пустая точка",description="Здесь ничего нет. Осталась ещё одна попытка.",color=discord.Color.gold()))
         await interaction.response.edit_message(embed=embed,view=self)
 
-    @discord.ui.button(label="В меню", emoji="↩️", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="В меню", emoji=EMOJI_BACK, style=discord.ButtonStyle.secondary, row=1)
     async def menu(self, interaction, button):
         await self.show_main(interaction)
 
 
 class CollectorDigButton(discord.ui.Button):
     def __init__(self,index):
-        super().__init__(label=f"Точка {index+1}",emoji="⛏️",style=discord.ButtonStyle.secondary); self.index=index
+        super().__init__(label=f"Точка {index+1}",emoji=COLLECTOR_SHOVEL_EMOJI,style=discord.ButtonStyle.secondary); self.index=index
     async def callback(self,interaction): await self.view.dig(interaction,self)
 
 
@@ -361,7 +369,7 @@ class CollectorShopView(CollectorView):
     async def buy_shovel(self, interaction, button): await self.buy(interaction,"shovel",SHOVEL_PRICE)
     @discord.ui.button(label="Купить металлоискатель · $700", emoji=DETECTOR_EMOJI, style=discord.ButtonStyle.success)
     async def buy_detector(self, interaction, button): await self.buy(interaction,"detector",DETECTOR_PRICE)
-    @discord.ui.button(label="Назад", emoji="↩️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Назад", emoji=EMOJI_BACK, style=discord.ButtonStyle.secondary)
     async def back(self, interaction, button): await self.show_main(interaction)
 
 

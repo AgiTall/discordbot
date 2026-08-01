@@ -9,6 +9,9 @@ from emoji_config import (
     CASINO_BLACKJACK_BUTTON_EMOJI,
     CASINO_LOGO_EMOJI,
     CASINO_POKER_BUTTON_EMOJI,
+    EMOJI_BACK,
+    EMOJI_DICE,
+    EMOJI_EDIT,
 )
 
 CARD_SUITS = ["♠", "♥", "♦", "♣"]
@@ -458,7 +461,7 @@ async def _start_selected_game(interaction, bot, game, bet):
                 result = f"Вы проиграли **{bot.format_money(bet)}**."
             else:
                 result = "Ничья. Ставка возвращается."
-            description = f"🎲 Вы: **{player_roll}**\n🎲 Дилер: **{dealer_roll}**\n\n{result}"
+            description = f"{EMOJI_DICE} Вы: **{player_roll}**\n{EMOJI_DICE} Дилер: **{dealer_roll}**\n\n{result}"
             title = "Казино · Кости"
         else:
             deck = build_card_deck()
@@ -551,7 +554,7 @@ class CasinoLobbyView(discord.ui.View):
     async def blackjack_button(self, interaction, button):
         await self.open_bet(interaction, "blackjack")
 
-    @discord.ui.button(label="Кости", emoji="🎲", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Кости", emoji=EMOJI_DICE, style=discord.ButtonStyle.secondary)
     async def dice_button(self, interaction, button):
         await self.open_bet(interaction, "dice")
 
@@ -603,13 +606,13 @@ class CasinoReplayView(discord.ui.View):
     async def same_bet_button(self, interaction, button):
         await start_selected_game(interaction, self.bot, "blackjack", self.bet)
 
-    @discord.ui.button(label="Новая ставка", emoji="✏️", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Новая ставка", emoji=EMOJI_EDIT, style=discord.ButtonStyle.primary)
     async def new_bet_button(self, interaction, button):
         await interaction.response.send_modal(
             CasinoBetModal(self.bot, self.user_id, "blackjack")
         )
 
-    @discord.ui.button(label="К играм", emoji="↩️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="К играм", emoji=EMOJI_BACK, style=discord.ButtonStyle.secondary)
     async def lobby_button(self, interaction, button):
         embed = discord.Embed(
             title=f"{CASINO_LOGO_EMOJI} Казино",
@@ -636,7 +639,7 @@ class CasinoQuickReplayView(discord.ui.View):
     async def same_bet_button(self, interaction, button):
         await start_selected_game(interaction, self.bot, self.game, self.bet)
 
-    @discord.ui.button(label="Новая ставка", emoji="✏️", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Новая ставка", emoji=EMOJI_EDIT, style=discord.ButtonStyle.primary)
     async def new_bet_button(self, interaction, button):
         await interaction.response.send_modal(CasinoBetModal(self.bot, self.user_id, self.game))
 
