@@ -63,6 +63,10 @@ class InteractiveMenuContracts(unittest.TestCase):
         self.assertIn("`/mine` — открыть шахту (5 попыток в день)", help_source)
         self.assertIn("`/collector`", help_source)
         self.assertIn("`/admin-bank`", help_source)
+        self.assertIn("`/rank` — показать свой уровень", help_source)
+        self.assertIn("`/leaderboard` — открыть топ-10", help_source)
+        self.assertIn("`/weapons` — купленное оружие", help_source)
+        self.assertIn("`/set-xp-rate`", help_source)
         for removed_command in (
             "`/dice bet`",
             "`/poker bet`",

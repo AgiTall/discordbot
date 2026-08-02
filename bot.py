@@ -2419,7 +2419,7 @@ def build_balance_embed(guild, member, account, rate):
         f"{DEFAULT_BALANCE_ACTIVITIES_EMOJI} Активности\n"
         "├─ Заработок: `/work` · ограбление: `/rob`\n"
         f"├─ Раскопки: {'`/excavation`' if treasure_maps > 0 else f'{get_lock_emoji()} нужна карта сокровищ'}\n"
-        f"└─ {CASINO_LOGO_EMOJI} Казино: `/dice` · `/poker` · `/blackjack`\n\n"
+        f"└─ {CASINO_LOGO_EMOJI} Казино: `/casino`\n\n"
         f"{eco_emoji} Экономика\n"
         f"└─ Курс: 1 {get_gold_emoji()} = {format_exchange_rate(rate)}"
     )
@@ -2617,7 +2617,15 @@ def build_help_pages(is_admin):
     overview.add_field(
         name="Быстрый старт",
         value=(
-            "`/balance`, `/work`, `/roles`, `/catalog`, `/casino`, `/mine`, `/collector`"
+            "`/balance`, `/work`, `/rank`, `/roles`, `/catalog`, `/casino`, `/mine`, `/collector`"
+        ),
+        inline=False,
+    )
+    overview.add_field(
+        name="Полезное",
+        value=(
+            "`/leaderboard` — таблица лидеров по общему уровню.\n"
+            "`/status` — версия, задержка и состояние бота."
         ),
         inline=False,
     )
@@ -2660,7 +2668,38 @@ def build_help_pages(is_admin):
         "embed": economy
     }
 
-    # 3. Roles
+    # 3. Progress
+    progress = discord.Embed(
+        title="Справка: Уровни и Прогресс",
+        description="Получайте XP за активность и открывайте ранговые роли.",
+        color=discord.Color.blurple(),
+    )
+    progress.add_field(
+        name="Общий ранг",
+        value=(
+            "`/rank` — показать свой уровень, XP, место и текущую ранговую роль.\n"
+            "`/rank member:@участник` — посмотреть прогресс другого игрока.\n"
+            "`/leaderboard` — открыть топ-10 игроков сервера."
+        ),
+        inline=False,
+    )
+    progress.add_field(
+        name="Как получать XP",
+        value=(
+            "Общайтесь в текстовых и голосовых каналах, занимайтесь профессиями "
+            "и участвуйте в событиях. Повторные сообщения и слишком частая отправка "
+            "не приносят опыт."
+        ),
+        inline=False,
+    )
+    pages["progress"] = {
+        "label": "Уровни и Прогресс",
+        "description": "Общий уровень, опыт, ранговые роли и таблица лидеров",
+        "emoji": "🏆",
+        "embed": progress,
+    }
+
+    # 4. Roles
     roles = discord.Embed(
         title="Справка: Роли и Профессии",
         description="Команды профессий и заработка.",
@@ -2694,7 +2733,38 @@ def build_help_pages(is_admin):
         "embed": roles
     }
 
-    # 4. Gangs
+    # 5. Equipment
+    equipment = discord.Embed(
+        title="Справка: Каталог и Снаряжение",
+        description="Покупайте товары и подготавливайте оружие к приключениям.",
+        color=discord.Color.dark_gold(),
+    )
+    equipment.add_field(
+        name="Каталог",
+        value=(
+            "`/catalog` — товары Wheeler, Rawson & Co.\n"
+            "`/investments` — компании, их развитие и ваши вложения."
+        ),
+        inline=False,
+    )
+    equipment.add_field(
+        name="Оружие и Боеприпасы",
+        value=(
+            "`/weapons` — купленное оружие, патроны и активное снаряжение.\n"
+            "`/weapon-equip` / `/weapon-unequip` — взять оружие с собой или убрать его.\n"
+            "`/ammo-select` — выбрать тип патронов для класса оружия.\n"
+            "`/gun-oil` — восстановить состояние оружия до 100%."
+        ),
+        inline=False,
+    )
+    pages["equipment"] = {
+        "label": "Каталог и Снаряжение",
+        "description": "Товары, инвестиции, оружие и боеприпасы",
+        "emoji": EMOJI_WEAPON,
+        "embed": equipment,
+    }
+
+    # 6. Gangs
     gangs = discord.Embed(
         title="Справка: Банды",
         description="Объединяйтесь с другими игроками в банды.",
@@ -2725,7 +2795,7 @@ def build_help_pages(is_admin):
         "embed": gangs
     }
 
-    # 5. Games
+    # 7. Games
     games = discord.Embed(
         title=f"{CASINO_LOGO_EMOJI} Справка: Казино",
         description="Испытайте удачу в казино.",
@@ -2746,7 +2816,7 @@ def build_help_pages(is_admin):
         "embed": games
     }
 
-    # 5.5. Miner
+    # 8. Miner
     miner = discord.Embed(
         title="Справка: Шахтёр",
         description="Мини-игра «Глубокая жила» — копайте породу, добывайте руду и создавайте украшения.",
@@ -2776,7 +2846,7 @@ def build_help_pages(is_admin):
         "embed": miner
     }
 
-    # 6. Admin
+    # 9. Admin
     admin = discord.Embed(
         title="Справка: Админ-команды",
         description="Команды управления сервером и экономикой.",
@@ -2788,7 +2858,7 @@ def build_help_pages(is_admin):
             value=(
                 "`/admin inspect` — полная диагностика игрока.\n"
                 "`/admin cooldown` — сброс любой активности.\n"
-                "`/admin progress` — уровни и опыт профессий/ранга."
+                "`/admin progress` — установить общий уровень и XP игрока."
             ),
             inline=False,
         )
@@ -2819,8 +2889,13 @@ def build_help_pages(is_admin):
             inline=False,
         )
         admin.add_field(
-            name="Настройки и ивенты",
-            value="`/treasure-event`, `/set-discount-shop`, `/set-rate`, `/set-emoji`, `/set-message`, `/set-icon-roles`, `/set-discounts-roles`",
+            name="Ранги, настройки и ивенты",
+            value=(
+                "`/set-rank-role`, `/remove-rank-role`, `/rank-roles` — ранговые роли.\n"
+                "`/set-levelup-channel`, `/set-xp-rate`, `/restart-rank` — настройки прогресса.\n"
+                "`/treasure-event`, `/set-discount-shop`, `/set-rate`, `/set-emoji`, "
+                "`/set-message`, `/set-icon-roles`, `/set-discounts-roles`"
+            ),
             inline=False,
         )
     else:

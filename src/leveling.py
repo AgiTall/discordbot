@@ -10,22 +10,17 @@ import os
 DEFAULT_XP_RATE = 1.0
 
 def calculate_xp_for_level(level: int) -> int:
-    """Возвращает количество XP, необходимое для ДОСТИЖЕНИЯ указанного уровня с предыдущего.
-    Либо можно сделать абсолютное количество XP для уровня."""
-    # Для уровня 1 нужно 0 XP. 
-    # Для уровня 2 нужно 100 XP.
-    # Для уровня 3 нужно 282 XP.
+    """Return the XP needed to reach ``level`` from the previous level."""
     if level <= 1:
         return 0
-    return int(100 * (level ** 1.5))
+    # Keep the bot in sync with the public level table in docs/js/app.js.
+    return round(100 * (level ** 1.5))
 
 def calculate_total_xp_for_level(level: int) -> int:
     total = 0
     for i in range(1, level + 1):
         total += calculate_xp_for_level(i)
     return total
-
-import os
 
 def _normalize_db_url_for_psycopg2(url):
     """Нормализует DATABASE_URL для psycopg2 (убирает +asyncpg и другие SQLAlchemy-префиксы)."""
@@ -144,6 +139,40 @@ class LevelingDB:
                 (str(guild_id), str(user_id), xp, level)
             )
 
+    def increment_user_xp(self, guild_id: str, user_id: str, amount: int):
+        """Atomically add XP and return the user's updated progress.
+
+        A read followed by ``set_user`` can lose one of two rewards arriving at
+        nearly the same time.  The database-side increment makes every reward
+        durable before level calculation continues.
+        """
+        self._ensure_conn()
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO leveling_users (guild_id, user_id, xp, level)
+                VALUES (%s, %s, %s, 1)
+                ON CONFLICT (guild_id, user_id) DO UPDATE
+                SET xp = GREATEST(COALESCE(leveling_users.xp, 0), 0) + EXCLUDED.xp
+                RETURNING xp, level
+                """,
+                (str(guild_id), str(user_id), int(amount)),
+            )
+            return dict(cursor.fetchone())
+
+    def set_user_level_at_least(self, guild_id: str, user_id: str, level: int):
+        """Raise a stored level without letting a concurrent update lower it."""
+        self._ensure_conn()
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE leveling_users
+                SET level = GREATEST(COALESCE(level, 1), %s)
+                WHERE guild_id = %s AND user_id = %s
+                """,
+                (max(1, int(level)), str(guild_id), str(user_id)),
+            )
+
     def get_top_users(self, guild_id: str, limit: int = 10):
         self._ensure_conn()
         with self.conn.cursor() as cursor:
@@ -194,6 +223,9 @@ class LevelingDB:
             return row["value"] if row else default
 
     def set_xp_rate(self, guild_id: str, source: str, rate: float):
+        rate = float(rate)
+        if not math.isfinite(rate) or rate < 0:
+            raise ValueError("XP rate must be a finite non-negative number")
         self._ensure_conn()
         with self.conn.cursor() as cursor:
             cursor.execute(
@@ -206,7 +238,13 @@ class LevelingDB:
         with self.conn.cursor() as cursor:
             cursor.execute("SELECT rate FROM xp_rates WHERE guild_id = %s AND source = %s", (str(guild_id), source))
             row = cursor.fetchone()
-            return float(row["rate"]) if row else 1.0
+            if not row:
+                return DEFAULT_XP_RATE
+            rate = float(row["rate"])
+            if not math.isfinite(rate) or rate < 0:
+                logging.warning("LevelingDB: invalid stored XP rate %r for %s/%s", rate, guild_id, source)
+                return DEFAULT_XP_RATE
+            return rate
 
 
 class AntiFarm:
@@ -214,28 +252,30 @@ class AntiFarm:
         self.last_message_time = {}  # user_id -> timestamp
         self.last_message_content = {}  # user_id -> content
 
-    def check_message(self, user_id: int, content: str, cooldown: int = 60) -> bool:
+    def check_message(self, user_key, content: str, cooldown: int = 60) -> bool:
         """Returns True if user should receive XP."""
         now = time.time()
         cooldown = max(10, int(cooldown or 60))
 
-        last_time = self.last_message_time.get(user_id, 0)
+        last_time = self.last_message_time.get(user_key, 0)
         if now - last_time < cooldown:
             return False
 
-        last_content = self.last_message_content.get(user_id, "")
+        last_content = self.last_message_content.get(user_key, "")
         if content == last_content:
             return False
 
-        self.last_message_time[user_id] = now
-        self.last_message_content[user_id] = content
+        self.last_message_time[user_key] = now
+        self.last_message_content[user_key] = content
         return True
 
 
 def draw_progress_bar(current_xp: int, required_xp: int, length: int = 15) -> str:
+    length = max(0, int(length))
     if required_xp <= 0:
         return "🟩" * length
-    fill_amount = int((current_xp / required_xp) * length)
+    progress = max(0.0, min(1.0, current_xp / required_xp))
+    fill_amount = int(progress * length)
     empty_amount = length - fill_amount
     return "🟩" * fill_amount + "⬜" * empty_amount
 
@@ -248,17 +288,26 @@ class LevelingCog(commands.Cog):
         
         self.voice_xp_task.start()
 
+    def _get_int_setting(self, guild_id: str, key: str, default: int, minimum: int = 0) -> int:
+        raw_value = self.db.get_setting(guild_id, key, str(default))
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            logging.warning("Leveling: invalid integer setting %s=%r for guild %s", key, raw_value, guild_id)
+            value = default
+        return max(minimum, value)
+
     def get_base_message_xp(self, guild_id: str) -> int:
-        return max(0, int(self.db.get_setting(guild_id, "base_message_xp", "15") or 15))
+        return self._get_int_setting(guild_id, "base_message_xp", 15)
 
     def get_base_voice_xp(self, guild_id: str) -> int:
-        return max(0, int(self.db.get_setting(guild_id, "base_voice_xp", "10") or 10))
+        return self._get_int_setting(guild_id, "base_voice_xp", 10)
 
     def get_antifarm_cooldown(self, guild_id: str) -> int:
-        return max(10, int(self.db.get_setting(guild_id, "antifarm_cooldown", "60") or 60))
+        return self._get_int_setting(guild_id, "antifarm_cooldown", 60, minimum=10)
 
     def get_min_msg_length(self, guild_id: str) -> int:
-        return max(0, int(self.db.get_setting(guild_id, "min_msg_length", "0") or 0))
+        return self._get_int_setting(guild_id, "min_msg_length", 0)
 
     def cog_unload(self):
         self.voice_xp_task.cancel()
@@ -272,14 +321,26 @@ class LevelingCog(commands.Cog):
 
         # Apply multiplier
         multiplier = self.db.get_xp_rate(guild_id, source)
+        try:
+            amount = float(amount)
+            multiplier = float(multiplier)
+        except (TypeError, ValueError):
+            logging.warning("Leveling: invalid XP reward amount=%r multiplier=%r", amount, multiplier)
+            return
+
+        if not math.isfinite(amount) or not math.isfinite(multiplier):
+            logging.warning("Leveling: non-finite XP reward amount=%r multiplier=%r", amount, multiplier)
+            return
+
         final_xp = int(amount * multiplier)
 
         if final_xp <= 0:
             return
 
-        data = self.db.get_user(guild_id, user_id)
-        current_xp = data["xp"] + final_xp
-        current_level = data["level"]
+        data = self.db.increment_user_xp(guild_id, user_id, final_xp)
+        current_xp = max(0, int(data["xp"] or 0))
+        previous_level = max(1, int(data["level"] or 1))
+        current_level = previous_level
 
         leveled_up = False
         while True:
@@ -290,7 +351,8 @@ class LevelingCog(commands.Cog):
             else:
                 break
 
-        self.db.set_user(guild_id, user_id, current_xp, current_level)
+        if current_level > previous_level:
+            self.db.set_user_level_at_least(guild_id, user_id, current_level)
 
         if leveled_up:
             await self.handle_level_up(user, current_level)
@@ -348,7 +410,7 @@ class LevelingCog(commands.Cog):
 
         # 2. Notify
         if not notify:
-            return
+            return target_role_assigned, error_msg
 
         embed = discord.Embed(
             title="🎉 Повышение уровня!",
@@ -387,8 +449,19 @@ class LevelingCog(commands.Cog):
             return
 
         cooldown = self.get_antifarm_cooldown(guild_id)
-        if self.anti_farm.check_message(message.author.id, message.content, cooldown=cooldown):
+        user_key = (message.guild.id, message.author.id)
+        if self.anti_farm.check_message(user_key, message.content, cooldown=cooldown):
             await self.add_xp(message.author, self.get_base_message_xp(guild_id), source="messages")
+
+    @commands.Cog.listener()
+    async def on_leveling_add_xp(
+        self,
+        user: discord.Member,
+        amount: float,
+        source: str = "jobs",
+    ):
+        """Persist XP rewards dispatched by profession and event cogs."""
+        await self.add_xp(user, amount, source=source)
 
     @tasks.loop(seconds=60)
     async def voice_xp_task(self):
@@ -551,8 +624,8 @@ class LevelingCog(commands.Cog):
     ])
     @app_commands.default_permissions(administrator=True)
     async def set_xp_rate_cmd(self, interaction: discord.Interaction, source: str, multiplier: float):
-        if multiplier < 0:
-            await interaction.response.send_message("Множитель не может быть меньше 0.", ephemeral=True)
+        if not math.isfinite(multiplier) or multiplier < 0:
+            await interaction.response.send_message("Множитель должен быть конечным числом не меньше 0.", ephemeral=True)
             return
             
         self.db.set_xp_rate(str(interaction.guild.id), source, multiplier)
