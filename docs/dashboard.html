@@ -19,7 +19,7 @@
       <a href="index.html" class="navbar__logo">
         <img src="img/avatar.png" alt="Пчев WildWest RPG">
         Пчев WildWest RPG
-        <span class="navbar__badge">v0.8.4.9</span>
+        <span class="navbar__badge">v0.8.5</span>
       </a>
       <ul class="navbar__links" role="list">
         <li><a href="index.html">Главная</a></li>
@@ -317,6 +317,23 @@
                       <select class="form-control channel-select" id="threadChannelIds" data-setting="threadChannelIds" multiple size="6"></select>
                       <p class="hint">Каналы, где бот автоматически создаёт треды к новым сообщениям. Команды:
                         <code>/threads-on</code> и <code>/threads-off</code>.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card" style="margin-bottom:20px">
+                  <h3 class="heading-sm" style="margin-bottom:20px">Быстрые голосовые каналы</h3>
+                  <div class="form-grid form-grid--single">
+                    <div class="form-group">
+                      <label for="tempVoiceCreatorChannelId">Канал «Присоединиться и создать»</label>
+                      <select class="form-control voice-channel-select" id="tempVoiceCreatorChannelId"
+                        data-setting="tempVoiceCreatorChannelId">
+                        <option value="">Функция выключена</option>
+                      </select>
+                      <p class="hint">При входе бот создаст личный голосовой канал в той же категории, перенесёт
+                        игрока и отправит в чат комнаты меню управления названием, лимитом, доступом и владельцем.</p>
+                      <p class="hint">Боту нужны права «Управление каналами», «Перемещать участников» и
+                        «Отправлять сообщения».</p>
                     </div>
                   </div>
                 </div>
@@ -1242,7 +1259,7 @@
       </div>
       <div class="footer__bottom">
         <p class="footer__copy">© 2026 Пчев 𝑊𝑖𝑙𝑑𝑊𝑒𝑠𝑡 𝑅𝑃𝐺.</p>
-        <span class="footer__version">v0.8.4.9</span>
+        <span class="footer__version">v0.8.5</span>
       </div>
     </div>
   </footer>
@@ -1259,7 +1276,7 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=0.8.1.11.1"></script>
+  <script src="js/app.js?v=0.8.4.9.2"></script>
 </body>
 
 <!-- Datalist для каналов -->

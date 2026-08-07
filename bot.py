@@ -341,6 +341,8 @@ def default_economy():
         "treasure_channel_id": None,
         "news_channel_id": None,
         "thread_channel_ids": [],
+        "temp_voice_creator_channel_id": None,
+        "temp_voice_channels": {},
         "auto_reactions": [],
         "welcome_enabled": False,
         "welcome_channel_id": None,
@@ -407,6 +409,8 @@ def normalize_economy_data(data):
     data.setdefault("treasure_channel_id", None)
     data.setdefault("news_channel_id", None)
     data.setdefault("thread_channel_ids", [])
+    data.setdefault("temp_voice_creator_channel_id", None)
+    data.setdefault("temp_voice_channels", {})
     data.setdefault("auto_reactions", [])
     data.setdefault("welcome_enabled", False)
     data.setdefault("welcome_channel_id", None)
@@ -500,6 +504,8 @@ def normalize_economy_data(data):
         data["users"] = {}
     if not isinstance(data.get("thread_channel_ids"), list):
         data["thread_channel_ids"] = []
+    if not isinstance(data.get("temp_voice_channels"), dict):
+        data["temp_voice_channels"] = {}
     data["auto_reactions"] = normalize_auto_reactions(data.get("auto_reactions"))
 
     return data
@@ -1998,6 +2004,7 @@ async def setup_hook():
         "cogs.miner",
         "cogs.collector",
         "cogs.admin",
+        "cogs.temp_voice",
     )
     for extension in extensions:
         try:

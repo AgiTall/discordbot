@@ -66,6 +66,7 @@ def _setting_ids(value: Any) -> list[str]:
 
 def _validate_settings_payload(guild, data: dict[str, Any]) -> None:
     channel_ids = {str(channel.id) for channel in guild.channels}
+    voice_channel_ids = {str(channel.id) for channel in getattr(guild, "voice_channels", [])}
     role_ids = {str(role.id) for role in guild.roles if role.id != guild.id}
 
     for key in (
@@ -84,6 +85,13 @@ def _validate_settings_payload(guild, data: dict[str, Any]) -> None:
         invalid = [item for item in _setting_ids(data.get(key)) if item not in channel_ids]
         if invalid:
             raise HTTPException(status_code=400, detail=f"В {key} есть недоступный канал")
+
+    temp_voice_creator = str(data.get("tempVoiceCreatorChannelId", "") or "").strip()
+    if temp_voice_creator and temp_voice_creator not in voice_channel_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Выбранный канал создания быстрых каналов недоступен",
+        )
 
     welcome_role = str(data.get("welcomeRoleId", "") or "").strip()
     if welcome_role and welcome_role not in role_ids:

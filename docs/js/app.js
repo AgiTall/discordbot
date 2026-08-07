@@ -1141,7 +1141,8 @@ function applySettingsToForm(settings) {
         opt.selected = values.includes(opt.value);
       });
     } else {
-      if (el.tagName === 'SELECT' && el.classList.contains('channel-select') && val) {
+      if (el.tagName === 'SELECT' &&
+          (el.classList.contains('channel-select') || el.classList.contains('voice-channel-select')) && val) {
         if (!Array.from(el.options).some(opt => opt.value === String(val))) {
           const opt = document.createElement('option');
           opt.value = val;
@@ -1519,6 +1520,10 @@ function populateChannelSelects(channels) {
     .filter(c => [0, 5].includes(Number(c.type)))
     .map(c => `<option value="${c.id}"># ${escapeHtml(c.name)}</option>`)
     .join('');
+  const voiceChannelOptions = channels
+    .filter(c => Number(c.type) === 2)
+    .map(c => `<option value="${c.id}">🔊 ${escapeHtml(c.name)}</option>`)
+    .join('');
 
   document.querySelectorAll('select.channel-select').forEach(select => {
     const currentValues = select.multiple
@@ -1540,6 +1545,15 @@ function populateChannelSelects(channels) {
     } else {
       select.value = currentValues[0] || '';
     }
+  });
+
+  document.querySelectorAll('select.voice-channel-select').forEach(select => {
+    const currentValue = select.value;
+    select.innerHTML = `<option value="">Функция выключена</option>${voiceChannelOptions}`;
+    if (currentValue && !channels.some(c => Number(c.type) === 2 && String(c.id) === String(currentValue))) {
+      select.innerHTML += `<option value="${currentValue}">Недоступный голосовой канал: ${currentValue}</option>`;
+    }
+    select.value = currentValue || '';
   });
 
   const datalist = document.getElementById('channelDatalist');

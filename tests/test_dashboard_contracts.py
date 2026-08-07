@@ -18,6 +18,7 @@ class SettingsValidationTests(TestCase):
         self.guild = SimpleNamespace(
             id=100,
             channels=[SimpleNamespace(id=200), SimpleNamespace(id=201)],
+            voice_channels=[SimpleNamespace(id=201)],
             roles=[SimpleNamespace(id=100), SimpleNamespace(id=300)],
         )
 
@@ -27,6 +28,7 @@ class SettingsValidationTests(TestCase):
             {
                 "newsChannelId": "200",
                 "agitationChannelId": "201",
+                "tempVoiceCreatorChannelId": "201",
                 "commandChannelIds": "200, 201",
                 "welcomeRoleId": "300",
                 "xpRateMessages": "2.5",
@@ -46,6 +48,11 @@ class SettingsValidationTests(TestCase):
     def test_rejects_resource_from_another_guild(self):
         with self.assertRaises(Exception) as raised:
             _validate_settings_payload(self.guild, {"logsChannelId": "999"})
+        self.assertEqual(raised.exception.status_code, 400)
+
+    def test_rejects_text_channel_as_temporary_voice_creator(self):
+        with self.assertRaises(Exception) as raised:
+            _validate_settings_payload(self.guild, {"tempVoiceCreatorChannelId": "200"})
         self.assertEqual(raised.exception.status_code, 400)
 
     def test_rejects_unknown_message_template_variable(self):
@@ -118,6 +125,7 @@ class GuildSettingsRoundTripTests(TestCase):
             "100",
             {
                 "agitationChannelId": "201",
+                "tempVoiceCreatorChannelId": "201",
                 "goldRate": "812.25",
                 "safeEmoji": "🔐",
                 "balanceGangEmoji": "<:gang:123456789>",
@@ -136,6 +144,7 @@ class GuildSettingsRoundTripTests(TestCase):
 
         self.assertEqual(economy.saved, 1)
         self.assertEqual(economy.data["agitation_channel_id"], 201)
+        self.assertEqual(economy.data["temp_voice_creator_channel_id"], 201)
         self.assertEqual(economy.data["gold_rate"], 812.25)
         self.assertEqual(economy.data["gold_rate_history"][-1]["rate"], 812.25)
         self.assertEqual(economy.data["balance_ui_gang"], "<:gang:123456789>")
@@ -160,6 +169,14 @@ class GuildSettingsRoundTripTests(TestCase):
             "excludedTriggers": ["спойлер"],
         }])
         self.assertEqual(get_guild_settings(economy, leveling, "100")["agitationChannelId"], "201")
+        self.assertEqual(get_guild_settings(economy, leveling, "100")["tempVoiceCreatorChannelId"], "201")
+
+    def test_dashboard_contains_temporary_voice_channel_setting(self):
+        dashboard = (ROOT / "docs" / "dashboard.html").read_text(encoding="utf-8")
+        javascript = (ROOT / "docs" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="tempVoiceCreatorChannelId"', dashboard)
+        self.assertIn("select.voice-channel-select", javascript)
+        self.assertIn("Number(c.type) === 2", javascript)
 
 
 class DashboardApiTests(IsolatedAsyncioTestCase):

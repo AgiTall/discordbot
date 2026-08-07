@@ -88,6 +88,7 @@ def get_guild_settings(economy_store, leveling_db, guild_id):
         "commandChannelIds": _channel_ids_to_str(command_channels),
         "allowAllChannels": leveling_db.get_setting(gid, "allow_all_channels", "false") == "true",
         "threadChannelIds": _channel_ids_to_str(thread_channels),
+        "tempVoiceCreatorChannelId": str(econ.get("temp_voice_creator_channel_id") or ""),
         "levelupChannelId": str(leveling_db.get_setting(gid, "levelup_channel") or ""),
         "levelupDM": leveling_db.get_setting(gid, "levelup_dm", "false") == "true",
         "antifarmCooldown": int(leveling_db.get_setting(gid, "antifarm_cooldown", "60") or 60),
@@ -163,6 +164,10 @@ def set_guild_settings(economy_store, leveling_db, guild_id, data):
 
     if "threadChannelIds" in data:
         econ["thread_channel_ids"] = _parse_channel_ids(data["threadChannelIds"])
+
+    if "tempVoiceCreatorChannelId" in data:
+        val = str(data["tempVoiceCreatorChannelId"]).strip()
+        econ["temp_voice_creator_channel_id"] = int(val) if val.isdigit() else None
 
     if "welcomeEnabled" in data:
         econ["welcome_enabled"] = bool(data["welcomeEnabled"])
