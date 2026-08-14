@@ -2631,7 +2631,8 @@ def build_help_pages(is_admin):
     overview.add_field(
         name="Полезное",
         value=(
-            "`/leaderboard` — таблица лидеров по общему уровню.\n"
+            "`/leaderboard` — таблица лидеров текущего сервера по общему уровню.\n"
+            "`/voice-leaderboard` — самые долгие голосовые сеансы сервера.\n"
             "`/status` — версия, задержка и состояние бота."
         ),
         inline=False,
@@ -2686,7 +2687,8 @@ def build_help_pages(is_admin):
         value=(
             "`/rank` — показать свой уровень, XP, место и текущую ранговую роль.\n"
             "`/rank member:@участник` — посмотреть прогресс другого игрока.\n"
-            "`/leaderboard` — открыть топ-10 игроков сервера."
+            "`/leaderboard` — открыть топ-10 игроков сервера.\n"
+            "`/voice-leaderboard` — открыть топ-10 голосовых сеансов."
         ),
         inline=False,
     )

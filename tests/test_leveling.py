@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 from src.leveling import (
     AntiFarm,
@@ -8,6 +8,7 @@ from src.leveling import (
     calculate_total_xp_for_level,
     calculate_xp_for_level,
     draw_progress_bar,
+    format_voice_duration,
 )
 
 
@@ -18,6 +19,8 @@ class FakeLevelingDB:
         self.rate = rate
         self.increment_calls = []
         self.level_updates = []
+        self.voice_records = []
+        self.top_user_calls = []
 
     def get_xp_rate(self, guild_id, source):
         return self.rate
@@ -37,12 +40,20 @@ class FakeLevelingDB:
     def get_setting(self, guild_id, key, default=None):
         return default
 
+    def record_voice_session(self, guild_id, user_id, duration_seconds):
+        self.voice_records.append((guild_id, user_id, duration_seconds))
+
+    def get_top_users(self, guild_id, limit=10, user_ids=None):
+        self.top_user_calls.append((guild_id, limit, user_ids))
+        return []
+
 
 def make_cog(db):
     cog = object.__new__(LevelingCog)
     cog.bot = SimpleNamespace()
     cog.db = db
     cog.anti_farm = AntiFarm()
+    cog.active_voice_sessions = {}
     return cog
 
 
@@ -75,8 +86,48 @@ class LevelingFormulaTests(unittest.TestCase):
         self.assertEqual(cog.get_base_message_xp("7"), 15)
         self.assertEqual(cog.get_antifarm_cooldown("7"), 60)
 
+    def test_voice_duration_is_human_readable(self):
+        self.assertEqual(format_voice_duration(0), "0 сек")
+        self.assertEqual(format_voice_duration(3665), "1 ч 1 мин")
+        self.assertEqual(format_voice_duration(90061), "1 д 1 ч 1 мин")
+
+    def test_finished_voice_session_persists_the_longest_candidate(self):
+        db = FakeLevelingDB()
+        cog = make_cog(db)
+        member = make_member()
+
+        cog._start_voice_session(member, now=100)
+        duration = cog._finish_voice_session(member, now=3705)
+
+        self.assertEqual(duration, 3605)
+        self.assertEqual(db.voice_records, [("7", "42", 3605)])
+
 
 class LevelingRewardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_leaderboard_filters_to_current_non_bot_members(self):
+        db = FakeLevelingDB()
+        cog = make_cog(db)
+        guild = SimpleNamespace(
+            id=7,
+            members=[
+                SimpleNamespace(id=42, bot=False),
+                SimpleNamespace(id=43, bot=False),
+                SimpleNamespace(id=99, bot=True),
+            ],
+        )
+        interaction = SimpleNamespace(
+            guild=guild,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+
+        await LevelingCog.leaderboard_cmd.callback(cog, interaction)
+
+        self.assertEqual(db.top_user_calls, [("7", 10, ["42", "43"])])
+        interaction.response.send_message.assert_awaited_once_with(
+            "Рейтинг пока пуст.",
+            ephemeral=True,
+        )
+
     async def test_profession_event_is_forwarded_to_xp_accounting(self):
         cog = make_cog(FakeLevelingDB())
         cog.add_xp = AsyncMock()
@@ -113,6 +164,74 @@ class LevelingRewardTests(unittest.IsolatedAsyncioTestCase):
         result = await cog.handle_level_up(member, 1, notify=False)
 
         self.assertEqual(result, (None, None))
+
+    async def test_hourly_voice_reward_credits_current_guild_account(self):
+        class FakeLock:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        guild = SimpleNamespace(id=7, afk_channel=None)
+        channel = SimpleNamespace(id=70)
+        member = make_member()
+        member.guild = guild
+        member.voice = SimpleNamespace(channel=channel)
+        account = {"cash": 125.0}
+
+        cog = make_cog(FakeLevelingDB())
+        cog.bot = SimpleNamespace(
+            economy_lock=FakeLock(),
+            set_economy_guild_id=Mock(return_value="token"),
+            reset_economy_guild_id=Mock(),
+            get_account=Mock(return_value=account),
+            save_economy=Mock(),
+        )
+
+        awarded = await cog._award_voice_cash(
+            guild,
+            {("7", "42"): (member, 2)},
+        )
+
+        self.assertEqual(account["cash"], 1125.0)
+        self.assertEqual(awarded, {("7", "42"): 2})
+        cog.bot.set_economy_guild_id.assert_called_once_with(7)
+        cog.bot.save_economy.assert_called_once_with()
+        cog.bot.reset_economy_guild_id.assert_called_once_with("token")
+
+    async def test_completed_voice_hour_is_not_paid_twice(self):
+        class FakeLock:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        guild = SimpleNamespace(id=7, afk_channel=None, stage_channels=[])
+        channel = SimpleNamespace(id=70, members=[])
+        guild.voice_channels = [channel]
+        member = make_member()
+        member.guild = guild
+        member.voice = SimpleNamespace(channel=channel)
+        channel.members = [member]
+        account = {"cash": 0.0}
+
+        cog = make_cog(FakeLevelingDB())
+        cog.bot = SimpleNamespace(
+            economy_lock=FakeLock(),
+            set_economy_guild_id=Mock(return_value="token"),
+            reset_economy_guild_id=Mock(),
+            get_account=Mock(return_value=account),
+            save_economy=Mock(),
+        )
+
+        await cog._update_voice_sessions(guild, now=100)
+        await cog._update_voice_sessions(guild, now=3700)
+        await cog._update_voice_sessions(guild, now=3710)
+
+        self.assertEqual(account["cash"], 500.0)
+        self.assertEqual(cog.bot.save_economy.call_count, 1)
 
 
 if __name__ == "__main__":

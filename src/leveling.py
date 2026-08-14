@@ -7,7 +7,29 @@ import time
 import logging
 import math
 import os
+
 DEFAULT_XP_RATE = 1.0
+VOICE_HOURLY_REWARD = 500
+VOICE_REWARD_INTERVAL_SECONDS = 60 * 60
+
+
+def format_voice_duration(total_seconds: int) -> str:
+    """Format a voice-session duration for Discord leaderboard rows."""
+    total_seconds = max(0, int(total_seconds or 0))
+    days, remainder = divmod(total_seconds, 24 * 60 * 60)
+    hours, remainder = divmod(remainder, 60 * 60)
+    minutes, seconds = divmod(remainder, 60)
+
+    parts = []
+    if days:
+        parts.append(f"{days} д")
+    if hours:
+        parts.append(f"{hours} ч")
+    if minutes:
+        parts.append(f"{minutes} мин")
+    if not parts:
+        parts.append(f"{seconds} сек")
+    return " ".join(parts)
 
 def calculate_xp_for_level(level: int) -> int:
     """Return the XP needed to reach ``level`` from the previous level."""
@@ -99,6 +121,14 @@ class LevelingDB:
                     PRIMARY KEY(guild_id, source)
                 )
             """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS voice_session_stats (
+                    guild_id TEXT,
+                    user_id TEXT,
+                    longest_session_seconds BIGINT NOT NULL DEFAULT 0,
+                    PRIMARY KEY(guild_id, user_id)
+                )
+            """)
 
             # --- Миграция из старой таблицы users (если в ней есть колонка xp) ---
             try:
@@ -173,10 +203,83 @@ class LevelingDB:
                 (max(1, int(level)), str(guild_id), str(user_id)),
             )
 
-    def get_top_users(self, guild_id: str, limit: int = 10):
+    def get_top_users(self, guild_id: str, limit: int = 10, user_ids=None):
         self._ensure_conn()
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT user_id, xp, level FROM leveling_users WHERE guild_id = %s ORDER BY xp DESC LIMIT %s", (str(guild_id), limit))
+            if user_ids is not None:
+                user_ids = list(dict.fromkeys(str(user_id) for user_id in user_ids))
+                if not user_ids:
+                    return []
+                cursor.execute(
+                    """
+                    SELECT user_id, xp, level
+                    FROM leveling_users
+                    WHERE guild_id = %s AND user_id = ANY(%s)
+                    ORDER BY xp DESC
+                    LIMIT %s
+                    """,
+                    (str(guild_id), user_ids, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT user_id, xp, level
+                    FROM leveling_users
+                    WHERE guild_id = %s
+                    ORDER BY xp DESC
+                    LIMIT %s
+                    """,
+                    (str(guild_id), limit),
+                )
+            return [dict(row) for row in cursor]
+
+    def record_voice_session(self, guild_id: str, user_id: str, duration_seconds: int):
+        """Atomically preserve a user's longest continuous voice session."""
+        duration_seconds = max(0, int(duration_seconds or 0))
+        self._ensure_conn()
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO voice_session_stats (
+                    guild_id, user_id, longest_session_seconds
+                ) VALUES (%s, %s, %s)
+                ON CONFLICT (guild_id, user_id) DO UPDATE
+                SET longest_session_seconds = GREATEST(
+                    voice_session_stats.longest_session_seconds,
+                    EXCLUDED.longest_session_seconds
+                )
+                """,
+                (str(guild_id), str(user_id), duration_seconds),
+            )
+
+    def get_top_voice_sessions(self, guild_id: str, limit: int = 10, user_ids=None):
+        self._ensure_conn()
+        with self.conn.cursor() as cursor:
+            if user_ids is not None:
+                user_ids = list(dict.fromkeys(str(user_id) for user_id in user_ids))
+                if not user_ids:
+                    return []
+                cursor.execute(
+                    """
+                    SELECT user_id, longest_session_seconds
+                    FROM voice_session_stats
+                    WHERE guild_id = %s AND user_id = ANY(%s)
+                    ORDER BY longest_session_seconds DESC, user_id ASC
+                    LIMIT %s
+                    """,
+                    (str(guild_id), user_ids, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT user_id, longest_session_seconds
+                    FROM voice_session_stats
+                    WHERE guild_id = %s
+                    ORDER BY longest_session_seconds DESC, user_id ASC
+                    LIMIT %s
+                    """,
+                    (str(guild_id), limit),
+                )
             return [dict(row) for row in cursor]
 
     def get_user_rank_position(self, guild_id: str, user_id: str):
@@ -285,6 +388,7 @@ class LevelingCog(commands.Cog):
         self.bot = bot
         self.db = LevelingDB()
         self.anti_farm = AntiFarm()
+        self.active_voice_sessions = {}
         
         self.voice_xp_task.start()
 
@@ -311,6 +415,155 @@ class LevelingCog(commands.Cog):
 
     def cog_unload(self):
         self.voice_xp_task.cancel()
+        ended_at = time.time()
+        for (guild_id, user_id), session in self.active_voice_sessions.items():
+            duration = max(0, int(ended_at - session["started_at"]))
+            self.db.record_voice_session(guild_id, user_id, duration)
+        self.active_voice_sessions.clear()
+
+    @staticmethod
+    def _is_counted_voice_channel(guild, channel) -> bool:
+        if channel is None:
+            return False
+        afk_channel = getattr(guild, "afk_channel", None)
+        return afk_channel is None or channel.id != afk_channel.id
+
+    def _start_voice_session(self, member, now=None):
+        key = (str(member.guild.id), str(member.id))
+        self.active_voice_sessions.setdefault(
+            key,
+            {
+                "started_at": time.time() if now is None else float(now),
+                "rewarded_hours": 0,
+            },
+        )
+        return self.active_voice_sessions[key]
+
+    def _finish_voice_session(self, member, now=None):
+        key = (str(member.guild.id), str(member.id))
+        session = self.active_voice_sessions.pop(key, None)
+        if session is None:
+            return 0
+
+        ended_at = time.time() if now is None else float(now)
+        duration = max(0, int(ended_at - session["started_at"]))
+        self.db.record_voice_session(key[0], key[1], duration)
+        return duration
+
+    def _present_voice_members(self, guild):
+        channels = list(getattr(guild, "voice_channels", ()))
+        channels.extend(getattr(guild, "stage_channels", ()))
+        present = {}
+        for channel in channels:
+            if not self._is_counted_voice_channel(guild, channel):
+                continue
+            for member in getattr(channel, "members", ()):
+                if not member.bot:
+                    present[(str(guild.id), str(member.id))] = member
+        return present
+
+    async def _award_voice_cash(self, guild, pending_rewards):
+        """Credit voice rewards as one economy save and report successful rows."""
+        required_bot_attrs = (
+            "economy_lock",
+            "set_economy_guild_id",
+            "reset_economy_guild_id",
+            "get_account",
+            "save_economy",
+        )
+        if any(not hasattr(self.bot, attr) for attr in required_bot_attrs):
+            logging.error("Voice rewards: bot economy helpers are unavailable")
+            return {}
+
+        # Presence is checked again at the point of payment. A member who left
+        # while this task was being prepared must not receive the hourly credit.
+        eligible = {}
+        for key, (member, hours) in pending_rewards.items():
+            voice_state = getattr(member, "voice", None)
+            channel = getattr(voice_state, "channel", None)
+            if hours > 0 and self._is_counted_voice_channel(guild, channel):
+                eligible[key] = (member, hours)
+        if not eligible:
+            return {}
+
+        previous_balances = []
+        try:
+            async with self.bot.economy_lock:
+                token = self.bot.set_economy_guild_id(guild.id)
+                try:
+                    for member, hours in eligible.values():
+                        account = self.bot.get_account(member.id)
+                        old_cash = float(account.get("cash", 0.0))
+                        if not math.isfinite(old_cash):
+                            old_cash = 0.0
+                        previous_balances.append((account, old_cash))
+                        account["cash"] = round(
+                            old_cash + VOICE_HOURLY_REWARD * hours,
+                            2,
+                        )
+                    self.bot.save_economy()
+                finally:
+                    self.bot.reset_economy_guild_id(token)
+        except Exception:
+            for account, old_cash in previous_balances:
+                account["cash"] = old_cash
+            logging.exception("Voice rewards: failed to credit guild %s", guild.id)
+            return {}
+
+        return {key: hours for key, (_, hours) in eligible.items()}
+
+    async def _update_voice_sessions(self, guild, now=None):
+        now = time.time() if now is None else float(now)
+        guild_id = str(guild.id)
+        present = self._present_voice_members(guild)
+
+        for key in list(self.active_voice_sessions):
+            if key[0] == guild_id and key not in present:
+                session = self.active_voice_sessions.pop(key)
+                duration = max(0, int(now - session["started_at"]))
+                self.db.record_voice_session(key[0], key[1], duration)
+
+        pending_rewards = {}
+        pending_sessions = {}
+        for key, member in present.items():
+            session = self._start_voice_session(member, now=now)
+            duration = max(0, int(now - session["started_at"]))
+            self.db.record_voice_session(key[0], key[1], duration)
+
+            completed_hours = duration // VOICE_REWARD_INTERVAL_SECONDS
+            due_hours = completed_hours - session["rewarded_hours"]
+            if due_hours > 0:
+                # Claim the due hours before awaiting the economy lock. This
+                # prevents a simultaneous command refresh from paying twice.
+                session["rewarded_hours"] += due_hours
+                pending_rewards[key] = (member, due_hours)
+                pending_sessions[key] = session
+
+        awarded = await self._award_voice_cash(guild, pending_rewards)
+        for key, (_, due_hours) in pending_rewards.items():
+            if key in awarded:
+                continue
+            # Roll the claim back after a failed/skipped payment so the next
+            # minute can retry. Do not mutate a replacement session.
+            if self.active_voice_sessions.get(key) is pending_sessions.get(key):
+                self.active_voice_sessions[key]["rewarded_hours"] -= due_hours
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if member.bot or not member.guild:
+            return
+
+        before_counted = self._is_counted_voice_channel(member.guild, before.channel)
+        after_counted = self._is_counted_voice_channel(member.guild, after.channel)
+        key = (str(member.guild.id), str(member.id))
+
+        if after_counted and not before_counted:
+            self._start_voice_session(member)
+        elif before_counted and not after_counted:
+            self._finish_voice_session(member)
+        elif after_counted and key not in self.active_voice_sessions:
+            # Covers a regular voice-channel move after a reconnect/reload.
+            self._start_voice_session(member)
 
     async def add_xp(self, user: discord.Member, amount: float, source: str = "messages"):
         if user.bot:
@@ -466,6 +719,14 @@ class LevelingCog(commands.Cog):
     @tasks.loop(seconds=60)
     async def voice_xp_task(self):
         for guild in self.bot.guilds:
+            try:
+                await self._update_voice_sessions(guild)
+            except Exception:
+                logging.exception(
+                    "Voice sessions: failed to update guild %s",
+                    guild.id,
+                )
+
             for voice_channel in guild.voice_channels:
                 # AFK check
                 if guild.afk_channel and voice_channel.id == guild.afk_channel.id:
@@ -535,9 +796,17 @@ class LevelingCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="leaderboard", description="Показать топ-10 игроков сервера по уровням")
+    @app_commands.guild_only()
     async def leaderboard_cmd(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild.id)
-        top_users = self.db.get_top_users(guild_id, 10)
+        current_member_ids = [
+            str(member.id) for member in interaction.guild.members if not member.bot
+        ]
+        top_users = self.db.get_top_users(
+            guild_id,
+            10,
+            user_ids=current_member_ids,
+        )
 
         if not top_users:
             await interaction.response.send_message("Рейтинг пока пуст.", ephemeral=True)
@@ -560,6 +829,60 @@ class LevelingCog(commands.Cog):
 
         embed.description = description
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(
+        name="voice-leaderboard",
+        description="Показать топ-10 самых долгих голосовых сеансов сервера",
+    )
+    @app_commands.guild_only()
+    async def voice_leaderboard_cmd(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        await interaction.response.defer()
+        await self._update_voice_sessions(guild)
+
+        current_member_ids = [str(member.id) for member in guild.members if not member.bot]
+        top_users = self.db.get_top_voice_sessions(
+            str(guild.id),
+            10,
+            user_ids=current_member_ids,
+        )
+        if not top_users:
+            await interaction.followup.send(
+                "Рейтинг голосовых сеансов пока пуст.",
+            )
+            return
+
+        rows = []
+        for index, user_data in enumerate(top_users):
+            member = guild.get_member(int(user_data["user_id"]))
+            if member is None:
+                continue
+            if index == 0:
+                position = "🥇"
+            elif index == 1:
+                position = "🥈"
+            elif index == 2:
+                position = "🥉"
+            else:
+                position = f"**{index + 1}.**"
+            duration = format_voice_duration(user_data["longest_session_seconds"])
+            rows.append(f"{position} {member.mention} — **{duration}**")
+
+        if not rows:
+            await interaction.followup.send(
+                "Рейтинг голосовых сеансов пока пуст.",
+            )
+            return
+
+        embed = discord.Embed(
+            title="🎙️ Самые долгие голосовые сеансы",
+            description="\n".join(rows),
+            color=discord.Color.blurple(),
+        )
+        embed.set_footer(
+            text=f"За каждый полный час непрерывного сеанса начисляется ${VOICE_HOURLY_REWARD}."
+        )
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="set-rank-role", description="Привязать роль к уровню и выдать подходящим игрокам")
     @app_commands.describe(level="Уровень для получения роли", role="Выдаваемая роль")
