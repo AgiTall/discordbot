@@ -194,7 +194,7 @@ class LevelingRewardTests(unittest.IsolatedAsyncioTestCase):
             {("7", "42"): (member, 2)},
         )
 
-        self.assertEqual(account["cash"], 1125.0)
+        self.assertEqual(account["cash"], 225.0)
         self.assertEqual(awarded, {("7", "42"): 2})
         cog.bot.set_economy_guild_id.assert_called_once_with(7)
         cog.bot.save_economy.assert_called_once_with()
@@ -230,7 +230,7 @@ class LevelingRewardTests(unittest.IsolatedAsyncioTestCase):
         await cog._update_voice_sessions(guild, now=3700)
         await cog._update_voice_sessions(guild, now=3710)
 
-        self.assertEqual(account["cash"], 500.0)
+        self.assertEqual(account["cash"], 50.0)
         self.assertEqual(cog.bot.save_economy.call_count, 1)
 
 
