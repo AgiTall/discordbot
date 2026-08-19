@@ -2624,7 +2624,20 @@ def build_help_pages(is_admin):
     overview.add_field(
         name="Быстрый старт",
         value=(
-            "`/balance`, `/work`, `/rank`, `/roles`, `/catalog`, `/casino`, `/mine`, `/collector`"
+            "**1. Откройте `/balance`:** здесь находятся ваш баланс и главное меню игрока.\n"
+            "**2. Заработайте:** используйте кнопку работы или команду `/work`.\n"
+            "**3. Выберите путь:** откройте профессии через меню баланса или `/roles`.\n"
+            "**4. Попробуйте игры:** `/casino` открывает единое меню казино.\n"
+            "**5. Сравните результат:** `/rank` и `/leaderboard` покажут ваш прогресс."
+        ),
+        inline=False,
+    )
+    overview.add_field(
+        name="Если вы здесь впервые",
+        value=(
+            "Не нужно запоминать все команды: большинство действий открывается кнопками "
+            "в `/balance`, `/casino`, `/catalog` и меню профессии.\n"
+            "Для справки по разделам выберите категорию в меню ниже."
         ),
         inline=False,
     )
@@ -3986,6 +3999,44 @@ async def help_command(interaction: discord.Interaction):
         await interaction.response.send_message(
             embed=pages["overview"]["embed"], view=HelpView(pages), ephemeral=True
         )
+
+
+@bot.tree.command(name="start", description="Показать пошаговый старт для новичка")
+async def start_command(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="Добро пожаловать на Дикий Запад",
+        description=(
+            "Начните с двух главных меню. Все команды вводятся через Discord и начинаются с `/`."
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.add_field(
+        name="1. Проверьте себя",
+        value="`/balance` — главный экран игрока: баланс, золото, оружие и доступные действия.",
+        inline=False,
+    )
+    embed.add_field(
+        name="2. Получите первые деньги",
+        value="Нажмите кнопку работы в `/balance` или используйте `/work`. Повторить работу можно через час.",
+        inline=False,
+    )
+    embed.add_field(
+        name="3. Выберите профессию",
+        value="Откройте раздел профессий в `/balance` или используйте `/roles`, затем купите подходящую роль за золото.",
+        inline=False,
+    )
+    embed.add_field(
+        name="4. Откройте меню профессии",
+        value="После покупки используйте команду роли и следуйте кнопкам внутри меню. Для игр откройте `/casino`.",
+        inline=False,
+    )
+    embed.add_field(
+        name="5. Развивайтесь",
+        value="`/rank` показывает ваш уровень, а `/leaderboard` — место среди игроков.",
+        inline=False,
+    )
+    embed.set_footer(text="Подробная справка: /help")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="roles", description="Показать игровые роли и купить доступные")

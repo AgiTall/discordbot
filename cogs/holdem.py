@@ -22,6 +22,7 @@ from emoji_config import (
 from src.holdem import (
     BETTING_STAGES,
     FINISHED,
+    HAND_NAMES,
     WAITING,
     HoldemError,
     HoldemGame,
@@ -147,6 +148,7 @@ class DiscordPokerTable:
         self.buy_in = as_money(self.max_bet * 5)
         self.small_blind, self.big_blind = blind_structure(self.max_bet)
         self.players: list[HoldemPlayer] = []
+        self.members: dict[int, discord.Member | discord.User] = {}
         self.avatars: dict[int, bytes] = {}
         self.cosmetics: dict[int, str] = {}
         self.cosmetic_assets: dict[
@@ -157,6 +159,7 @@ class DiscordPokerTable:
         self.dealer_seat = -1
         self.hand_number = 0
         self.message: discord.Message | None = None
+        self.combinations_message: discord.Message | None = None
         self.private_hand_messages: dict[int, discord.InteractionMessage] = {}
         self.lock = asyncio.Lock()
         self.timeout_task: asyncio.Task | None = None
@@ -358,6 +361,7 @@ class DiscordPokerTable:
                 notice = self.start_hand(self.host_id)
                 if notice.ok:
                     await self.update_message()
+                    await self.send_private_hands()
         except asyncio.CancelledError:
             return
         except Exception:
@@ -395,6 +399,7 @@ class DiscordPokerTable:
         )
         self.players.append(player)
         self.players.sort(key=lambda item: item.seat)
+        self.members[member.id] = member
         equipped_getter = getattr(self.cog, "equipped_cosmetic", None)
         self.cosmetics[member.id] = (
             equipped_getter(self.guild_id, member.id)
@@ -429,6 +434,7 @@ class DiscordPokerTable:
         if amount and not await self._change_cash(user_id, amount):
             return TableNotice(False, "Не удалось вернуть деньги на баланс.")
         self.players.remove(player)
+        self.members.pop(user_id, None)
         self.avatars.pop(user_id, None)
         self.cosmetics.pop(user_id, None)
         self.cosmetic_assets.pop(user_id, None)
@@ -486,6 +492,10 @@ class DiscordPokerTable:
             self.hand_number += 1
             self.game.hand_number = self.hand_number
             self.dealer_seat = self.game.players[self.game.dealer_index].seat
+            # An ephemeral hand message belongs to the interaction that created it.
+            # Never reuse one from a previous deal: it may have been dismissed while
+            # still remaining editable through Discord's webhook token.
+            self.private_hand_messages.clear()
         except HoldemError as error:
             return TableNotice(False, str(error))
         return TableNotice(True, f"Раздача #{self.game.hand_number} началась.")
@@ -595,6 +605,59 @@ class DiscordPokerTable:
     def build_view(self) -> "PokerTableView":
         return PokerTableView(self)
 
+    @staticmethod
+    def build_combinations_embed() -> discord.Embed:
+        descriptions = {
+            8: "пять карт одной масти по порядку",
+            7: "четыре карты одного достоинства",
+            6: "сет и пара одновременно",
+            5: "пять карт одной масти",
+            4: "пять карт по порядку",
+            3: "три карты одного достоинства",
+            2: "две разные пары",
+            1: "две карты одного достоинства",
+            0: "старшая из пяти карт",
+        }
+        lines = [
+            f"**{index}. {HAND_NAMES[rank]}** — {descriptions[rank]}"
+            for index, rank in enumerate(sorted(HAND_NAMES, reverse=True), start=1)
+        ]
+        return discord.Embed(
+            title="🃏 Комбинации карт",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
+
+    async def send_private_hands(self) -> None:
+        """DM every seated player their cards at the start of a deal."""
+        game = self.game
+        if game is None or not self.hand_active:
+            return
+
+        async def send_to_player(player: HoldemPlayer) -> None:
+            recipient = self.members.get(player.user_id)
+            sender = getattr(recipient, "send", None)
+            if sender is None or not player.hole:
+                return
+            try:
+                image = await asyncio.to_thread(
+                    _render_private_hand,
+                    game,
+                    player.user_id,
+                )
+                await sender(
+                    f"Texas Hold’em · раздача **#{game.hand_number}** · ваши карты:",
+                    file=discord.File(image, filename="my_poker_hand.jpg"),
+                )
+            except Exception:
+                LOGGER.warning(
+                    "Failed to DM Hold'em hand to user %s",
+                    player.user_id,
+                    exc_info=True,
+                )
+
+        await asyncio.gather(*(send_to_player(player) for player in game.players))
+
     async def send_initial(self, channel: discord.abc.Messageable) -> None:
         image = await asyncio.to_thread(
             _render_table,
@@ -608,6 +671,9 @@ class DiscordPokerTable:
             embed=self.build_embed(),
             file=file,
             view=self.build_view(),
+        )
+        self.combinations_message = await channel.send(
+            embed=self.build_combinations_embed(),
         )
 
     async def update_message(self, *, schedule_timeout: bool = True) -> None:
@@ -684,6 +750,7 @@ class DiscordPokerTable:
         for player_id, amount in refunds:
             await self._change_cash(player_id, amount)
         self.players.clear()
+        self.members.clear()
         self.avatars.clear()
         self.cosmetics.clear()
         self.cosmetic_assets.clear()
@@ -726,7 +793,10 @@ class RaiseModal(discord.ui.Modal, title="Поднять ставку"):
             notice = self.table.perform_action(interaction.user.id, "raise", amount)
             if notice.ok:
                 await self.table.update_message()
-        await interaction.edit_original_response(content=notice.text)
+        if notice.ok:
+            await interaction.delete_original_response()
+        else:
+            await interaction.edit_original_response(content=notice.text)
 
 
 class PokerTableView(discord.ui.View):
@@ -766,10 +836,13 @@ class PokerTableView(discord.ui.View):
             self.call_button.label = "Чек / Колл"
 
     async def _defer(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        # Component interactions can be acknowledged without creating a private
+        # "action accepted" message. The public table edit shows the result.
+        await interaction.response.defer()
 
     async def _notice(self, interaction: discord.Interaction, notice: TableNotice) -> None:
-        await interaction.edit_original_response(content=notice.text)
+        if not notice.ok:
+            await interaction.followup.send(notice.text, ephemeral=True)
 
     async def _act(self, interaction: discord.Interaction, action: str) -> None:
         await self._defer(interaction)
@@ -804,11 +877,12 @@ class PokerTableView(discord.ui.View):
             notice = self.table.start_hand(interaction.user.id)
             if notice.ok:
                 await self.table.update_message()
+                await self.table.send_private_hands()
         await self._notice(interaction, notice)
 
     @discord.ui.button(label="Мои карты", emoji="🃏", style=discord.ButtonStyle.secondary, row=1)
     async def cards_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        await self._defer(interaction)
+        await interaction.response.defer(ephemeral=True, thinking=True)
         game = self.table.game
         player = game.player_by_id(interaction.user.id) if game else None
         if player is None or not player.hole:

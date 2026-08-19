@@ -1,4 +1,5 @@
 import asyncio
+from io import BytesIO
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,7 @@ from cogs.holdem import (
     DiscordPokerTable,
     PokerMenuView,
     PokerTableView,
+    TableNotice,
     blind_structure,
     poker_channel_name,
 )
@@ -22,6 +24,10 @@ class FakeMember:
         self.id = user_id
         self.display_name = name
         self.display_avatar = FakeAvatar()
+        self.direct_messages = []
+
+    async def send(self, content, *, file):
+        self.direct_messages.append((content, file.filename))
 
 
 class FakeBot:
@@ -90,11 +96,46 @@ class PokerTableEconomyTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.table.start_hand(1).ok)
         self.assertEqual(1, self.table.game.hand_number)
 
+        self.table.private_hand_messages[1] = object()
+
         # End quickly by folding the heads-up dealer, then start again.
         current_id = self.table.game.current_player.user_id
         self.table.perform_action(current_id, "fold")
         self.assertTrue(self.table.start_hand(1).ok)
         self.assertEqual(2, self.table.game.hand_number)
+        self.assertEqual({}, self.table.private_hand_messages)
+
+    async def test_starting_hand_can_dm_cards_to_every_player(self):
+        one = FakeMember(1, "One")
+        two = FakeMember(2, "Two")
+        await self.table.seat_member(one)
+        await self.table.seat_member(two)
+        self.assertTrue(self.table.start_hand(1).ok)
+
+        with patch(
+            "cogs.holdem._render_private_hand",
+            side_effect=lambda *_args: BytesIO(b"fake-image"),
+        ):
+            await self.table.send_private_hands()
+
+        self.assertEqual(
+            [
+                (
+                    "Texas Hold’em · раздача **#1** · ваши карты:",
+                    "my_poker_hand.jpg",
+                )
+            ],
+            one.direct_messages,
+        )
+        self.assertEqual(
+            [
+                (
+                    "Texas Hold’em · раздача **#1** · ваши карты:",
+                    "my_poker_hand.jpg",
+                )
+            ],
+            two.direct_messages,
+        )
 
     async def test_close_refunds_every_seated_player(self):
         await self.table.seat_member(FakeMember(1, "One"))
@@ -165,7 +206,13 @@ class PokerTableEconomyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_first_hand_auto_starts_after_waiting_period(self):
         await self.table.seat_member(FakeMember(1, "One"))
-        with patch("cogs.holdem.TABLE_AUTO_START_SECONDS", 0):
+        with (
+            patch("cogs.holdem.TABLE_AUTO_START_SECONDS", 0),
+            patch(
+                "cogs.holdem._render_private_hand",
+                side_effect=lambda *_args: BytesIO(b"fake-image"),
+            ),
+        ):
             await self.table.seat_member(FakeMember(2, "Two"))
             await asyncio.sleep(0.02)
         self.assertTrue(self.table.hand_active)
@@ -219,6 +266,68 @@ class PokerLobbyContractTests(unittest.TestCase):
         )
         labels = [item.label for item in PokerTableView(table).children]
         self.assertNotIn("Сесть за стол", labels)
+
+    def test_combinations_guide_lists_hands_from_strongest_to_weakest(self):
+        embed = DiscordPokerTable.build_combinations_embed()
+
+        self.assertEqual("🃏 Комбинации карт", embed.title)
+        self.assertLess(
+            embed.description.index("Стрит-флеш"),
+            embed.description.index("Каре"),
+        )
+        self.assertLess(
+            embed.description.index("Пара"),
+            embed.description.index("Старшая карта"),
+        )
+
+
+class FakeFollowup:
+    def __init__(self):
+        self.messages = []
+
+    async def send(self, content, *, ephemeral):
+        self.messages.append((content, ephemeral))
+
+
+class FakeInteraction:
+    def __init__(self):
+        self.followup = FakeFollowup()
+
+
+class PokerTableNoticeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_success_notice_does_not_create_a_private_message(self):
+        table = DiscordPokerTable(
+            FakeCog(),
+            guild_id=10,
+            channel_id=20,
+            host_id=1,
+        )
+        view = PokerTableView(table)
+        interaction = FakeInteraction()
+
+        await view._notice(interaction, TableNotice(True, "Ход принят."))
+
+        self.assertEqual([], interaction.followup.messages)
+
+    async def test_error_notice_remains_visible_to_the_player(self):
+        table = DiscordPokerTable(
+            FakeCog(),
+            guild_id=10,
+            channel_id=20,
+            host_id=1,
+        )
+        view = PokerTableView(table)
+        interaction = FakeInteraction()
+
+        await view._notice(
+            interaction,
+            TableNotice(False, "Сейчас не ваш ход."),
+        )
+
+        self.assertEqual(
+            [("Сейчас не ваш ход.", True)],
+            interaction.followup.messages,
+        )
 
 
 if __name__ == "__main__":
