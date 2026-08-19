@@ -87,8 +87,7 @@ class RobberyCog(commands.Cog):
                     account["cash"] += stolen_amount
                     
                     save_economy()
-                    await interaction.followup.send(embed=robbery_embed("🔫 Удачное дело", f"Вы подкрались к {target.mention} и вытащили из его карманов **{stolen_amount} {get_cash_emoji()}**.", discord.Color.green()))
-                    await interaction.delete_original_response()
+                    await interaction.edit_original_response(embed=robbery_embed("🔫 Удачное дело", f"Вы подкрались к {target.mention} и вытащили из его карманов **{format_money_plain(stolen_amount)} {get_cash_emoji()}**.", discord.Color.green()))
                 else:
                     # Fail
                     fine_percent = 0.05 # 5% fine
@@ -97,12 +96,10 @@ class RobberyCog(commands.Cog):
                     if fine_amount > 0:
                         account["cash"] -= fine_amount
                         save_economy()
-                        await interaction.followup.send(embed=robbery_embed("🚨 Неудача", f"Шериф заметил вас при попытке ограбить {target.mention}. Во время погони вы обронили **{fine_amount} {get_cash_emoji()}**.", discord.Color.red()))
-                        await interaction.delete_original_response()
+                        await interaction.edit_original_response(embed=robbery_embed("🚨 Неудача", f"Шериф заметил вас при попытке ограбить {target.mention}. Во время погони вы обронили **{format_money_plain(fine_amount)} {get_cash_emoji()}**.", discord.Color.red()))
                     else:
                         save_economy()
-                        await interaction.followup.send(embed=robbery_embed("🚨 Неудача", f"Вы попытались ограбить {target.mention}, но получили отпор. К счастью, ваши карманы были пусты — вы ничего не потеряли.", discord.Color.red()))
-                        await interaction.delete_original_response()
+                        await interaction.edit_original_response(embed=robbery_embed("🚨 Неудача", f"Вы попытались ограбить {target.mention}, но получили отпор. К счастью, ваши карманы были пусты — вы ничего не потеряли.", discord.Color.red()))
         finally:
             reset_economy_guild_id(token)
 

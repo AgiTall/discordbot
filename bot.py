@@ -1821,7 +1821,16 @@ async def send_embed_response(
         kwargs["file"] = file
         
     if interaction.response.is_done():
-        await interaction.followup.send(**kwargs)
+        # Commands that touch PostgreSQL acknowledge the interaction first.
+        # Replace that deferred response so the user does not get a lingering
+        # "thinking" message plus a separate follow-up.
+        if interaction.response.type == discord.InteractionResponseType.deferred_channel_message:
+            edit_kwargs = {"embed": embed, "view": view}
+            if file is not None:
+                edit_kwargs["attachments"] = [file]
+            await interaction.edit_original_response(**edit_kwargs)
+        else:
+            await interaction.followup.send(**kwargs)
     else:
         await interaction.response.send_message(**kwargs)
 
@@ -1875,13 +1884,13 @@ async def send_loading_then_edit(
         
     if interaction.response.is_done():
         # The interaction was acknowledged before synchronous PostgreSQL I/O.
-        # Send the result immediately instead of attempting a second response.
-        result_kwargs = {"embed": embed, "ephemeral": ephemeral}
+        # Replace the deferred response with the result.
+        result_kwargs = {"embed": embed}
         if view is not None:
             result_kwargs["view"] = view
         if file is not None:
-            result_kwargs["file"] = file
-        await interaction.followup.send(**result_kwargs)
+            result_kwargs["attachments"] = [file]
+        await interaction.edit_original_response(**result_kwargs)
         return
 
     await interaction.response.send_message(**send_kwargs)
@@ -4735,6 +4744,10 @@ async def dealer_command(
         )
         return
 
+    # PostgreSQL may be hosted outside the bot provider and can exceed
+    # Discord's three-second response deadline.
+    await interaction.response.defer(thinking=True)
+
     async with economy_lock:
         update_gold_rate()
         account = get_account(interaction.user.id)
@@ -4824,6 +4837,8 @@ async def dealer_delivery_command(interaction: discord.Interaction):
             ephemeral=True,
         )
         return
+
+    await interaction.response.defer(thinking=True)
 
     async with economy_lock:
         update_gold_rate()
