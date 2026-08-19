@@ -39,6 +39,11 @@ class RobberyCog(commands.Cog):
             if target.id == interaction.user.id:
                 await interaction.response.send_message(embed=robbery_embed("🚫 Не та цель", "Вы не можете ограбить самого себя.", discord.Color.dark_grey()), ephemeral=True)
                 return
+
+            # Saving the economy can take longer than Discord's three-second
+            # interaction deadline when PostgreSQL is hosted outside Heroku.
+            # Acknowledge the command before any database work begins.
+            await interaction.response.defer(ephemeral=True, thinking=True)
                 
             async with economy_lock:
                 account = get_account(interaction.user.id)
@@ -55,11 +60,11 @@ class RobberyCog(commands.Cog):
                         remaining = int(ROB_COOLDOWN_HOURS * 3600 - diff)
                         hours, remainder = divmod(remaining, 3600)
                         minutes, seconds = divmod(remainder, 60)
-                        await interaction.response.send_message(embed=robbery_embed("⭐ Розыск", f"Шериф всё ещё ищет вас. Залягте на дно ещё на **{hours} ч. {minutes} м.**", discord.Color.orange()), ephemeral=True)
+                        await interaction.edit_original_response(embed=robbery_embed("⭐ Розыск", f"Шериф всё ещё ищет вас. Залягте на дно ещё на **{hours} ч. {minutes} м.**", discord.Color.orange()))
                         return
                         
                 if target_account.get("cash", 0.0) < 50:
-                    await interaction.response.send_message(embed=robbery_embed("🪙 Пустые карманы", f"У {target.mention} в карманах почти пусто. Ищите цель побогаче.", discord.Color.dark_grey()), ephemeral=True)
+                    await interaction.edit_original_response(embed=robbery_embed("🪙 Пустые карманы", f"У {target.mention} в карманах почти пусто. Ищите цель побогаче.", discord.Color.dark_grey()))
                     return
                     
                 # Setup robbery
@@ -82,7 +87,8 @@ class RobberyCog(commands.Cog):
                     account["cash"] += stolen_amount
                     
                     save_economy()
-                    await interaction.response.send_message(embed=robbery_embed("🔫 Удачное дело", f"Вы подкрались к {target.mention} и вытащили из его карманов **{stolen_amount} {get_cash_emoji()}**.", discord.Color.green()))
+                    await interaction.followup.send(embed=robbery_embed("🔫 Удачное дело", f"Вы подкрались к {target.mention} и вытащили из его карманов **{stolen_amount} {get_cash_emoji()}**.", discord.Color.green()))
+                    await interaction.delete_original_response()
                 else:
                     # Fail
                     fine_percent = 0.05 # 5% fine
@@ -91,10 +97,12 @@ class RobberyCog(commands.Cog):
                     if fine_amount > 0:
                         account["cash"] -= fine_amount
                         save_economy()
-                        await interaction.response.send_message(embed=robbery_embed("🚨 Неудача", f"Шериф заметил вас при попытке ограбить {target.mention}. Во время погони вы обронили **{fine_amount} {get_cash_emoji()}**.", discord.Color.red()))
+                        await interaction.followup.send(embed=robbery_embed("🚨 Неудача", f"Шериф заметил вас при попытке ограбить {target.mention}. Во время погони вы обронили **{fine_amount} {get_cash_emoji()}**.", discord.Color.red()))
+                        await interaction.delete_original_response()
                     else:
                         save_economy()
-                        await interaction.response.send_message(embed=robbery_embed("🚨 Неудача", f"Вы попытались ограбить {target.mention}, но получили отпор. К счастью, ваши карманы были пусты — вы ничего не потеряли.", discord.Color.red()))
+                        await interaction.followup.send(embed=robbery_embed("🚨 Неудача", f"Вы попытались ограбить {target.mention}, но получили отпор. К счастью, ваши карманы были пусты — вы ничего не потеряли.", discord.Color.red()))
+                        await interaction.delete_original_response()
         finally:
             reset_economy_guild_id(token)
 
